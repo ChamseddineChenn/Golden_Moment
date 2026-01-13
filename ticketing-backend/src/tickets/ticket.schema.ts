@@ -33,6 +33,9 @@ export class Ticket extends Document {
   @Prop()
   usedAt?: Date;
 
+  @Prop()
+  expiresAt?: Date;
+
   @Prop({ type: Object, default: {} })
   metadata: Record<string, any>;
 }

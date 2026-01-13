@@ -14,19 +14,45 @@ export default function EventForm({ onSuccess }: EventFormProps) {
     date: '',
     venue: '',
     totalSeats: '',
+    category: 'Concert',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
+  };
+
+  // Helper function to parse datetime-local input correctly
+  const parseDatetimeLocal = (dateTimeString: string): string => {
+    if (!dateTimeString) return new Date().toISOString();
+    
+    // Split into date and time parts: "2026-01-13T14:30" -> ["2026-01-13", "14:30"]
+    const [datePart, timePart] = dateTimeString.split('T');
+    const [year, month, day] = datePart.split('-');
+    const [hours, minutes] = timePart.split(':');
+    
+    // Create date in local timezone
+    const date = new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day),
+      parseInt(hours),
+      parseInt(minutes),
+      0,
+      0
+    );
+    
+    return date.toISOString();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,7 +64,7 @@ export default function EventForm({ onSuccess }: EventFormProps) {
       const eventData = {
         ...formData,
         totalSeats: parseInt(formData.totalSeats, 10),
-        date: new Date(formData.date).toISOString(),
+        date: parseDatetimeLocal(formData.date),
       };
 
       await eventsAPI.create(eventData);
@@ -50,6 +76,7 @@ export default function EventForm({ onSuccess }: EventFormProps) {
         date: '',
         venue: '',
         totalSeats: '',
+        category: 'Concert',
       });
 
       setTimeout(() => setSuccess(false), 3000);
@@ -147,6 +174,24 @@ export default function EventForm({ onSuccess }: EventFormProps) {
           placeholder="500"
           min="1"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Category
+        </label>
+        <select
+          name="category"
+          value={formData.category}
+          onChange={handleChange}
+          required
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="Movies">🎬 Movies</option>
+          <option value="Theatre">🎭 Theatre</option>
+          <option value="Concert">🎵 Concert</option>
+          <option value="Sahra">🌙 Sahra</option>
+        </select>
       </div>
 
       <button

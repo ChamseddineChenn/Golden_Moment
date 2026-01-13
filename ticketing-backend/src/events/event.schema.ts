@@ -24,8 +24,14 @@ export class Event extends Document {
   @Prop({ default: 0 })
   soldTickets: number;
 
+  @Prop({ default: 0 })
+  ticketPrice: number;
+
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ enum: ['Movies', 'Theatre', 'Concert', 'Sahra'], default: 'Concert' })
+  category: string;
 }
 
 export const EventSchema = SchemaFactory.createForClass(Event);

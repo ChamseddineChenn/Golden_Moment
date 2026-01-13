@@ -26,6 +26,14 @@ export class TicketsService {
       createTicketDto.eventId.toString(),
     );
 
+    // Get event details to calculate expiration time (15 minutes after event start)
+    const event = await this.eventsService.findById(
+      createTicketDto.eventId.toString(),
+    );
+    const expiresAt = event
+      ? new Date(new Date(event.date).getTime() + 15 * 60 * 1000)
+      : undefined;
+
     // Generate QR code data (contains ticket info)
     const qrData = {
       ticketNumber,
@@ -36,7 +44,7 @@ export class TicketsService {
 
     // Generate QR code as data URL
     const qrCode = await QRCode.toDataURL(JSON.stringify(qrData));
-    const ticketData = { ...createTicketDto, ticketNumber, qrCode };
+    const ticketData = { ...createTicketDto, ticketNumber, qrCode, expiresAt };
 
     const createdTicket = new this.ticketModel(ticketData);
     const savedTicket = await createdTicket.save();
@@ -107,9 +115,9 @@ export class TicketsService {
       };
     }
 
-    // Check if ticket is expired (event date has passed)
-    const eventInfo = ticket.eventId as any;
-    if (eventInfo && new Date(eventInfo.date) < new Date()) {
+    // Check if ticket is expired (15 minutes after event start)
+    const now = new Date();
+    if (ticket.expiresAt && now > new Date(ticket.expiresAt)) {
       // Update status to expired if not already
       if (ticket.status !== TicketStatus.EXPIRED) {
         await this.ticketModel.findByIdAndUpdate(ticket._id, {
@@ -119,7 +127,8 @@ export class TicketsService {
       }
       return {
         success: false,
-        message: 'This ticket has expired. The event has already passed.',
+        message:
+          'This ticket has expired. The 15-minute entry window has closed.',
         ticket,
       };
     }

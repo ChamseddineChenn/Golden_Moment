@@ -5,4 +5,5 @@ export class CreateEventDto {
   venue: string;
   totalSeats: number;
   seatingLayout?: Record<string, any>;
+  category?: string;
 }
