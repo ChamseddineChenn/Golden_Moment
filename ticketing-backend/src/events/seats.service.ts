@@ -150,19 +150,32 @@ export class SeatsService {
     eventId: string,
     seatIds: { sectionId: string; seatId: string }[],
   ) {
-    console.log('[SeatsService] finalizePurchase called for eventId:', eventId);
+    console.log('='.repeat(80));
+    console.log('[SeatsService] ========== FINALIZE PURCHASE START ==========');
+    console.log('[SeatsService] EventID:', eventId);
+    console.log(
+      '[SeatsService] Seats to lock:',
+      seatIds.map((s) => `${s.sectionId}/${s.seatId}`).join(', '),
+    );
+
     const event = await this.eventModel.findById(eventId);
     if (!event) {
+      console.error('[SeatsService] ERROR: Event not found!');
       throw new BadRequestException('Event not found');
     }
 
     // SECURITY CHECK #1: Pre-verify all seats are still available
-    console.log('[SeatsService] SECURITY CHECK #1: Verifying all seats are available...');
+    console.log(
+      '[SeatsService] SECURITY CHECK #1: Verifying all seats are available...',
+    );
     for (const seatRequest of seatIds) {
       const section = event.seatingLayout.sections.find(
         (s) => s.id === seatRequest.sectionId,
       );
       if (!section) {
+        console.error(
+          `[SeatsService] ERROR: Section ${seatRequest.sectionId} not found!`,
+        );
         throw new BadRequestException(
           `Section ${seatRequest.sectionId} not found`,
         );
@@ -170,25 +183,39 @@ export class SeatsService {
 
       const seat = section.seats.find((s) => s.seatId === seatRequest.seatId);
       if (!seat) {
+        console.error(
+          `[SeatsService] ERROR: Seat ${seatRequest.seatId} not found in section!`,
+        );
         throw new BadRequestException(
           `Seat ${seatRequest.seatId} not found in section ${seatRequest.sectionId}`,
         );
       }
 
       if (seat.status !== 'available') {
+        console.error(
+          `[SeatsService] ❌ RACE CONDITION DETECTED: Seat ${seatRequest.seatId} already ${seat.status}!`,
+        );
         throw new ConflictException(
           `Seat ${seatRequest.seatId} is no longer available (status: ${seat.status})`,
         );
       }
-      console.log(`[SeatsService] ✓ Seat ${seatRequest.seatId} is available`);
+      console.log(
+        `[SeatsService]   ✅ Seat ${seatRequest.seatId} is available`,
+      );
     }
 
     // SECURITY CHECK #2: Atomically mark ALL seats as unavailable
     // This uses MongoDB's arrayFilters to target specific seats
     // If the query condition fails (seat is no longer available), modifiedCount will be 0
-    console.log('[SeatsService] SECURITY CHECK #2: Atomically locking seats...');
+    console.log(
+      '[SeatsService] SECURITY CHECK #2: Atomically locking seats via MongoDB...',
+    );
 
     for (const seatRequest of seatIds) {
+      console.log(
+        `[SeatsService]   Locking seat: ${seatRequest.sectionId}/${seatRequest.seatId}`,
+      );
+
       // Atomic update: Only mark as unavailable IF it's still available
       const updateResult = await this.eventModel.updateOne(
         {
@@ -209,10 +236,17 @@ export class SeatsService {
         },
       );
 
+      console.log(
+        `[SeatsService]   MongoDB updateOne result - matchedCount: ${updateResult.matchedCount}, modifiedCount: ${updateResult.modifiedCount}`,
+      );
+
       // If modifiedCount is 0, another customer bought this seat during checkout!
       if (updateResult.modifiedCount === 0) {
         console.error(
-          `[SeatsService] RACE CONDITION DETECTED: Seat ${seatRequest.seatId} was sold by another customer`,
+          `[SeatsService] ❌ CRITICAL: RACE CONDITION DETECTED - Seat ${seatRequest.seatId} was sold by another customer!`,
+        );
+        console.error(
+          `[SeatsService] This means two customers tried to buy the same seat simultaneously.`,
         );
         throw new ConflictException(
           `Seat ${seatRequest.seatId} was just sold by another customer. Please try selecting different seats.`,
@@ -220,7 +254,7 @@ export class SeatsService {
       }
 
       console.log(
-        `[SeatsService] ✓ Seat ${seatRequest.seatId} atomically locked (unavailable)`,
+        `[SeatsService]   ✅ Seat ${seatRequest.seatId} ATOMICALLY LOCKED (unavailable)`,
       );
     }
 
@@ -234,12 +268,14 @@ export class SeatsService {
             .map((s) => `${section.id}/${s.seatId}`),
       );
       console.log(
-        '[SeatsService] Final state - unavailable seats in DB:',
-        finalUnavailableSeats,
+        '[SeatsService] Final verification - Total unavailable seats in DB:',
+        finalUnavailableSeats.length,
+        `[${finalUnavailableSeats.join(', ')}]`,
       );
     }
 
-    console.log('[SeatsService] finalizePurchase completed successfully');
+    console.log('[SeatsService] ========== FINALIZE PURCHASE SUCCESS ==========');
+    console.log('='.repeat(80));
     return { soldSeats: seatIds };
   }
 

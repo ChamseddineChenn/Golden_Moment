@@ -47,9 +47,13 @@ export class TicketsService {
 
   async create(createTicketDto: CreateTicketDto): Promise<Ticket> {
     console.log(
-      '[TicketsService] Creating ticket with seats:',
-      createTicketDto.seats,
+      '[TicketsService] ========== TICKET CREATION START ==========',
     );
+    console.log(
+      '[TicketsService] Creating ticket for event:',
+      createTicketDto.eventId,
+    );
+    console.log('[TicketsService] Requested seats:', createTicketDto.seats);
 
     // Get event details to check if event has passed
     const event = await this.eventsService.findById(
@@ -78,6 +82,46 @@ export class TicketsService {
           seatId: `SEAT-${String(ticketCountForEvent + 1).padStart(4, '0')}`,
         },
       ];
+    }
+
+    // ⚠️ CRITICAL: LOCK SEATS BEFORE CREATING TICKET
+    // This ensures atomicity - if seat locking fails, ticket creation is never attempted
+    const seatsWithSection = createTicketDto.seats.filter(
+      (s) => s.sectionId,
+    );
+
+    if (seatsWithSection.length > 0) {
+      console.log(
+        '[TicketsService] ⚠️  CRITICAL SECTION: Atomically locking seats BEFORE ticket creation',
+      );
+      console.log(
+        '[TicketsService] Seats to lock:',
+        seatsWithSection.map((s) => `${s.sectionId}/${s.seatId}`).join(', '),
+      );
+
+      try {
+        // Call finalizePurchase BEFORE ticket creation
+        // If this fails, ticket is NOT created - preserving atomicity
+        await this.seatsService.finalizePurchase(
+          createTicketDto.eventId.toString(),
+          seatsWithSection as { sectionId: string; seatId: string }[],
+        );
+        console.log(
+          '[TicketsService] ✅ Seats successfully locked (atomic operation)',
+        );
+      } catch (err: any) {
+        // DO NOT CATCH race conditions - let them propagate!
+        // This ensures the client knows the purchase failed due to double-booking
+        console.error(
+          '[TicketsService] ❌ CRITICAL: Seat locking FAILED - Aborting ticket creation',
+        );
+        console.error('[TicketsService] Error details:', err.message);
+        throw err; // Re-throw so ticket is never created
+      }
+    } else {
+      console.log(
+        '[TicketsService] No seats with sectionId (auto-assigned seat case)',
+      );
     }
 
     // Auto-generate unique ticket number
@@ -120,6 +164,7 @@ export class TicketsService {
       totalPrice = event.ticketPrice || 0;
     }
 
+    console.log('[TicketsService] Creating ticket document...');
     const ticketData = {
       eventId: createTicketDto.eventId,
       seats: createTicketDto.seats,
@@ -134,47 +179,7 @@ export class TicketsService {
 
     const createdTicket = new this.ticketModel(ticketData);
     const savedTicket = await createdTicket.save();
-
-    // Finalize seat purchase for visual seating events (mark seats as unavailable)
-    if (createTicketDto.seats && createTicketDto.seats.length > 0) {
-      try {
-        // For seats with sectionId (from SeatMap), mark as unavailable (sold)
-        const seatsWithSection = createTicketDto.seats.filter(
-          (s) => s.sectionId,
-        );
-        console.log(
-          '[TicketsService] Seats after filtering for sectionId:',
-          seatsWithSection,
-        );
-        console.log(
-          '[TicketsService] Total seats:',
-          createTicketDto.seats.length,
-          'With sectionId:',
-          seatsWithSection.length,
-        );
-
-        if (seatsWithSection.length > 0) {
-          console.log(
-            '[TicketsService] Calling finalizePurchase with seats:',
-            seatsWithSection,
-          );
-          await this.seatsService.finalizePurchase(
-            createTicketDto.eventId.toString(),
-            seatsWithSection as { sectionId: string; seatId: string }[],
-          );
-          console.log(
-            '[TicketsService] finalizePurchase completed successfully',
-          );
-        } else {
-          console.log(
-            '[TicketsService] No seats with sectionId to finalize (auto-assigned seat case)',
-          );
-        }
-      } catch (err) {
-        // Log but don't fail the ticket creation
-        console.error('[TicketsService] Error finalizing seat purchase:', err);
-      }
-    }
+    console.log('[TicketsService] ✅ Ticket created successfully:', savedTicket._id);
 
     // Update event's sold tickets count
     // For visual seating: count unavailable seats, otherwise count tickets
@@ -189,6 +194,10 @@ export class TicketsService {
       await this.eventsService.update(createTicketDto.eventId.toString(), {
         soldTickets: unavailableSeatsCount,
       });
+      console.log(
+        '[TicketsService] Updated event soldTickets count:',
+        unavailableSeatsCount,
+      );
     } else {
       // For non-visual seating: count tickets
       const ticketCountForEvent = await this.ticketModel.countDocuments({
@@ -199,6 +208,7 @@ export class TicketsService {
       });
     }
 
+    console.log('[TicketsService] ========== TICKET CREATION SUCCESS ==========');
     return savedTicket;
   }
 
