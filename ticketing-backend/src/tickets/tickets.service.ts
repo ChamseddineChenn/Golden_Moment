@@ -46,21 +46,18 @@ export class TicketsService {
   }
 
   async create(createTicketDto: CreateTicketDto): Promise<Ticket> {
-    console.log(
-      '[TicketsService] ========== TICKET CREATION START ==========',
-    );
-    console.log(
-      '[TicketsService] Creating ticket for event:',
-      createTicketDto.eventId,
-    );
-    console.log('[TicketsService] Requested seats:', createTicketDto.seats);
+    console.log('[TicketsService] ========== TICKET CREATION START ==========');
+    console.log('[TicketsService] EventID:', createTicketDto.eventId);
+    console.log('[TicketsService] Seats requested:', createTicketDto.seats);
+    console.log('[TicketsService] Buyer:', createTicketDto.buyerName, '<', createTicketDto.buyerEmail, '>');
 
-    // Get event details to check if event has passed
+    // Get event details
     const event = await this.eventsService.findById(
       createTicketDto.eventId.toString(),
     );
 
     if (!event) {
+      console.error('[TicketsService] ERROR: Event not found');
       throw new Error('Event not found');
     }
 
@@ -71,7 +68,7 @@ export class TicketsService {
       throw new Error('Cannot purchase tickets for past events');
     }
 
-    // Auto-assign seats if not provided (single auto-assigned seat)
+    // Auto-assign seats if not provided
     if (!createTicketDto.seats || createTicketDto.seats.length === 0) {
       console.log('[TicketsService] No seats provided, auto-assigning...');
       const ticketCountForEvent = await this.ticketModel.countDocuments({
@@ -84,53 +81,29 @@ export class TicketsService {
       ];
     }
 
-    // ⚠️ CRITICAL: LOCK SEATS BEFORE CREATING TICKET
-    // This ensures atomicity - if seat locking fails, ticket creation is never attempted
-    const seatsWithSection = createTicketDto.seats.filter(
-      (s) => s.sectionId,
-    );
-
+    // CRITICAL: Atomically lock seats BEFORE creating ticket
+    // This prevents double-booking by ensuring only one customer can buy each seat
+    const seatsWithSection = createTicketDto.seats.filter((s) => s.sectionId);
+    
     if (seatsWithSection.length > 0) {
-      console.log(
-        '[TicketsService] ⚠️  CRITICAL SECTION: Atomically locking seats BEFORE ticket creation',
+      console.log('[TicketsService] CRITICAL: Locking seats before ticket creation');
+      console.log('[TicketsService] Seats with sectionId:', seatsWithSection.length);
+      
+      // Call finalizePurchase - this will throw ConflictException if seat already sold
+      // If this throws, the ticket will NEVER be created
+      await this.seatsService.finalizePurchase(
+        createTicketDto.eventId.toString(),
+        seatsWithSection as { sectionId: string; seatId: string }[],
       );
-      console.log(
-        '[TicketsService] Seats to lock:',
-        seatsWithSection.map((s) => `${s.sectionId}/${s.seatId}`).join(', '),
-      );
-
-      try {
-        // Call finalizePurchase BEFORE ticket creation
-        // If this fails, ticket is NOT created - preserving atomicity
-        await this.seatsService.finalizePurchase(
-          createTicketDto.eventId.toString(),
-          seatsWithSection as { sectionId: string; seatId: string }[],
-        );
-        console.log(
-          '[TicketsService] ✅ Seats successfully locked (atomic operation)',
-        );
-      } catch (err: any) {
-        // DO NOT CATCH race conditions - let them propagate!
-        // This ensures the client knows the purchase failed due to double-booking
-        console.error(
-          '[TicketsService] ❌ CRITICAL: Seat locking FAILED - Aborting ticket creation',
-        );
-        console.error('[TicketsService] Error details:', err.message);
-        throw err; // Re-throw so ticket is never created
-      }
+      console.log('[TicketsService] ✅ Seats atomically locked successfully');
     } else {
-      console.log(
-        '[TicketsService] No seats with sectionId (auto-assigned seat case)',
-      );
+      console.log('[TicketsService] No seats with sectionId (auto-assigned case)');
     }
 
-    // Auto-generate unique ticket number
+    // NOW create the ticket (after seats are locked)
     const ticketNumber = await this.generateTicketNumber();
-
-    // Calculate expiration time (15 minutes after event start)
     const expiresAt = new Date(eventDate.getTime() + 15 * 60 * 1000);
 
-    // Generate QR code data (contains ticket info)
     const qrData = {
       ticketNumber,
       eventId: createTicketDto.eventId,
@@ -138,21 +111,13 @@ export class TicketsService {
       timestamp: new Date().toISOString(),
     };
 
-    // Generate QR code as data URL
     const qrCode = await QRCode.toDataURL(JSON.stringify(qrData));
 
-    // Calculate total price based on seats
+    // Calculate total price
     let totalPrice = 0;
-    if (
-      createTicketDto.seats &&
-      createTicketDto.seats.length > 0 &&
-      event.seatingLayout?.enabled
-    ) {
-      // For visual seating, calculate price per seat
+    if (createTicketDto.seats && createTicketDto.seats.length > 0 && event.seatingLayout?.enabled) {
       for (const seat of createTicketDto.seats) {
-        const section = event.seatingLayout.sections.find(
-          (s) => s.id === seat.sectionId,
-        );
+        const section = event.seatingLayout.sections.find((s) => s.id === seat.sectionId);
         if (section) {
           totalPrice += event.ticketPrice + (section.priceModifier || 0);
         } else {
@@ -160,7 +125,6 @@ export class TicketsService {
         }
       }
     } else {
-      // For non-visual seating, use base ticket price
       totalPrice = event.ticketPrice || 0;
     }
 
@@ -179,27 +143,19 @@ export class TicketsService {
 
     const createdTicket = new this.ticketModel(ticketData);
     const savedTicket = await createdTicket.save();
-    console.log('[TicketsService] ✅ Ticket created successfully:', savedTicket._id);
+    console.log('[TicketsService] ✅ Ticket saved:', savedTicket._id);
 
     // Update event's sold tickets count
-    // For visual seating: count unavailable seats, otherwise count tickets
     if (event.seatingLayout?.enabled) {
-      // Count unavailable seats across all sections
       let unavailableSeatsCount = 0;
       for (const section of event.seatingLayout.sections) {
-        unavailableSeatsCount += section.seats.filter(
-          (s) => s.status === 'unavailable',
-        ).length;
+        unavailableSeatsCount += section.seats.filter((s) => s.status === 'unavailable').length;
       }
       await this.eventsService.update(createTicketDto.eventId.toString(), {
         soldTickets: unavailableSeatsCount,
       });
-      console.log(
-        '[TicketsService] Updated event soldTickets count:',
-        unavailableSeatsCount,
-      );
+      console.log('[TicketsService] Updated soldTickets count:', unavailableSeatsCount);
     } else {
-      // For non-visual seating: count tickets
       const ticketCountForEvent = await this.ticketModel.countDocuments({
         eventId: createTicketDto.eventId,
       });
