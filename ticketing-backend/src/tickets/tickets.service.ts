@@ -110,8 +110,7 @@ export class TicketsService {
           (s) => s.id === seat.sectionId,
         );
         if (section) {
-          totalPrice +=
-            event.ticketPrice + (section.priceModifier || 0);
+          totalPrice += event.ticketPrice + (section.priceModifier || 0);
         } else {
           totalPrice += event.ticketPrice;
         }

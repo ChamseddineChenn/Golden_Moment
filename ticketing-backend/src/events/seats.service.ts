@@ -36,15 +36,15 @@ export class SeatsService {
     const reservingSeats = event.seatingLayout.sections.flatMap((section) =>
       section.seats
         .filter((s) => s.status === 'reserving')
-        .map((s) => `${section.id}/${s.seatId}`)
+        .map((s) => `${section.id}/${s.seatId}`),
     );
     const unavailableSeats = event.seatingLayout.sections.flatMap((section) =>
       section.seats
         .filter((s) => s.status === 'unavailable')
-        .map((s) => `${section.id}/${s.seatId}`)
+        .map((s) => `${section.id}/${s.seatId}`),
     );
     console.log(
-      `[SeatsService] getSeatMap: reserving=${reservingSeats.length} [${reservingSeats.join(', ')}], unavailable=${unavailableSeats.length}`
+      `[SeatsService] getSeatMap: reserving=${reservingSeats.length} [${reservingSeats.join(', ')}], unavailable=${unavailableSeats.length}`,
     );
 
     // Return the seating layout with current seat statuses
@@ -98,24 +98,22 @@ export class SeatsService {
     return initializedSections;
   }
 
-  // Generate seat matrix from section info (rows and columns)
-  private generateSeatMatrix(section: SeatSection): Seat[] {
+  // Helper function to generate a seat matrix
+  private generateSeatMatrix(section: any) {
     const seats: Seat[] = [];
-    const sectionPrefix = section.name.charAt(0).toUpperCase();
+    const rows = section.rows || 10;
+    const columns = section.columns || 10;
+    const startRow = section.startRow || 1;
+    const startCol = section.startCol || 'A';
 
-    // Parse rows and columns from section
-    // Assuming section has rows and columns properties
-    const rows = (section as any).rows || 10;
-    const columns = (section as any).columns || 10;
-
-    for (let row = 1; row <= rows; row++) {
+    for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
-        const columnLetter = String.fromCharCode(65 + col); // A, B, C...
         seats.push({
-          seatId: `${sectionPrefix}-${columnLetter}${row}`,
-          row,
-          column: columnLetter,
+          seatId: `${section.id}-${startRow + row}${String.fromCharCode(startCol.charCodeAt(0) + col)}`,
+          row: startRow + row,
+          column: String.fromCharCode(startCol.charCodeAt(0) + col),
           status: 'available',
+          reservingUntil: undefined,
         });
       }
     }
@@ -123,107 +121,31 @@ export class SeatsService {
     return seats;
   }
 
-  // Reserve seats (mark as "reserving" for 20 minutes)
+  // DEPRECATED: Live reservation removed - seats only locked at payment
   async reserveSeats(
     eventId: string,
     seatIds: { sectionId: string; seatId: string }[],
   ) {
-    console.log('='.repeat(60));
-    console.log('[SeatsService] reserveSeats START');
-    console.log('[SeatsService] eventId:', eventId);
-    console.log('[SeatsService] seatIds:', JSON.stringify(seatIds));
-
-    const event = await this.eventModel.findById(eventId);
-    if (!event) {
-      throw new BadRequestException('Event not found');
-    }
-
-    // Log current state of ALL seats before update
-    const beforeReservingSeats = event.seatingLayout.sections.flatMap(
-      (section) =>
-        section.seats
-          .filter((s) => s.status === 'reserving')
-          .map((s) => `${section.id}/${s.seatId}`)
+    console.log('[SeatsService] reserveSeats is DEPRECATED - live reservation disabled');
+    throw new BadRequestException(
+      'Live reservation disabled. Seats are locked only at payment time. Please proceed to checkout to finalize your seats.',
     );
-    console.log('[SeatsService] BEFORE update, reserving seats in DB:', beforeReservingSeats);
-
-    const reservingUntil = new Date(Date.now() + 20 * 60 * 1000); // 20 minutes
-
-    // Use atomic operations to avoid race conditions
-    // For each seat, atomically update using a targeted query
-    for (const seatRequest of seatIds) {
-      const section = event.seatingLayout.sections.find(
-        (s) => s.id === seatRequest.sectionId,
-      );
-      if (!section) {
-        console.log('[SeatsService] ERROR: Section not found:', seatRequest.sectionId);
-        throw new BadRequestException(
-          `Section ${seatRequest.sectionId} not found`,
-        );
-      }
-
-      const seat = section.seats.find((s) => s.seatId === seatRequest.seatId);
-      if (!seat) {
-        console.log('[SeatsService] ERROR: Seat not found:', seatRequest.seatId);
-        throw new BadRequestException(
-          `Seat ${seatRequest.seatId} not found in section ${seatRequest.sectionId}`,
-        );
-      }
-
-      console.log('[SeatsService] Seat current status:', seat.seatId, '=', seat.status);
-
-      if (seat.status === 'unavailable') {
-        throw new ConflictException(
-          `Seat ${seatRequest.seatId} is already sold`,
-        );
-      }
-
-      // Use atomic update with arrayFilters to target the specific seat by seatId
-      console.log('[SeatsService] Executing updateOne with arrayFilters for seat:', seatRequest.seatId);
-      
-      const updateResult = await this.eventModel.updateOne(
-        { 
-          _id: eventId,
-        },
-        {
-          $set: {
-            'seatingLayout.sections.$[section].seats.$[seat].status': 'reserving',
-            'seatingLayout.sections.$[section].seats.$[seat].reservingUntil': reservingUntil,
-          },
-        },
-        {
-          arrayFilters: [
-            { 'section.id': seatRequest.sectionId },
-            { 'seat.seatId': seatRequest.seatId },
-          ],
-        }
-      );
-
-      console.log('[SeatsService] updateOne result:', JSON.stringify(updateResult));
-    }
-
-    // Verify what was actually saved
-    const savedEvent = await this.eventModel.findById(eventId);
-    if (savedEvent) {
-      const savedReservingSeats = savedEvent.seatingLayout.sections.flatMap(
-        (section) =>
-          section.seats
-            .filter((s) => s.status === 'reserving')
-            .map((s) => `${section.id}/${s.seatId}`)
-      );
-      console.log('[SeatsService] AFTER update, reserving seats in DB:', savedReservingSeats);
-    }
-
-    console.log('[SeatsService] reserveSeats END');
-    console.log('='.repeat(60));
-
-    return {
-      reservedSeats: seatIds,
-      expiresAt: reservingUntil,
-    };
   }
 
-  // Finalize purchase - mark seats as unavailable permanently
+  // DEPRECATED: Unreserve is no longer needed since live reservation is disabled
+  async unreserveSeats(
+    eventId: string,
+    seatIds: { sectionId: string; seatId: string }[],
+  ) {
+    console.log('[SeatsService] unreserveSeats is DEPRECATED - live reservation disabled');
+    throw new BadRequestException(
+      'Unreserve is no longer available. Seats are only locked at payment time.',
+    );
+  }
+
+  // ATOMIC PAYMENT-BASED SEAT LOCKING
+  // SECURITY: Uses MongoDB atomic operations with race condition detection
+  // If any seat is no longer 'available' when we try to buy it, rejects with 409 Conflict
   async finalizePurchase(
     eventId: string,
     seatIds: { sectionId: string; seatId: string }[],
@@ -234,129 +156,48 @@ export class SeatsService {
       throw new BadRequestException('Event not found');
     }
 
-    console.log(
-      '[SeatsService] Event found. Available sections:',
-      event.seatingLayout.sections.map((s) => s.id),
-    );
-
-    let seatsModified = false;
+    // SECURITY CHECK #1: Pre-verify all seats are still available
+    console.log('[SeatsService] SECURITY CHECK #1: Verifying all seats are available...');
     for (const seatRequest of seatIds) {
-      console.log('[SeatsService] Processing seat request:', seatRequest);
       const section = event.seatingLayout.sections.find(
         (s) => s.id === seatRequest.sectionId,
       );
-      console.log(
-        '[SeatsService] Section found:',
-        !!section,
-        'Looking for section:',
-        seatRequest.sectionId,
-      );
-
       if (!section) {
-        console.log('[SeatsService] Section not found, skipping');
-        continue; // Skip if section not found
-      }
-
-      const seat = section.seats.find((s) => s.seatId === seatRequest.seatId);
-      console.log(
-        '[SeatsService] Seat found:',
-        !!seat,
-        'Current status:',
-        seat?.status,
-      );
-
-      if (seat) {
-        console.log(
-          '[SeatsService] Marking seat unavailable:',
-          seatRequest.seatId,
+        throw new BadRequestException(
+          `Section ${seatRequest.sectionId} not found`,
         );
-        seat.status = 'unavailable'; // Permanently sold
-        seat.reservingUntil = undefined; // Clear reservation timer
-        seatsModified = true;
-      }
-    }
-
-    // Mark the seatingLayout as modified so Mongoose will save it
-    if (seatsModified) {
-      console.log(
-        '[SeatsService] Marking seatingLayout as modified for Mongoose',
-      );
-      event.markModified('seatingLayout');
-    }
-
-    console.log('[SeatsService] Saving event...');
-    await event.save();
-    console.log('[SeatsService] Event saved successfully');
-
-    // Verify what was actually saved
-    const savedEvent = await this.eventModel.findById(event._id);
-    if (savedEvent) {
-      const savedUnavailableSeats = savedEvent.seatingLayout.sections.flatMap(
-        (section) =>
-          section.seats
-            .filter((s) => s.status === 'unavailable')
-            .map((s) => `${section.id}/${s.seatId}`)
-      );
-      console.log(
-        '[SeatsService] After finalizePurchase, unavailable seats in DB:',
-        savedUnavailableSeats
-      );
-    }
-
-    return { soldSeats: seatIds };
-  }
-
-  // Unreserve seats (revert "reserving" back to "available")
-  async unreserveSeats(
-    eventId: string,
-    seatIds: { sectionId: string; seatId: string }[],
-  ) {
-    console.log('='.repeat(60));
-    console.log('[SeatsService] unreserveSeats START');
-    console.log('[SeatsService] eventId:', eventId);
-    console.log('[SeatsService] seatIds:', JSON.stringify(seatIds));
-
-    const event = await this.eventModel.findById(eventId);
-    if (!event) {
-      console.log('[SeatsService] ERROR: Event not found');
-      throw new BadRequestException('Event not found');
-    }
-
-    // Log current state of ALL seats before update
-    const beforeReservingSeats = event.seatingLayout.sections.flatMap(
-      (section) =>
-        section.seats
-          .filter((s) => s.status === 'reserving')
-          .map((s) => `${section.id}/${s.seatId}`)
-    );
-    console.log('[SeatsService] BEFORE unreserve, reserving seats in DB:', beforeReservingSeats);
-
-    // Use atomic operations to avoid race conditions
-    for (const seatRequest of seatIds) {
-      const section = event.seatingLayout.sections.find(
-        (s) => s.id === seatRequest.sectionId,
-      );
-      if (!section) {
-        console.log('[SeatsService] Section not found for unreserve, skipping:', seatRequest.sectionId);
-        continue;
       }
 
       const seat = section.seats.find((s) => s.seatId === seatRequest.seatId);
       if (!seat) {
-        console.log('[SeatsService] Seat not found for unreserve, skipping:', seatRequest.seatId);
-        continue;
+        throw new BadRequestException(
+          `Seat ${seatRequest.seatId} not found in section ${seatRequest.sectionId}`,
+        );
       }
 
-      console.log('[SeatsService] Unreserving seat:', seatRequest.seatId, 'current status:', seat.status);
+      if (seat.status !== 'available') {
+        throw new ConflictException(
+          `Seat ${seatRequest.seatId} is no longer available (status: ${seat.status})`,
+        );
+      }
+      console.log(`[SeatsService] ✓ Seat ${seatRequest.seatId} is available`);
+    }
 
-      // Use atomic update with arrayFilters to target the specific seat by seatId
+    // SECURITY CHECK #2: Atomically mark ALL seats as unavailable
+    // This uses MongoDB's arrayFilters to target specific seats
+    // If the query condition fails (seat is no longer available), modifiedCount will be 0
+    console.log('[SeatsService] SECURITY CHECK #2: Atomically locking seats...');
+
+    for (const seatRequest of seatIds) {
+      // Atomic update: Only mark as unavailable IF it's still available
       const updateResult = await this.eventModel.updateOne(
-        { 
+        {
           _id: eventId,
+          'seatingLayout.sections.$[section].seats.$[seat].status': 'available', // CONDITION
         },
         {
           $set: {
-            'seatingLayout.sections.$[section].seats.$[seat].status': 'available',
+            'seatingLayout.sections.$[section].seats.$[seat].status': 'unavailable',
             'seatingLayout.sections.$[section].seats.$[seat].reservingUntil': null,
           },
         },
@@ -365,68 +206,44 @@ export class SeatsService {
             { 'section.id': seatRequest.sectionId },
             { 'seat.seatId': seatRequest.seatId },
           ],
-        }
+        },
       );
 
-      console.log('[SeatsService] unreserve updateOne result:', JSON.stringify(updateResult));
+      // If modifiedCount is 0, another customer bought this seat during checkout!
+      if (updateResult.modifiedCount === 0) {
+        console.error(
+          `[SeatsService] RACE CONDITION DETECTED: Seat ${seatRequest.seatId} was sold by another customer`,
+        );
+        throw new ConflictException(
+          `Seat ${seatRequest.seatId} was just sold by another customer. Please try selecting different seats.`,
+        );
+      }
+
+      console.log(
+        `[SeatsService] ✓ Seat ${seatRequest.seatId} atomically locked (unavailable)`,
+      );
     }
 
-    // Verify what was actually saved
-    const savedEvent = await this.eventModel.findById(eventId);
-    if (savedEvent) {
-      const afterReservingSeats = savedEvent.seatingLayout.sections.flatMap(
+    // Verify final state in database
+    const verifyEvent = await this.eventModel.findById(eventId);
+    if (verifyEvent) {
+      const finalUnavailableSeats = verifyEvent.seatingLayout.sections.flatMap(
         (section) =>
           section.seats
-            .filter((s) => s.status === 'reserving')
-            .map((s) => `${section.id}/${s.seatId}`)
+            .filter((s) => s.status === 'unavailable')
+            .map((s) => `${section.id}/${s.seatId}`),
       );
-      console.log('[SeatsService] AFTER unreserve, reserving seats in DB:', afterReservingSeats);
+      console.log(
+        '[SeatsService] Final state - unavailable seats in DB:',
+        finalUnavailableSeats,
+      );
     }
 
-    console.log('[SeatsService] unreserveSeats END');
-    console.log('='.repeat(60));
-
-    return { unreservedSeats: seatIds };
+    console.log('[SeatsService] finalizePurchase completed successfully');
+    return { soldSeats: seatIds };
   }
 
-  // Cron job: Release expired reservations (revert "reserving" to "available")
-  @Cron(CronExpression.EVERY_MINUTE)
-  async releaseExpiredReservations() {
-    const now = new Date();
-
-    // Find all events with reserving seats that have expired
-    const events = await this.eventModel.find({
-      'seatingLayout.sections.seats.status': 'reserving',
-    });
-
-    let totalReleased = 0;
-
-    for (const event of events) {
-      let eventModified = false;
-
-      for (const section of event.seatingLayout.sections) {
-        for (const seat of section.seats) {
-          if (
-            seat.status === 'reserving' &&
-            seat.reservingUntil &&
-            seat.reservingUntil < now
-          ) {
-            seat.status = 'available';
-            seat.reservingUntil = undefined;
-            eventModified = true;
-            totalReleased++;
-          }
-        }
-      }
-
-      if (eventModified) {
-        event.markModified('seatingLayout');
-        await event.save();
-      }
-    }
-
-    if (totalReleased > 0) {
-      console.log(`Released ${totalReleased} expired seat reservations`);
-    }
-  }
+  // NO LONGER NEEDED: Cron job for expired reservations is removed
+  // Since live reservations are disabled, there's nothing to expire
+  // All seats are either 'available' or 'unavailable' (sold)
 }

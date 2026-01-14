@@ -1747,8 +1747,9 @@ export default function AdminPage() {
                                 </p>
                               </td>
                               <td className="px-6 py-4 text-stone-700">
-                                {ticket.seats?.map((s) => s.seatId).join(', ') ||
-                                  'N/A'}
+                                {ticket.seats
+                                  ?.map((s) => s.seatId)
+                                  .join(', ') || 'N/A'}
                               </td>
                               <td className="px-6 py-4">
                                 {getStatusBadge(ticket.status || 'valid')}
@@ -1943,8 +1944,9 @@ export default function AdminPage() {
                                 <div>
                                   <p className="text-stone-500">Seat</p>
                                   <p className="font-semibold text-stone-900">
-                                    {scanResult.ticket.seats?.map((s) => s.seatId).join(', ') ||
-                                      'N/A'}
+                                    {scanResult.ticket.seats
+                                      ?.map((s) => s.seatId)
+                                      .join(', ') || 'N/A'}
                                   </p>
                                 </div>
                                 <div>

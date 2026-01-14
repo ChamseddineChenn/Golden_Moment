@@ -16,18 +16,19 @@ const apiClient = axios.create({
 // Add response interceptor to log seat data requests
 apiClient.interceptors.response.use((response) => {
   if (response.config.url?.includes('/seats/')) {
-    const unavailableCount = response.data?.seatingLayout?.sections?.reduce(
-      (count, section) =>
-        count +
-        section.seats.filter((s) => s.status === 'unavailable').length,
-      0
-    ) || 0;
-    const reservingCount = response.data?.seatingLayout?.sections?.reduce(
-      (count, section) =>
-        count +
-        section.seats.filter((s) => s.status === 'reserving').length,
-      0
-    ) || 0;
+    const unavailableCount =
+      response.data?.seatingLayout?.sections?.reduce(
+        (count: number, section: any) =>
+          count +
+          section.seats.filter((s: any) => s.status === 'unavailable').length,
+        0
+      ) || 0;
+    const reservingCount =
+      response.data?.seatingLayout?.sections?.reduce(
+        (count: number, section: any) =>
+          count + section.seats.filter((s: any) => s.status === 'reserving').length,
+        0
+      ) || 0;
     console.log(
       `[API] getSeatMap response: ${unavailableCount} unavailable, ${reservingCount} reserving`
     );
@@ -60,23 +61,39 @@ export const ticketsAPI = {
 
 // Seats API
 export const seatsAPI = {
-  getSeatMap: (eventId: string) => 
+  getSeatMap: (eventId: string) =>
     apiClient.get(`/seats/event/${eventId}`, {
       params: { _t: Date.now() }, // Cache busting
     }),
+  // Live reservation is now DEPRECATED - seats are only locked at payment
   reserveSeats: (data: {
     eventId: string;
     seats: { sectionId: string; seatId: string }[];
   }) => {
-    console.log('[seatsAPI] reserveSeats called with:', data);
+    console.log('[seatsAPI] reserveSeats called - DEPRECATED (live reservation disabled)', data);
     return apiClient.post('/seats/reserve', data);
   },
   unreserveSeats: (data: {
     eventId: string;
     seats: { sectionId: string; seatId: string }[];
   }) => {
-    console.log('[seatsAPI] unreserveSeats called with:', data);
+    console.log('[seatsAPI] unreserveSeats called - DEPRECATED (live reservation disabled)', data);
     return apiClient.post('/seats/unreserve', data);
+  },
+  // NEW: Atomic payment-based seat locking with race condition detection
+  finalizePurchase: (data: {
+    eventId: string;
+    seats: { sectionId: string; seatId: string }[];
+    buyerName: string;
+    buyerEmail: string;
+  }) => {
+    console.log('[seatsAPI] finalizePurchase called with:', {
+      eventId: data.eventId,
+      seats: data.seats,
+      buyerName: data.buyerName,
+      buyerEmail: data.buyerEmail,
+    });
+    return apiClient.post('/seats/finalize-purchase', data);
   },
 };
 

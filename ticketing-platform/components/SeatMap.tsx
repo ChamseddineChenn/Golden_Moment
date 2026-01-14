@@ -7,7 +7,7 @@ interface SeatObject {
   seatId: string;
   row: number;
   column: string;
-  status: 'available' | 'reserving' | 'unavailable';
+  status: 'available' | 'unavailable';
 }
 
 interface SeatSection {
@@ -50,7 +50,8 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
 
   useEffect(() => {
     loadSeatMap();
-    const interval = setInterval(loadSeatMap, 2000); // Refresh every 2 seconds for real-time sync
+    // Reload seat map every 2 seconds to see when seats become unavailable (sold by others)
+    const interval = setInterval(loadSeatMap, 2000);
     return () => clearInterval(interval);
   }, [eventId]);
 
@@ -62,52 +63,16 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
   const loadSeatMap = async () => {
     try {
       const response = await seatsAPI.getSeatMap(eventId);
-      
-      // Merge server data with our selected seats
-      // This preserves locally-selected seats that may not be reflected in DB yet
-      setSeatMapData(prevData => {
-        let newData = response.data;
-        
-        // If we have selected seats, mark them as 'reserving' in the UI
-        // even if server hasn't persisted them yet
-        if (selectedSeats.length > 0) {
-          newData = JSON.parse(JSON.stringify(newData)); // Deep clone
-          for (const selected of selectedSeats) {
-            const section = newData.seatingLayout.sections.find(
-              (s) => s.id === selected.sectionId
-            );
-            if (section) {
-              const seat = section.seats.find((s) => s.seatId === selected.seatId);
-              if (seat && seat.status === 'available') {
-                // Mark as reserving if we have it selected locally
-                seat.status = 'reserving';
-                console.log('[SeatMap] Ensuring locally-selected seat', selected.seatId, 'shows as reserving');
-              }
-            }
-          }
-        }
-        
-        return newData;
-      });
-      
+      setSeatMapData(response.data);
       setLoading(false);
-      
-      // Log the seat status counts
+
+      // Log unavailable count
       const unavailableCount = response.data?.seatingLayout?.sections?.reduce(
-        (count, section) =>
-          count +
-          section.seats.filter((s) => s.status === 'unavailable').length,
+        (count: number, section: SeatSection) =>
+          count + section.seats.filter((s) => s.status === 'unavailable').length,
         0
       ) || 0;
-      const reservingCount = response.data?.seatingLayout?.sections?.reduce(
-        (count, section) =>
-          count +
-          section.seats.filter((s) => s.status === 'reserving').length,
-        0
-      ) || 0;
-      console.log(
-        '[SeatMap] loadSeatMap: unavailable=' + unavailableCount + ', reserving=' + reservingCount
-      );
+      console.log('[SeatMap] Current unavailable seats:', unavailableCount);
     } catch (err) {
       setError('Failed to load seat map');
       console.error(err);
@@ -115,18 +80,24 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
     }
   };
 
-  const reserveSeat = async (sectionId: string, seat: SeatObject) => {
-    if (seat.status !== 'available') return;
+  // Select or deselect a seat (local selection only, no backend sync)
+  const toggleSeat = (sectionId: string, seat: SeatObject) => {
+    if (seat.status !== 'available') return; // Can't select unavailable seats
 
-    try {
-      console.log('[SeatMap] Reserving seat:', seat.seatId);
-      
-      // Call the reserve API
-      await seatsAPI.reserveSeats({
-        eventId,
-        seats: [{ sectionId, seatId: seat.seatId }],
-      });
+    const isSelected = selectedSeats.some(
+      (s) => s.sectionId === sectionId && s.seatId === seat.seatId
+    );
 
+    if (isSelected) {
+      // Deselect
+      setSelectedSeats(
+        selectedSeats.filter(
+          (s) => !(s.sectionId === sectionId && s.seatId === seat.seatId)
+        )
+      );
+      console.log('[SeatMap] Deselected seat:', seat.seatId);
+    } else {
+      // Select
       const price =
         seatMapData!.event.basePrice +
         (seatMapData?.seatingLayout.sections.find((s) => s.id === sectionId)
@@ -138,91 +109,8 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
         price,
       };
 
-      // Use function form of setState to avoid closure issues
-      setSelectedSeats(prevSeats => {
-        const updatedSeats = [...prevSeats, newSeat];
-        console.log('[SeatMap] Added to selectedSeats, total now:', updatedSeats.length);
-        return updatedSeats;
-      });
-      
-      // Optimistic update: immediately mark the seat as 'reserving' in local state
-      // This prevents the race condition where multiple clicks see the same stale data
-      setSeatMapData(prevData => {
-        if (!prevData) return prevData;
-        
-        const updatedData = JSON.parse(JSON.stringify(prevData)); // Deep clone
-        const section = updatedData.seatingLayout.sections.find(
-          (s) => s.id === sectionId
-        );
-        
-        if (section) {
-          const seatIndex = section.seats.findIndex(
-            (s) => s.seatId === seat.seatId
-          );
-          if (seatIndex !== -1) {
-            updatedData.seatingLayout.sections[
-              updatedData.seatingLayout.sections.indexOf(section)
-            ].seats[seatIndex].status = 'reserving';
-            console.log('[SeatMap] Optimistically marked', seat.seatId, 'as reserving');
-          }
-        }
-        
-        return updatedData;
-      });
-      
-      // Reload seat map in background to sync with server (don't wait for it)
-      // This ensures we always have the latest state from the backend
-      loadSeatMap().catch(err => console.error('[SeatMap] Error reloading seat map:', err));
-    } catch (err) {
-      alert('Failed to reserve seat');
-      console.error(err);
-    }
-  };
-
-  const deselectSeat = async (sectionId: string, seatId: string) => {
-    try {
-      // Optimistic update: immediately mark the seat as available
-      setSeatMapData(prevData => {
-        if (!prevData) return prevData;
-        
-        const updatedData = JSON.parse(JSON.stringify(prevData)); // Deep clone
-        const section = updatedData.seatingLayout.sections.find(
-          (s) => s.id === sectionId
-        );
-        
-        if (section) {
-          const seatIndex = section.seats.findIndex(
-            (s) => s.seatId === seatId
-          );
-          if (seatIndex !== -1) {
-            updatedData.seatingLayout.sections[
-              updatedData.seatingLayout.sections.indexOf(section)
-            ].seats[seatIndex].status = 'available';
-            console.log('[SeatMap] Optimistically marked', seatId, 'as available');
-          }
-        }
-        
-        return updatedData;
-      });
-
-      // Remove from selected seats using function form to avoid closure issues
-      setSelectedSeats(prevSeats =>
-        prevSeats.filter(
-          (s) => !(s.sectionId === sectionId && s.seatId === seatId)
-        )
-      );
-
-      // Call API to unreserve the seat (don't wait for it)
-      seatsAPI.unreserveSeats({
-        eventId,
-        seats: [{ sectionId, seatId }],
-      }).catch(err => console.error('[SeatMap] Error unreserving seat:', err));
-      
-      // Reload the seat map in background
-      loadSeatMap().catch(err => console.error('[SeatMap] Error reloading seat map:', err));
-    } catch (err) {
-      alert('Failed to deselect seat');
-      console.error(err);
+      setSelectedSeats([...selectedSeats, newSeat]);
+      console.log('[SeatMap] Selected seat:', seat.seatId, 'Total selected:', selectedSeats.length + 1);
     }
   };
 
@@ -281,7 +169,7 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-amber-500 rounded border border-amber-600"></div>
-            <span className="text-stone-700">Selected/Reserving</span>
+            <span className="text-stone-700">Selected</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 bg-red-500 rounded border border-red-600"></div>
@@ -290,17 +178,9 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
         </div>
       </div>
 
-      <div className="bg-gradient-to-b from-stone-700 to-stone-800 rounded-2xl p-4 text-center">
-        <div className="text-white font-bold text-lg">🎭 STAGE</div>
-      </div>
-
       {seatMapData.seatingLayout.sections.map((section) => {
-        const rows = Array.from(new Set(section.seats.map((s) => s.row))).sort(
-          (a, b) => a - b
-        );
-        const columns = Array.from(
-          new Set(section.seats.map((s) => s.column))
-        ).sort();
+        const rows = Math.max(...section.seats.map((s) => s.row));
+        const columns = [...new Set(section.seats.map((s) => s.column))].sort();
 
         return (
           <div
@@ -332,74 +212,62 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
                   ))}
                 </div>
 
-                {rows.map((row) => (
-                  <div key={row} className="flex gap-1 mb-1">
-                    <div className="w-8 h-8 flex items-center justify-center text-xs font-semibold text-stone-600">
-                      {row}
-                    </div>
+                {Array.from({ length: rows }).map((_, rowIdx) => {
+                  const row = rowIdx + 1;
+                  return (
+                    <div key={row} className="flex gap-1 mb-1">
+                      <div className="w-8 h-8 flex items-center justify-center text-xs font-semibold text-stone-600">
+                        {row}
+                      </div>
 
-                    {columns.map((col) => {
-                      const seat = section.seats.find(
-                        (s) => s.row === row && s.column === col
-                      );
-
-                      if (!seat) {
-                        return (
-                          <div key={`${row}-${col}`} className="w-8 h-8" />
+                      {columns.map((col) => {
+                        const seat = section.seats.find(
+                          (s) => s.row === row && s.column === col
                         );
-                      }
 
-                      const isSelected = isSeatSelected(
-                        section.id,
-                        seat.seatId
-                      );
-                      const price =
-                        seatMapData.event.basePrice +
-                        (section.priceModifier || 0);
+                        if (!seat) {
+                          return (
+                            <div key={`${row}-${col}`} className="w-8 h-8" />
+                          );
+                        }
 
-                      let bgColor = '';
-                      let hoverClass = '';
+                        const isSelected = isSeatSelected(section.id, seat.seatId);
+                        const price =
+                          seatMapData.event.basePrice +
+                          (section.priceModifier || 0);
 
-                      if (seat.status === 'available') {
-                        bgColor = isSelected
-                          ? 'bg-amber-500 border-amber-600'
-                          : 'bg-green-500 border-green-600';
-                        hoverClass =
-                          'hover:bg-green-600 cursor-pointer transform hover:scale-110';
-                      } else if (seat.status === 'reserving') {
-                        bgColor = isSelected
-                          ? 'bg-amber-500 border-amber-600'
-                          : 'bg-amber-400 border-amber-500';
-                        hoverClass = isSelected
-                          ? 'cursor-pointer opacity-100'
-                          : 'cursor-not-allowed opacity-60';
-                      } else {
-                        bgColor = 'bg-red-500 border-red-600';
-                        hoverClass = 'cursor-not-allowed opacity-60';
-                      }
+                        let bgColor = '';
+                        let hoverClass = '';
+                        let disabled = false;
 
-                      return (
-                        <button
-                          key={seat.seatId}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              deselectSeat(section.id, seat.seatId);
-                            } else if (seat.status === 'available') {
-                              reserveSeat(section.id, seat);
-                            }
-                          }}
-                          disabled={
-                            seat.status === 'unavailable' || 
-                            (!isSelected && seat.status === 'reserving')
-                          }
-                          className={`w-8 h-8 rounded border transition-all ${bgColor} ${hoverClass}`}
-                          title={`${seat.seatId} - ₹${price} - ${seat.status}`}
-                        />
-                      );
-                    })}
-                  </div>
-                ))}
+                        if (seat.status === 'available') {
+                          bgColor = isSelected
+                            ? 'bg-amber-500 border-amber-600'
+                            : 'bg-green-500 border-green-600';
+                          hoverClass = !isSelected
+                            ? 'hover:bg-green-600 cursor-pointer transform hover:scale-110'
+                            : 'cursor-pointer opacity-100';
+                        } else {
+                          // Unavailable (sold)
+                          bgColor = 'bg-red-500 border-red-600';
+                          hoverClass = 'cursor-not-allowed opacity-60';
+                          disabled = true;
+                        }
+
+                        return (
+                          <button
+                            key={seat.seatId}
+                            type="button"
+                            onClick={() => toggleSeat(section.id, seat)}
+                            disabled={disabled}
+                            className={`w-8 h-8 rounded border transition-all ${bgColor} ${hoverClass}`}
+                            title={`${seat.seatId} - ₹${price} - ${seat.status}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -415,22 +283,12 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
                 {selectedSeats.map((seat) => (
                   <span
                     key={`${seat.sectionId}-${seat.seatId}`}
-                    className="bg-white/20 px-3 py-1 rounded-lg text-sm font-semibold"
+                    className="bg-white/20 px-3 py-1 rounded-full text-sm font-semibold"
                   >
                     {seat.seatId}
                   </span>
                 ))}
               </div>
-            </div>
-            <div className="text-right">
-              <p className="text-sm opacity-90">Total Amount</p>
-              <p className="text-3xl font-bold">
-                ₹{selectedSeats.reduce((sum, s) => sum + s.price, 0).toFixed(2)}
-              </p>
-              <p className="text-sm opacity-90">
-                {selectedSeats.length} seat
-                {selectedSeats.length !== 1 ? 's' : ''}
-              </p>
             </div>
           </div>
         </div>

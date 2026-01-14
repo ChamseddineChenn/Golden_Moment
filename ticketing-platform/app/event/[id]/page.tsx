@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { eventsAPI, ticketsAPI, seatsAPI } from '@/lib/api';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -49,11 +49,8 @@ export default function EventDetailPage() {
     buyerEmail: '',
   });
 
-  // Store selectedSeats in a ref so the cleanup can access the latest value
-  const selectedSeatsRef = useRef<SelectedSeat[]>([]);
-  useEffect(() => {
-    selectedSeatsRef.current = selectedSeats;
-  }, [selectedSeats]);
+  // Selected seats are tracked locally only - NOT synced to backend until payment
+  // This removes the live reservation system
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -72,24 +69,9 @@ export default function EventDetailPage() {
       fetchEvent();
     }
 
-    // Cleanup: unreserve any seats when component unmounts ONLY (user leaves without buying)
-    // Using ref to get the latest selectedSeats without adding it to dependencies
-    return () => {
-      const seatsToUnreserve = selectedSeatsRef.current;
-      if (seatsToUnreserve.length > 0 && eventId) {
-        console.log('[EventPage] Unmounting, unreserving seats:', seatsToUnreserve);
-        seatsAPI.unreserveSeats({
-          eventId,
-          seats: seatsToUnreserve.map((s) => ({
-            sectionId: s.sectionId,
-            seatId: s.seatId,
-          })),
-        }).catch((err) => {
-          console.error('Error unreserving seats on unmount:', err);
-        });
-      }
-    };
-  }, [eventId]); // Only depend on eventId, NOT selectedSeats
+    // NO CLEANUP: Seats are only locked at payment time, not during selection
+    // Users can navigate away without unreserving - seats remain available for others
+  }, [eventId]);
 
   const handleBuyTicket = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,29 +81,58 @@ export default function EventDetailPage() {
       setSubmitting(true);
       setError(null);
 
-      // Create a single ticket with all selected seats
-      const ticketData = {
-        eventId: event._id,
-        seats:
-          event.seatingLayout?.enabled && selectedSeats.length > 0
-            ? selectedSeats.map((seat) => ({
-                sectionId: seat.sectionId,
-                seatId: seat.seatId,
-              }))
-            : [], // Empty array - backend will auto-assign a single seat
-        buyerName: formData.buyerName,
-        buyerEmail: formData.buyerEmail,
-      };
+      // If visual seating is enabled, atomically finalize the selected seats at purchase time
+      if (event.seatingLayout?.enabled && selectedSeats.length > 0) {
+        console.log(
+          '[EventDetail] Finalizing purchase for seats:',
+          selectedSeats.map((s) => s.seatId)
+        );
 
-      console.log('[EventDetail] Purchasing ticket with seats:', ticketData.seats);
+        // Call the atomic finalizePurchase endpoint
+        // This will lock seats and prevent double-booking
+        const purchaseData = {
+          eventId: event._id,
+          seats: selectedSeats.map((seat) => ({
+            sectionId: seat.sectionId,
+            seatId: seat.seatId,
+          })),
+          buyerName: formData.buyerName,
+          buyerEmail: formData.buyerEmail,
+        };
 
-      const response = await ticketsAPI.create(ticketData);
-      const ticket: Ticket = response.data;
+        const response = await seatsAPI.finalizePurchase(purchaseData);
+        const ticket: Ticket = response.data;
 
-      router.push(`/receipt/${ticket._id}`);
-    } catch (err) {
-      setError('Failed to purchase ticket. Please try again.');
-      console.error(err);
+        console.log('[EventDetail] Purchase finalized successfully:', ticket._id);
+        router.push(`/receipt/${ticket._id}`);
+      } else {
+        // No visual seating or no seats selected - auto-assign seats
+        const ticketData = {
+          eventId: event._id,
+          seats: [],
+          buyerName: formData.buyerName,
+          buyerEmail: formData.buyerEmail,
+        };
+
+        const response = await ticketsAPI.create(ticketData);
+        const ticket: Ticket = response.data;
+
+        router.push(`/receipt/${ticket._id}`);
+      }
+    } catch (err: any) {
+      // Handle race condition - seat was just purchased by another user
+      if (err.response?.status === 409 || err.response?.data?.message?.includes('just sold')) {
+        setError(
+          'One or more seats were just purchased by another user. Please select different seats and try again.'
+        );
+        // Reload the seat map to show current availability
+        window.location.reload();
+      } else if (err.response?.status === 400) {
+        setError(err.response?.data?.message || 'Invalid seat selection. Please try again.');
+      } else {
+        setError('Failed to purchase ticket. Please try again.');
+      }
+      console.error('[EventDetail] Purchase failed:', err);
     } finally {
       setSubmitting(false);
     }
