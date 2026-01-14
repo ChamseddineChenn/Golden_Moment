@@ -147,8 +147,10 @@ export class TicketsService {
 
     // Update event's sold tickets count
     if (event.seatingLayout?.enabled) {
+      // IMPORTANT: Fetch the event AGAIN to get the updated seat statuses after locking
+      const updatedEvent = await this.eventsService.findById(createTicketDto.eventId.toString());
       let unavailableSeatsCount = 0;
-      for (const section of event.seatingLayout.sections) {
+      for (const section of updatedEvent.seatingLayout.sections) {
         unavailableSeatsCount += section.seats.filter((s) => s.status === 'unavailable').length;
       }
       await this.eventsService.update(createTicketDto.eventId.toString(), {

@@ -220,18 +220,17 @@ export class SeatsService {
       const updateResult = await this.eventModel.updateOne(
         {
           _id: eventId,
-          'seatingLayout.sections.$[section].seats.$[seat].status': 'available', // CONDITION
         },
         {
           $set: {
-            'seatingLayout.sections.$[section].seats.$[seat].status': 'unavailable',
-            'seatingLayout.sections.$[section].seats.$[seat].reservingUntil': null,
+            'seatingLayout.sections.$[section].seats.$[seatToLock].status': 'unavailable',
+            'seatingLayout.sections.$[section].seats.$[seatToLock].reservingUntil': null,
           },
         },
         {
           arrayFilters: [
             { 'section.id': seatRequest.sectionId },
-            { 'seat.seatId': seatRequest.seatId },
+            { 'seatToLock.seatId': seatRequest.seatId, 'seatToLock.status': 'available' }, // CONDITION: only update if available
           ],
         },
       );
