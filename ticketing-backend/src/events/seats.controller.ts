@@ -6,6 +6,8 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { SeatsService } from './seats.service';
 import { TicketsService } from '../tickets/tickets.service';
@@ -14,6 +16,7 @@ import { TicketsService } from '../tickets/tickets.service';
 export class SeatsController {
   constructor(
     private readonly seatsService: SeatsService,
+    @Inject(forwardRef(() => TicketsService))
     private readonly ticketsService: TicketsService,
   ) {}
 
