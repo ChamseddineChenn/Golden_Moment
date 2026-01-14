@@ -62,7 +62,34 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
   const loadSeatMap = async () => {
     try {
       const response = await seatsAPI.getSeatMap(eventId);
-      setSeatMapData(response.data);
+      
+      // Merge server data with our selected seats
+      // This preserves locally-selected seats that may not be reflected in DB yet
+      setSeatMapData(prevData => {
+        let newData = response.data;
+        
+        // If we have selected seats, mark them as 'reserving' in the UI
+        // even if server hasn't persisted them yet
+        if (selectedSeats.length > 0) {
+          newData = JSON.parse(JSON.stringify(newData)); // Deep clone
+          for (const selected of selectedSeats) {
+            const section = newData.seatingLayout.sections.find(
+              (s) => s.id === selected.sectionId
+            );
+            if (section) {
+              const seat = section.seats.find((s) => s.seatId === selected.seatId);
+              if (seat && seat.status === 'available') {
+                // Mark as reserving if we have it selected locally
+                seat.status = 'reserving';
+                console.log('[SeatMap] Ensuring locally-selected seat', selected.seatId, 'shows as reserving');
+              }
+            }
+          }
+        }
+        
+        return newData;
+      });
+      
       setLoading(false);
       
       // Log the seat status counts
@@ -93,6 +120,8 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
 
     try {
       console.log('[SeatMap] Reserving seat:', seat.seatId);
+      
+      // Call the reserve API
       await seatsAPI.reserveSeats({
         eventId,
         seats: [{ sectionId, seatId: seat.seatId }],
@@ -109,12 +138,41 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
         price,
       };
 
-      console.log('[SeatMap] Added to selectedSeats, total now:', selectedSeats.length + 1);
-      setSelectedSeats([...selectedSeats, newSeat]);
+      // Use function form of setState to avoid closure issues
+      setSelectedSeats(prevSeats => {
+        const updatedSeats = [...prevSeats, newSeat];
+        console.log('[SeatMap] Added to selectedSeats, total now:', updatedSeats.length);
+        return updatedSeats;
+      });
       
-      // Add a small delay to ensure backend has persisted before reloading
-      await new Promise(resolve => setTimeout(resolve, 100));
-      await loadSeatMap();
+      // Optimistic update: immediately mark the seat as 'reserving' in local state
+      // This prevents the race condition where multiple clicks see the same stale data
+      setSeatMapData(prevData => {
+        if (!prevData) return prevData;
+        
+        const updatedData = JSON.parse(JSON.stringify(prevData)); // Deep clone
+        const section = updatedData.seatingLayout.sections.find(
+          (s) => s.id === sectionId
+        );
+        
+        if (section) {
+          const seatIndex = section.seats.findIndex(
+            (s) => s.seatId === seat.seatId
+          );
+          if (seatIndex !== -1) {
+            updatedData.seatingLayout.sections[
+              updatedData.seatingLayout.sections.indexOf(section)
+            ].seats[seatIndex].status = 'reserving';
+            console.log('[SeatMap] Optimistically marked', seat.seatId, 'as reserving');
+          }
+        }
+        
+        return updatedData;
+      });
+      
+      // Reload seat map in background to sync with server (don't wait for it)
+      // This ensures we always have the latest state from the backend
+      loadSeatMap().catch(err => console.error('[SeatMap] Error reloading seat map:', err));
     } catch (err) {
       alert('Failed to reserve seat');
       console.error(err);
@@ -123,21 +181,45 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
 
   const deselectSeat = async (sectionId: string, seatId: string) => {
     try {
-      // Call API to unreserve the seat
-      await seatsAPI.unreserveSeats({
-        eventId,
-        seats: [{ sectionId, seatId }],
+      // Optimistic update: immediately mark the seat as available
+      setSeatMapData(prevData => {
+        if (!prevData) return prevData;
+        
+        const updatedData = JSON.parse(JSON.stringify(prevData)); // Deep clone
+        const section = updatedData.seatingLayout.sections.find(
+          (s) => s.id === sectionId
+        );
+        
+        if (section) {
+          const seatIndex = section.seats.findIndex(
+            (s) => s.seatId === seatId
+          );
+          if (seatIndex !== -1) {
+            updatedData.seatingLayout.sections[
+              updatedData.seatingLayout.sections.indexOf(section)
+            ].seats[seatIndex].status = 'available';
+            console.log('[SeatMap] Optimistically marked', seatId, 'as available');
+          }
+        }
+        
+        return updatedData;
       });
 
-      // Remove from selected seats
-      setSelectedSeats(
-        selectedSeats.filter(
+      // Remove from selected seats using function form to avoid closure issues
+      setSelectedSeats(prevSeats =>
+        prevSeats.filter(
           (s) => !(s.sectionId === sectionId && s.seatId === seatId)
         )
       );
 
-      // Reload the seat map
-      await loadSeatMap();
+      // Call API to unreserve the seat (don't wait for it)
+      seatsAPI.unreserveSeats({
+        eventId,
+        seats: [{ sectionId, seatId }],
+      }).catch(err => console.error('[SeatMap] Error unreserving seat:', err));
+      
+      // Reload the seat map in background
+      loadSeatMap().catch(err => console.error('[SeatMap] Error reloading seat map:', err));
     } catch (err) {
       alert('Failed to deselect seat');
       console.error(err);
@@ -308,7 +390,8 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
                             }
                           }}
                           disabled={
-                            !isSelected && seat.status === 'unavailable'
+                            seat.status === 'unavailable' || 
+                            (!isSelected && seat.status === 'reserving')
                           }
                           className={`w-8 h-8 rounded border transition-all ${bgColor} ${hoverClass}`}
                           title={`${seat.seatId} - ₹${price} - ${seat.status}`}

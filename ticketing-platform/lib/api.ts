@@ -67,11 +67,17 @@ export const seatsAPI = {
   reserveSeats: (data: {
     eventId: string;
     seats: { sectionId: string; seatId: string }[];
-  }) => apiClient.post('/seats/reserve', data),
+  }) => {
+    console.log('[seatsAPI] reserveSeats called with:', data);
+    return apiClient.post('/seats/reserve', data);
+  },
   unreserveSeats: (data: {
     eventId: string;
     seats: { sectionId: string; seatId: string }[];
-  }) => apiClient.post('/seats/unreserve', data),
+  }) => {
+    console.log('[seatsAPI] unreserveSeats called with:', data);
+    return apiClient.post('/seats/unreserve', data);
+  },
 };
 
 export default apiClient;

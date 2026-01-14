@@ -136,6 +136,8 @@ export class SeatsService {
 
     const reservingUntil = new Date(Date.now() + 20 * 60 * 1000); // 20 minutes
 
+    // Use atomic operations to avoid race conditions
+    // Build the update operations for each seat
     for (const seatRequest of seatIds) {
       const section = event.seatingLayout.sections.find(
         (s) => s.id === seatRequest.sectionId,
@@ -159,23 +161,48 @@ export class SeatsService {
         );
       }
 
-      // Mark as reserving
-      seat.status = 'reserving';
-      seat.reservingUntil = reservingUntil;
+      // Use atomic $set operator to update nested seat status
+      // This avoids race conditions when multiple requests update the same document
+      const sectionIndex = event.seatingLayout.sections.findIndex(
+        (s) => s.id === seatRequest.sectionId,
+      );
+      const seatIndex = section.seats.findIndex(
+        (s) => s.seatId === seatRequest.seatId,
+      );
+
+      await this.eventModel.updateOne(
+        { _id: eventId },
+        {
+          $set: {
+            [`seatingLayout.sections.${sectionIndex}.seats.${seatIndex}.status`]:
+              'reserving',
+            [`seatingLayout.sections.${sectionIndex}.seats.${seatIndex}.reservingUntil`]:
+              reservingUntil,
+          },
+        }
+      );
+
       console.log(
-        `[SeatsService] Marked seat ${seatRequest.seatId} as reserving`
+        `[SeatsService] Atomically marked seat ${seatRequest.seatId} as reserving`
       );
     }
 
-    // Mark the seatingLayout as modified so Mongoose will save it
-    console.log(
-      '[SeatsService] Marking seatingLayout as modified for reserveSeats'
-    );
-    event.markModified('seatingLayout');
+    console.log(`[SeatsService] Saved all ${seatIds.length} seat reservations`);
 
-    // Save the event with updated seat statuses
-    await event.save();
-    console.log(`[SeatsService] Saved event after reserving ${seatIds.length} seats`);
+    // Verify what was actually saved
+    const savedEvent = await this.eventModel.findById(eventId);
+    if (savedEvent) {
+      const savedReservingSeats = savedEvent.seatingLayout.sections.flatMap(
+        (section) =>
+          section.seats
+            .filter((s) => s.status === 'reserving')
+            .map((s) => `${section.id}/${s.seatId}`)
+      );
+      console.log(
+        '[SeatsService] After reserveSeats, reserving seats in DB:',
+        savedReservingSeats
+      );
+    }
 
     return {
       reservedSeats: seatIds,
@@ -276,23 +303,53 @@ export class SeatsService {
       throw new BadRequestException('Event not found');
     }
 
+    console.log(
+      `[SeatsService] unreserveSeats called with ${seatIds.length} seats:`,
+      seatIds
+    );
+
+    // Use atomic operations to avoid race conditions
     for (const seatRequest of seatIds) {
       const section = event.seatingLayout.sections.find(
         (s) => s.id === seatRequest.sectionId,
       );
       if (!section) {
+        console.log('[SeatsService] Section not found for unreserve, skipping');
         continue;
       }
 
       const seat = section.seats.find((s) => s.seatId === seatRequest.seatId);
-      if (seat && seat.status === 'reserving') {
-        seat.status = 'available';
-        seat.reservingUntil = undefined;
+      if (!seat) {
+        console.log('[SeatsService] Seat not found for unreserve, skipping');
+        continue;
       }
+
+      // Use atomic $set operator to update nested seat status
+      const sectionIndex = event.seatingLayout.sections.findIndex(
+        (s) => s.id === seatRequest.sectionId,
+      );
+      const seatIndex = section.seats.findIndex(
+        (s) => s.seatId === seatRequest.seatId,
+      );
+
+      await this.eventModel.updateOne(
+        { _id: eventId },
+        {
+          $set: {
+            [`seatingLayout.sections.${sectionIndex}.seats.${seatIndex}.status`]:
+              'available',
+            [`seatingLayout.sections.${sectionIndex}.seats.${seatIndex}.reservingUntil`]:
+              null,
+          },
+        }
+      );
+
+      console.log(
+        `[SeatsService] Atomically marked seat ${seatRequest.seatId} as available`
+      );
     }
 
-    event.markModified('seatingLayout');
-    await event.save();
+    console.log(`[SeatsService] Unreserved ${seatIds.length} seats`);
 
     return { unreservedSeats: seatIds };
   }
