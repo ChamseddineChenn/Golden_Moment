@@ -103,7 +103,10 @@ export default function EventDetailPage() {
         const response = await seatsAPI.finalizePurchase(purchaseData);
         const ticket: Ticket = response.data;
 
-        console.log('[EventDetail] Purchase finalized successfully:', ticket._id);
+        console.log(
+          '[EventDetail] Purchase finalized successfully:',
+          ticket._id
+        );
         router.push(`/receipt/${ticket._id}`);
       } else {
         // No visual seating or no seats selected - auto-assign seats
@@ -121,14 +124,20 @@ export default function EventDetailPage() {
       }
     } catch (err: any) {
       // Handle race condition - seat was just purchased by another user
-      if (err.response?.status === 409 || err.response?.data?.message?.includes('just sold')) {
+      if (
+        err.response?.status === 409 ||
+        err.response?.data?.message?.includes('just sold')
+      ) {
         setError(
           'One or more seats were just purchased by another user. Please select different seats and try again.'
         );
         // Reload the seat map to show current availability
         window.location.reload();
       } else if (err.response?.status === 400) {
-        setError(err.response?.data?.message || 'Invalid seat selection. Please try again.');
+        setError(
+          err.response?.data?.message ||
+            'Invalid seat selection. Please try again.'
+        );
       } else {
         setError('Failed to purchase ticket. Please try again.');
       }

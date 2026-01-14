@@ -32,6 +32,9 @@ export class Ticket extends Document {
   @Prop({ required: true })
   qrCode: string;
 
+  @Prop({ required: true, unique: true })
+  qrToken: string;
+
   @Prop({ default: TicketStatus.VALID, enum: TicketStatus })
   status: TicketStatus;
 

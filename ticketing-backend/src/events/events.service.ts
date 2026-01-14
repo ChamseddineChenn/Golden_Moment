@@ -48,4 +48,8 @@ export class EventsService {
       .findByIdAndUpdate(id, updateData, { new: true })
       .exec();
   }
+
+  async delete(id: string): Promise<void> {
+    await this.eventModel.findByIdAndDelete(id).exec();
+  }
 }

@@ -67,11 +67,13 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
       setLoading(false);
 
       // Log unavailable count
-      const unavailableCount = response.data?.seatingLayout?.sections?.reduce(
-        (count: number, section: SeatSection) =>
-          count + section.seats.filter((s) => s.status === 'unavailable').length,
-        0
-      ) || 0;
+      const unavailableCount =
+        response.data?.seatingLayout?.sections?.reduce(
+          (count: number, section: SeatSection) =>
+            count +
+            section.seats.filter((s) => s.status === 'unavailable').length,
+          0
+        ) || 0;
       console.log('[SeatMap] Current unavailable seats:', unavailableCount);
     } catch (err) {
       setError('Failed to load seat map');
@@ -110,7 +112,12 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
       };
 
       setSelectedSeats([...selectedSeats, newSeat]);
-      console.log('[SeatMap] Selected seat:', seat.seatId, 'Total selected:', selectedSeats.length + 1);
+      console.log(
+        '[SeatMap] Selected seat:',
+        seat.seatId,
+        'Total selected:',
+        selectedSeats.length + 1
+      );
     }
   };
 
@@ -231,7 +238,10 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
                           );
                         }
 
-                        const isSelected = isSeatSelected(section.id, seat.seatId);
+                        const isSelected = isSeatSelected(
+                          section.id,
+                          seat.seatId
+                        );
                         const price =
                           seatMapData.event.basePrice +
                           (section.priceModifier || 0);

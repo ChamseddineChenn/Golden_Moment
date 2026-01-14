@@ -81,13 +81,13 @@ export class SeatsService {
       throw new BadRequestException('Event not found');
     }
 
-    // Generate seat matrix for each section
-    const initializedSections = sections.map((section) => ({
+    // Generate seat matrix for each section using section index (S1, S2, S3, etc.)
+    const initializedSections = sections.map((section, sectionIndex) => ({
       id: section.id,
       name: section.name,
       priceModifier: section.priceModifier,
       accessibility: section.accessibility,
-      seats: this.generateSeatMatrix(section),
+      seats: this.generateSeatMatrix(section, sectionIndex + 1),
     }));
 
     // Update event with initialized seating
@@ -99,7 +99,7 @@ export class SeatsService {
   }
 
   // Helper function to generate a seat matrix
-  private generateSeatMatrix(section: any) {
+  private generateSeatMatrix(section: any, sectionNumber: number) {
     const seats: Seat[] = [];
     const rows = section.rows || 10;
     const columns = section.columns || 10;
@@ -108,8 +108,9 @@ export class SeatsService {
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
+        // Format: S1-A1, S1-A2, etc. (Section-Letter+Number)
         seats.push({
-          seatId: `${section.id}-${startRow + row}${String.fromCharCode(startCol.charCodeAt(0) + col)}`,
+          seatId: `S${sectionNumber}-${String.fromCharCode(startCol.charCodeAt(0) + col)}${startRow + row}`,
           row: startRow + row,
           column: String.fromCharCode(startCol.charCodeAt(0) + col),
           status: 'available',
@@ -126,7 +127,9 @@ export class SeatsService {
     eventId: string,
     seatIds: { sectionId: string; seatId: string }[],
   ) {
-    console.log('[SeatsService] reserveSeats is DEPRECATED - live reservation disabled');
+    console.log(
+      '[SeatsService] reserveSeats is DEPRECATED - live reservation disabled',
+    );
     throw new BadRequestException(
       'Live reservation disabled. Seats are locked only at payment time. Please proceed to checkout to finalize your seats.',
     );
@@ -137,7 +140,9 @@ export class SeatsService {
     eventId: string,
     seatIds: { sectionId: string; seatId: string }[],
   ) {
-    console.log('[SeatsService] unreserveSeats is DEPRECATED - live reservation disabled');
+    console.log(
+      '[SeatsService] unreserveSeats is DEPRECATED - live reservation disabled',
+    );
     throw new BadRequestException(
       'Unreserve is no longer available. Seats are only locked at payment time.',
     );
@@ -223,14 +228,19 @@ export class SeatsService {
         },
         {
           $set: {
-            'seatingLayout.sections.$[section].seats.$[seatToLock].status': 'unavailable',
-            'seatingLayout.sections.$[section].seats.$[seatToLock].reservingUntil': null,
+            'seatingLayout.sections.$[section].seats.$[seatToLock].status':
+              'unavailable',
+            'seatingLayout.sections.$[section].seats.$[seatToLock].reservingUntil':
+              null,
           },
         },
         {
           arrayFilters: [
             { 'section.id': seatRequest.sectionId },
-            { 'seatToLock.seatId': seatRequest.seatId, 'seatToLock.status': 'available' }, // CONDITION: only update if available
+            {
+              'seatToLock.seatId': seatRequest.seatId,
+              'seatToLock.status': 'available',
+            }, // CONDITION: only update if available
           ],
         },
       );
@@ -273,7 +283,9 @@ export class SeatsService {
       );
     }
 
-    console.log('[SeatsService] ========== FINALIZE PURCHASE SUCCESS ==========');
+    console.log(
+      '[SeatsService] ========== FINALIZE PURCHASE SUCCESS ==========',
+    );
     console.log('='.repeat(80));
     return { soldSeats: seatIds };
   }

@@ -3,16 +3,20 @@
 ## Issues Fixed
 
 ### Issue #1: Double-Booking Vulnerability
+
 **Problem**: Two users could buy the same seat J4 at the same event
+
 - User A purchases seat J4 → Success
 - User B purchases seat J4 → Also Success (DOUBLE-BOOKED!)
 
 **Root Cause**: Ticket was created BEFORE seat locking occurred
+
 - If two requests came in simultaneously, both would create tickets
 - finalizePurchase would be called AFTER, but errors were swallowed
 - Second user's ticket created even though seat lock failed
 
 ### Issue #2: Missing Seat Blocking
+
 **Problem**: After buying a seat, it didn't immediately show as unavailable
 **Root Cause**: Seats only locked when finalizePurchase succeeded, but that's after ticket creation
 
@@ -41,7 +45,7 @@ AFTER (Fixed):
 async create(createTicketDto) {
   // 1. Validate event
   const event = await this.eventsService.findById(eventId);
-  
+
   // 2. CRITICAL: Lock seats BEFORE creating ticket
   const seatsWithSection = createTicketDto.seats.filter(s => s.sectionId);
   if (seatsWithSection.length > 0) {
@@ -49,7 +53,7 @@ async create(createTicketDto) {
     await this.seatsService.finalizePurchase(eventId, seatsWithSection);
     // If we get here, ALL seats are atomically locked
   }
-  
+
   // 3. NOW create ticket (seats are guaranteed to be locked)
   const ticket = new this.ticketModel(ticketData);
   return await ticket.save();
@@ -154,7 +158,7 @@ When second user tries to buy same seat:
 [SeatsService]   MongoDB updateOne result - matchedCount: 0, modifiedCount: 0
 [SeatsService] ❌ CRITICAL: RACE CONDITION DETECTED - Seat J4 was sold by another customer!
 [SeatsService] This means two customers tried to buy the same seat simultaneously.
-ConflictException: Seat J4 was just sold by another customer. 
+ConflictException: Seat J4 was just sold by another customer.
   Please try selecting different seats.
 ```
 
@@ -163,10 +167,10 @@ ConflictException: Seat J4 was just sold by another customer.
 When race condition is detected (409 response):
 
 ```typescript
-if (err.response?.status === 409 || 
+if (err.response?.status === 409 ||
     err.response?.data?.message?.includes('just sold')) {
   setError(
-    'One or more seats were just purchased by another user. 
+    'One or more seats were just purchased by another user.
      Please select different seats and try again.'
   );
   window.location.reload(); // Refresh seat availability
@@ -190,6 +194,7 @@ if (err.response?.status === 409 ||
 2. Browser 1: Select seat J4, click "Complete Purchase"
 3. Browser 2: Select seat J4, click "Complete Purchase" (should happen before Browser 1 completes)
 4. Expected outcome:
+
    - Browser 1: ✅ Success, ticket created, redirected to receipt
    - Browser 2: ❌ Error message "Seat was just sold by another user"
    - Database: Only ONE ticket for J4, seat marked unavailable
@@ -201,18 +206,22 @@ if (err.response?.status === 409 ||
 ## Files Modified
 
 1. `ticketing-backend/src/tickets/tickets.service.ts`
+
    - Simplified create() method
    - Calls finalizePurchase() BEFORE ticket creation
    - No error swallowing
 
 2. `ticketing-backend/src/events/seats.service.ts`
+
    - Comprehensive logging with status markers
    - Clear race condition detection message
 
 3. `ticketing-backend/src/events/seats.controller.ts`
+
    - finalizePurchase endpoint returns ticket to frontend
 
 4. `ticketing-platform/app/event/[id]/page.tsx`
+
    - Proper error handling for 409 Conflict
    - User-friendly error messages
 

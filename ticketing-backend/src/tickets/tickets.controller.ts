@@ -11,6 +11,11 @@ export class TicketsController {
     return this.ticketsService.create(createTicketDto);
   }
 
+  @Post('validate-qr')
+  async validateQR(@Body() body: { encryptedToken: string }) {
+    return this.ticketsService.validateByQRToken(body.encryptedToken);
+  }
+
   @Post('validate')
   async validateTicket(@Body() body: { ticketNumber: string }) {
     return this.ticketsService.validateTicketByNumber(body.ticketNumber);

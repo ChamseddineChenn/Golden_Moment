@@ -287,7 +287,9 @@ export default function AdminPage() {
 
     const revenueMonthChange =
       revenueLastMonth > 0
-        ? Math.round((revenueThisMonth / revenueLastMonth) * 100)
+        ? Math.round(
+            ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100
+          )
         : 0;
 
     const totalSeats = events.reduce((acc, e) => acc + e.totalSeats, 0);
@@ -505,57 +507,36 @@ export default function AdminPage() {
       if (code) {
         console.log('QR Code raw data:', code.data);
 
-        // Parse the QR code data
-        let ticketNumber: string | null = null;
+        // The QR code now contains only the encrypted token (not JSON)
+        const encryptedToken = code.data;
 
-        try {
-          const qrData = JSON.parse(code.data);
-          ticketNumber = qrData.ticketNumber;
-        } catch {
-          // If not JSON, check if it's just the ticket number directly
-          if (code.data.startsWith('TK') && /^TK\d{6}$/.test(code.data)) {
-            ticketNumber = code.data;
-          } else {
-            // Try to extract ticket number from any format
-            const match = code.data.match(/TK\d{6}/);
-            if (match) {
-              ticketNumber = match[0];
-            }
-          }
-        }
-
-        if (ticketNumber) {
+        if (encryptedToken) {
           try {
-            // Validate the ticket via API
-            const response = await ticketsAPI.validate(ticketNumber);
-            setScanResult(response.data);
+            // Validate the ticket via API using encrypted token
+            const response = await fetch(
+              'http://localhost:3002/tickets/validate-qr',
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ encryptedToken }),
+              }
+            );
+            const data = await response.json();
+            setScanResult(data);
 
             // Refresh tickets list
             fetchAllTickets();
           } catch (apiErr: unknown) {
             console.error('API validation error:', apiErr);
-            // Handle API errors - the backend might return error in response
-            const axiosError = apiErr as {
-              response?: { data?: { message?: string; success?: boolean } };
-            };
-            if (axiosError.response?.data) {
-              setScanResult({
-                success: false,
-                message:
-                  axiosError.response.data.message ||
-                  'Ticket validation failed',
-              });
-            } else {
-              setScanResult({
-                success: false,
-                message: `Failed to validate ticket ${ticketNumber}. Server error.`,
-              });
-            }
+            setScanResult({
+              success: false,
+              message: 'Failed to validate ticket. Server error.',
+            });
           }
         } else {
           setScanResult({
             success: false,
-            message: `Invalid QR code format. Could not find ticket number.`,
+            message: `Invalid QR code format.`,
           });
         }
       } else {
