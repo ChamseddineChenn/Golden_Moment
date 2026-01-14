@@ -137,7 +137,7 @@ export class SeatsService {
     const reservingUntil = new Date(Date.now() + 20 * 60 * 1000); // 20 minutes
 
     // Use atomic operations to avoid race conditions
-    // Build the update operations for each seat
+    // For each seat, atomically update using a targeted query
     for (const seatRequest of seatIds) {
       const section = event.seatingLayout.sections.find(
         (s) => s.id === seatRequest.sectionId,
@@ -161,29 +161,30 @@ export class SeatsService {
         );
       }
 
-      // Use atomic $set operator to update nested seat status
-      // This avoids race conditions when multiple requests update the same document
-      const sectionIndex = event.seatingLayout.sections.findIndex(
-        (s) => s.id === seatRequest.sectionId,
-      );
-      const seatIndex = section.seats.findIndex(
-        (s) => s.seatId === seatRequest.seatId,
-      );
-
+      // Use atomic update with arrayFilters to target the specific seat by seatId
+      // This ensures we're updating the correct seat even if array indices shift
       await this.eventModel.updateOne(
-        { _id: eventId },
+        { 
+          _id: eventId,
+          'seatingLayout.sections.id': seatRequest.sectionId,
+          'seatingLayout.sections.seats.seatId': seatRequest.seatId,
+        },
         {
           $set: {
-            [`seatingLayout.sections.${sectionIndex}.seats.${seatIndex}.status`]:
-              'reserving',
-            [`seatingLayout.sections.${sectionIndex}.seats.${seatIndex}.reservingUntil`]:
-              reservingUntil,
+            'seatingLayout.sections.$[section].seats.$[seat].status': 'reserving',
+            'seatingLayout.sections.$[section].seats.$[seat].reservingUntil': reservingUntil,
           },
+        },
+        {
+          arrayFilters: [
+            { 'section.id': seatRequest.sectionId },
+            { 'seat.seatId': seatRequest.seatId },
+          ],
         }
       );
 
       console.log(
-        `[SeatsService] Atomically marked seat ${seatRequest.seatId} as reserving`
+        `[SeatsService] Atomically marked seat ${seatRequest.seatId} in section ${seatRequest.sectionId} as reserving`
       );
     }
 
@@ -324,28 +325,30 @@ export class SeatsService {
         continue;
       }
 
-      // Use atomic $set operator to update nested seat status
-      const sectionIndex = event.seatingLayout.sections.findIndex(
-        (s) => s.id === seatRequest.sectionId,
-      );
-      const seatIndex = section.seats.findIndex(
-        (s) => s.seatId === seatRequest.seatId,
-      );
-
+      // Use atomic update with arrayFilters to target the specific seat by seatId
+      // This ensures we're updating the correct seat even if array indices shift
       await this.eventModel.updateOne(
-        { _id: eventId },
+        { 
+          _id: eventId,
+          'seatingLayout.sections.id': seatRequest.sectionId,
+          'seatingLayout.sections.seats.seatId': seatRequest.seatId,
+        },
         {
           $set: {
-            [`seatingLayout.sections.${sectionIndex}.seats.${seatIndex}.status`]:
-              'available',
-            [`seatingLayout.sections.${sectionIndex}.seats.${seatIndex}.reservingUntil`]:
-              null,
+            'seatingLayout.sections.$[section].seats.$[seat].status': 'available',
+            'seatingLayout.sections.$[section].seats.$[seat].reservingUntil': null,
           },
+        },
+        {
+          arrayFilters: [
+            { 'section.id': seatRequest.sectionId },
+            { 'seat.seatId': seatRequest.seatId },
+          ],
         }
       );
 
       console.log(
-        `[SeatsService] Atomically marked seat ${seatRequest.seatId} as available`
+        `[SeatsService] Atomically marked seat ${seatRequest.seatId} in section ${seatRequest.sectionId} as available`
       );
     }
 
