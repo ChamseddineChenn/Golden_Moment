@@ -7,6 +7,32 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Disable caching for all requests
+  params: {
+    // Add a timestamp to all requests to prevent caching
+  },
+});
+
+// Add response interceptor to log seat data requests
+apiClient.interceptors.response.use((response) => {
+  if (response.config.url?.includes('/seats/')) {
+    const unavailableCount = response.data?.seatingLayout?.sections?.reduce(
+      (count, section) =>
+        count +
+        section.seats.filter((s) => s.status === 'unavailable').length,
+      0
+    ) || 0;
+    const reservingCount = response.data?.seatingLayout?.sections?.reduce(
+      (count, section) =>
+        count +
+        section.seats.filter((s) => s.status === 'reserving').length,
+      0
+    ) || 0;
+    console.log(
+      `[API] getSeatMap response: ${unavailableCount} unavailable, ${reservingCount} reserving`
+    );
+  }
+  return response;
 });
 
 // Events API
@@ -30,6 +56,22 @@ export const ticketsAPI = {
     apiClient.post(`/tickets/${ticketId}/mark-used`),
   validate: (ticketNumber: string) =>
     apiClient.post('/tickets/validate', { ticketNumber }),
+};
+
+// Seats API
+export const seatsAPI = {
+  getSeatMap: (eventId: string) => 
+    apiClient.get(`/seats/event/${eventId}`, {
+      params: { _t: Date.now() }, // Cache busting
+    }),
+  reserveSeats: (data: {
+    eventId: string;
+    seats: { sectionId: string; seatId: string }[];
+  }) => apiClient.post('/seats/reserve', data),
+  unreserveSeats: (data: {
+    eventId: string;
+    seats: { sectionId: string; seatId: string }[];
+  }) => apiClient.post('/seats/unreserve', data),
 };
 
 export default apiClient;

@@ -16,10 +16,11 @@ interface Ticket {
     description: string;
     category?: string;
   };
-  seatNumber: string;
+  seats: Array<{ sectionId?: string; seatId: string }>;
   buyerName: string;
   buyerEmail: string;
   purchaseDate: string;
+  totalPrice?: number;
   status: 'valid' | 'used' | 'expired';
   usedAt?: string;
 }
@@ -325,9 +326,9 @@ export default function BackOfficeTicketPage() {
 
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-stone-100">
                   <div>
-                    <p className="text-sm text-stone-500 mb-1">Seat Number</p>
+                    <p className="text-sm text-stone-500 mb-1">Seat(s)</p>
                     <p className="text-2xl font-bold text-amber-600">
-                      {ticket.seatNumber}
+                      {ticket.seats?.map((s) => s.seatId).join(', ') || 'N/A'}
                     </p>
                   </div>
 

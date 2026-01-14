@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { eventsAPI, ticketsAPI } from '@/lib/api';
+import { eventsAPI, ticketsAPI, seatsAPI } from '@/lib/api';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import SeatMap from '@/components/SeatMap';
 
 interface Event {
   _id: string;
@@ -13,11 +14,22 @@ interface Event {
   venue: string;
   totalSeats: number;
   soldTickets: number;
+  ticketPrice?: number;
+  seatingLayout?: {
+    enabled: boolean;
+    sections: any[];
+  };
 }
 
 interface Ticket {
   _id: string;
   ticketNumber: string;
+}
+
+interface SelectedSeat {
+  sectionId: string;
+  seatId: string;
+  price: number;
 }
 
 export default function EventDetailPage() {
@@ -29,9 +41,10 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
+  const [totalPrice, setTotalPrice] = useState(0);
 
   const [formData, setFormData] = useState({
-    seatNumber: '',
     buyerName: '',
     buyerEmail: '',
   });
@@ -52,7 +65,22 @@ export default function EventDetailPage() {
     if (eventId) {
       fetchEvent();
     }
-  }, [eventId]);
+
+    // Cleanup: unreserve any seats when component unmounts (user leaves without buying)
+    return () => {
+      if (selectedSeats.length > 0 && eventId) {
+        seatsAPI.unreserveSeats({
+          eventId,
+          seats: selectedSeats.map((s) => ({
+            sectionId: s.sectionId,
+            seatId: s.seatId,
+          })),
+        }).catch((err) => {
+          console.error('Error unreserving seats on unmount:', err);
+        });
+      }
+    };
+  }, [eventId, selectedSeats]);
 
   const handleBuyTicket = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,12 +90,21 @@ export default function EventDetailPage() {
       setSubmitting(true);
       setError(null);
 
+      // Create a single ticket with all selected seats
       const ticketData = {
         eventId: event._id,
-        seatNumber: formData.seatNumber,
+        seats:
+          event.seatingLayout?.enabled && selectedSeats.length > 0
+            ? selectedSeats.map((seat) => ({
+                sectionId: seat.sectionId,
+                seatId: seat.seatId,
+              }))
+            : [], // Empty array - backend will auto-assign a single seat
         buyerName: formData.buyerName,
         buyerEmail: formData.buyerEmail,
       };
+
+      console.log('[EventDetail] Purchasing ticket with seats:', ticketData.seats);
 
       const response = await ticketsAPI.create(ticketData);
       const ticket: Ticket = response.data;
@@ -236,7 +273,7 @@ export default function EventDetailPage() {
       {/* Event Info Bar */}
       <div className="bg-white border-b border-stone-200">
         <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="flex flex-col md:flex-row justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
                 <svg
@@ -262,6 +299,32 @@ export default function EventDetailPage() {
               <div>
                 <p className="text-sm text-stone-500">Venue</p>
                 <p className="font-semibold text-stone-900">{event.venue}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                <svg
+                  className="w-6 h-6 text-amber-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm text-stone-500">Ticket Price</p>
+                <p className="font-semibold text-stone-900">
+                  {event.ticketPrice
+                    ? `$${event.ticketPrice.toFixed(2)}`
+                    : 'TBD'}
+                </p>
               </div>
             </div>
 
@@ -389,93 +452,215 @@ export default function EventDetailPage() {
                   </Link>
                 </div>
               ) : (
-                <form onSubmit={handleBuyTicket} className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-2">
-                      Seat Number
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g., A1, B5, VIP-12"
-                      value={formData.seatNumber}
-                      onChange={(e) =>
-                        setFormData({ ...formData, seatNumber: e.target.value })
-                      }
-                      className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                      required
-                    />
-                  </div>
+                <>
+                  {/* Visual Seat Selection */}
+                  {event.seatingLayout?.enabled ? (
+                    <div className="space-y-6">
+                      <SeatMap
+                        eventId={eventId}
+                        onSeatsSelected={(seats, total) => {
+                          setSelectedSeats(seats);
+                          setTotalPrice(total);
+                        }}
+                      />
 
-                  <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Your full name"
-                      value={formData.buyerName}
-                      onChange={(e) =>
-                        setFormData({ ...formData, buyerName: e.target.value })
-                      }
-                      className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                      required
-                    />
-                  </div>
+                      {selectedSeats.length > 0 && (
+                        <div className="border-t border-stone-200 pt-6">
+                          <h3 className="text-lg font-bold text-stone-900 mb-4">
+                            Complete Your Booking
+                          </h3>
+                          <form
+                            onSubmit={handleBuyTicket}
+                            className="space-y-6"
+                          >
+                            <div>
+                              <label className="block text-sm font-semibold text-stone-700 mb-2">
+                                Full Name
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Your full name"
+                                value={formData.buyerName}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    buyerName: e.target.value,
+                                  })
+                                }
+                                className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                                required
+                              />
+                            </div>
 
-                  <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-2">
-                      Email Address
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="your@email.com"
-                      value={formData.buyerEmail}
-                      onChange={(e) =>
-                        setFormData({ ...formData, buyerEmail: e.target.value })
-                      }
-                      className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                      required
-                    />
-                    <p className="text-xs text-stone-500 mt-2">
-                      Your e-ticket will be sent to this address
-                    </p>
-                  </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-stone-700 mb-2">
+                                Email Address
+                              </label>
+                              <input
+                                type="email"
+                                placeholder="your@email.com"
+                                value={formData.buyerEmail}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    buyerEmail: e.target.value,
+                                  })
+                                }
+                                className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                                required
+                              />
+                              <p className="text-xs text-stone-500 mt-2">
+                                Your e-ticket will be sent to this address
+                              </p>
+                            </div>
 
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {submitting ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                        Complete Purchase
-                      </>
-                    )}
-                  </button>
+                            <button
+                              type="submit"
+                              disabled={submitting}
+                              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                              {submitting ? (
+                                <>
+                                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                  Processing...
+                                </>
+                              ) : (
+                                <>
+                                  <svg
+                                    className="w-5 h-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M5 13l4 4L19 7"
+                                    />
+                                  </svg>
+                                  Complete Purchase (${totalPrice.toFixed(2)})
+                                </>
+                              )}
+                            </button>
 
-                  <p className="text-xs text-stone-500 text-center">
-                    Your ticket will be instantly generated with a unique QR
-                    code
-                  </p>
-                </form>
+                            <p className="text-xs text-stone-500 text-center">
+                              Your tickets will be instantly generated with
+                              unique QR codes
+                            </p>
+                          </form>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Automatic Seat Assignment - No visual seating */
+                    <form onSubmit={handleBuyTicket} className="space-y-6">
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                        <div className="flex items-start gap-3">
+                          <svg
+                            className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          <div>
+                            <p className="text-sm font-semibold text-blue-900">
+                              Automatic Seat Assignment
+                            </p>
+                            <p className="text-xs text-blue-700 mt-1">
+                              Your seat will be automatically assigned when you
+                              complete your purchase
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-stone-700 mb-2">
+                          Full Name
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Your full name"
+                          value={formData.buyerName}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              buyerName: e.target.value,
+                            })
+                          }
+                          className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-stone-700 mb-2">
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          placeholder="your@email.com"
+                          value={formData.buyerEmail}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              buyerEmail: e.target.value,
+                            })
+                          }
+                          className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                          required
+                        />
+                        <p className="text-xs text-stone-500 mt-2">
+                          Your e-ticket will be sent to this address
+                        </p>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {submitting ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            Processing...
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                            Complete Purchase ($
+                            {event.ticketPrice?.toFixed(2) || '0.00'})
+                          </>
+                        )}
+                      </button>
+
+                      <p className="text-xs text-stone-500 text-center">
+                        Your ticket will be instantly generated with a unique QR
+                        code
+                      </p>
+                    </form>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -522,7 +707,7 @@ export default function EventDetailPage() {
               >
                 {ticketsAvailable === 0
                   ? 'SOLD OUT'
-                  : `${ticketsAvailable} Tickets Available`}
+                  : `${event.soldTickets}/${event.totalSeats} Sold`}
               </div>
 
               <div className="mt-8 space-y-4">

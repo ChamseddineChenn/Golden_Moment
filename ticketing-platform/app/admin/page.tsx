@@ -28,12 +28,15 @@ interface Ticket {
         venue: string;
       }
     | string;
-  seatNumber: string;
+  seats: Array<{ sectionId?: string; seatId: string }>;
   buyerName: string;
   buyerEmail: string;
   purchaseDate: string;
+  totalPrice?: number;
   status: 'valid' | 'used' | 'expired';
   usedAt?: string;
+  createdAt?: string;
+  expiresAt?: string;
 }
 
 type ActiveTab = 'dashboard' | 'events' | 'tickets' | 'scanner' | 'create';
@@ -71,6 +74,16 @@ export default function AdminPage() {
     totalSeats: '',
     ticketPrice: '',
     category: 'Concert',
+    seatingEnabled: false,
+    sections: [] as Array<{
+      id: string;
+      name: string;
+      orientation: 'vertical' | 'horizontal';
+      columns: number;
+      rows: number;
+      priceModifier: number;
+      accessibility: boolean;
+    }>,
   });
 
   // Stats for dashboard
@@ -88,6 +101,11 @@ export default function AdminPage() {
     totalSeats: 0,
     soldPercentage: 0,
     revenueThisYear: 0,
+    revenueThisMonth: 0,
+    revenueLastYear: 0,
+    revenueLastMonth: 0,
+    revenueYearChange: 0,
+    revenueMonthChange: 0,
     attendanceByCategory: {} as Record<string, number>,
     ticketsByCategory: {} as Record<string, number>,
     eventsByCategory: {} as Record<string, number>,
@@ -110,8 +128,15 @@ export default function AdminPage() {
     weekAgo.setDate(weekAgo.getDate() - 7);
 
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthAgo = new Date(monthStart);
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    let monthAgoYear = now.getFullYear();
+    let monthAgoMonth = now.getMonth() - 1;
+    if (monthAgoMonth < 0) {
+      monthAgoMonth = 11;
+      monthAgoYear = now.getFullYear() - 1;
+    }
+    const monthAgo = new Date(monthAgoYear, monthAgoMonth, 1);
 
     const yearStart = new Date(now.getFullYear(), 0, 1);
     const yearAgo = new Date(now.getFullYear() - 1, 0, 1);
@@ -217,15 +242,53 @@ export default function AdminPage() {
       ticketsByCategory[cat] = categoryTickets.length;
     });
 
-    // Calculate total revenue (all events)
-    const revenueThisYear = events.reduce((acc, e) => {
-      const eventTickets = tickets.filter((t) => {
-        const eventId =
-          typeof t.eventId === 'object' ? t.eventId._id : t.eventId;
-        return eventId === e._id;
-      });
-      return acc + eventTickets.length * (e.ticketPrice || 0);
-    }, 0);
+    // Calculate total revenue this year (based on tickets created/sold this year)
+    const revenueThisYear = tickets
+      .filter((t) => {
+        const ticketDate = new Date(t.createdAt || t.purchaseDate);
+        return ticketDate >= yearStart;
+      })
+      .reduce((acc, t) => acc + (t.totalPrice || 0), 0);
+
+    // Calculate revenue last year (based on tickets created/sold last year)
+    const revenueLastYear = tickets
+      .filter((t) => {
+        const ticketDate = new Date(t.createdAt || t.purchaseDate);
+        const ticketYear = ticketDate.getFullYear();
+        return ticketYear === now.getFullYear() - 1;
+      })
+      .reduce((acc, t) => acc + (t.totalPrice || 0), 0);
+
+    // Calculate revenue this month (based on tickets created/sold this month)
+    const revenueThisMonth = tickets
+      .filter((t) => {
+        const ticketDate = new Date(t.createdAt || t.purchaseDate);
+        return ticketDate >= monthStart && ticketDate < monthEnd;
+      })
+      .reduce((acc, t) => acc + (t.totalPrice || 0), 0);
+
+    // Calculate revenue last month (based on tickets created/sold last month)
+    const revenueLastMonth = tickets
+      .filter((t) => {
+        const ticketDate = new Date(t.createdAt || t.purchaseDate);
+        return ticketDate >= monthAgo && ticketDate < monthStart;
+      })
+      .reduce((acc, t) => acc + (t.totalPrice || 0), 0);
+
+    // Calculate revenue percentage changes
+    const revenueYearChange =
+      revenueLastYear > 0
+        ? Math.round(
+            ((revenueThisYear - revenueLastYear) / revenueLastYear) * 100
+          )
+        : revenueThisYear > 0
+        ? 100
+        : 0;
+
+    const revenueMonthChange =
+      revenueLastMonth > 0
+        ? Math.round((revenueThisMonth / revenueLastMonth) * 100)
+        : 0;
 
     const totalSeats = events.reduce((acc, e) => acc + e.totalSeats, 0);
     const soldSeats = events.reduce((acc, e) => acc + e.soldTickets, 0);
@@ -245,6 +308,11 @@ export default function AdminPage() {
       soldPercentage:
         totalSeats > 0 ? Math.round((soldSeats / totalSeats) * 100) : 0,
       revenueThisYear,
+      revenueThisMonth,
+      revenueLastYear,
+      revenueLastMonth,
+      revenueYearChange,
+      revenueMonthChange,
       attendanceByCategory,
       ticketsByCategory,
       eventsByCategory,
@@ -289,6 +357,45 @@ export default function AdminPage() {
     }
   };
 
+  // Section management functions
+  const addSection = () => {
+    const newSection = {
+      id: `section_${Date.now()}`,
+      name: `Section ${newEvent.sections.length + 1}`,
+      orientation: 'horizontal' as const,
+      columns: 10,
+      rows: 5,
+      priceModifier: 0,
+      accessibility: false,
+    };
+    setNewEvent({ ...newEvent, sections: [...newEvent.sections, newSection] });
+  };
+
+  const removeSection = (id: string) => {
+    setNewEvent({
+      ...newEvent,
+      sections: newEvent.sections.filter((s) => s.id !== id),
+    });
+  };
+
+  const updateSection = (
+    id: string,
+    updates: Partial<(typeof newEvent.sections)[0]>
+  ) => {
+    setNewEvent({
+      ...newEvent,
+      sections: newEvent.sections.map((s) =>
+        s.id === id ? { ...s, ...updates } : s
+      ),
+    });
+  };
+
+  const calculateTotalSeatsFromSections = () => {
+    return newEvent.sections.reduce((total, section) => {
+      return total + section.columns * section.rows;
+    }, 0);
+  };
+
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -296,15 +403,38 @@ export default function AdminPage() {
     setSuccess(null);
 
     try {
-      await eventsAPI.create({
+      const eventData: any = {
         name: newEvent.name,
         description: newEvent.description,
         date: newEvent.date,
         venue: newEvent.venue,
-        totalSeats: parseInt(newEvent.totalSeats),
+        totalSeats:
+          newEvent.seatingEnabled && newEvent.sections.length > 0
+            ? calculateTotalSeatsFromSections()
+            : parseInt(newEvent.totalSeats),
         ticketPrice: parseFloat(newEvent.ticketPrice) || 0,
         category: newEvent.category,
-      });
+      };
+
+      // Add seating layout if enabled
+      if (newEvent.seatingEnabled && newEvent.sections.length > 0) {
+        eventData.seatingLayout = {
+          enabled: true,
+          sections: newEvent.sections,
+        };
+      }
+
+      const response = await eventsAPI.create(eventData);
+
+      // Initialize seats if seating is enabled
+      if (newEvent.seatingEnabled && newEvent.sections.length > 0) {
+        await fetch(
+          `http://localhost:3002/seats/event/${response.data._id}/initialize`,
+          {
+            method: 'POST',
+          }
+        );
+      }
 
       setSuccess('Event created successfully!');
       setNewEvent({
@@ -315,6 +445,8 @@ export default function AdminPage() {
         totalSeats: '',
         ticketPrice: '',
         category: 'Concert',
+        seatingEnabled: false,
+        sections: [],
       });
       fetchEvents();
       setTimeout(() => setActiveTab('events'), 1500);
@@ -777,7 +909,7 @@ export default function AdminPage() {
 
             {/* Dashboard Tab */}
             {activeTab === 'dashboard' && (
-              <div className="space-y-6">
+              <div className="space-y-6 flex flex-col">
                 <div>
                   <h2 className="text-2xl font-bold text-stone-900 mb-2">
                     Dashboard Overview
@@ -788,6 +920,56 @@ export default function AdminPage() {
                   </p>
                 </div>
 
+                {/* Quick Actions */}
+                <div className="w-full bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-4 text-white flex items-center gap-4">
+                  <div>
+                    <p className="text-sm font-semibold">Quick Actions</p>
+                    <p className="text-xs text-amber-100">Validate tickets</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveTab('scanner')}
+                    className="bg-white text-amber-600 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-50 transition flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                      />
+                    </svg>
+                    Scan QR Code
+                  </button>
+                  <button
+                    onClick={() => {
+                      fetchEvents();
+                      fetchAllTickets();
+                    }}
+                    className="bg-white/20 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-white/30 transition flex items-center gap-2 whitespace-nowrap ml-auto"
+                    title="Refresh dashboard data"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    Refresh
+                  </button>
+                </div>
+
                 {/* Stats Grid - Time-Based */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-stone-700 uppercase tracking-wide">
@@ -796,21 +978,9 @@ export default function AdminPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Today */}
                     <div className="bg-white rounded-xl p-4 border border-stone-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-stone-900">
-                          Today
-                        </p>
-                        <div
-                          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
-                            stats.dayChange >= 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {stats.dayChange >= 0 ? '+' : ''}
-                          {stats.dayChange}%
-                        </div>
-                      </div>
+                      <p className="text-sm font-semibold text-stone-900 mb-3">
+                        Today
+                      </p>
                       <p className="text-2xl font-bold text-stone-900">
                         {stats.eventsToday}
                       </p>
@@ -821,21 +991,9 @@ export default function AdminPage() {
 
                     {/* This Week */}
                     <div className="bg-white rounded-xl p-4 border border-stone-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-stone-900">
-                          This Week
-                        </p>
-                        <div
-                          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
-                            stats.weekChange >= 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {stats.weekChange >= 0 ? '+' : ''}
-                          {stats.weekChange}%
-                        </div>
-                      </div>
+                      <p className="text-sm font-semibold text-stone-900 mb-3">
+                        This Week
+                      </p>
                       <p className="text-2xl font-bold text-stone-900">
                         {stats.eventsThisWeek}
                       </p>
@@ -846,21 +1004,9 @@ export default function AdminPage() {
 
                     {/* This Month */}
                     <div className="bg-white rounded-xl p-4 border border-stone-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-stone-900">
-                          This Month
-                        </p>
-                        <div
-                          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
-                            stats.monthChange >= 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {stats.monthChange >= 0 ? '+' : ''}
-                          {stats.monthChange}%
-                        </div>
-                      </div>
+                      <p className="text-sm font-semibold text-stone-900 mb-3">
+                        This Month
+                      </p>
                       <p className="text-2xl font-bold text-stone-900">
                         {stats.eventsThisMonth}
                       </p>
@@ -871,21 +1017,9 @@ export default function AdminPage() {
 
                     {/* This Year */}
                     <div className="bg-white rounded-xl p-4 border border-stone-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-semibold text-stone-900">
-                          This Year
-                        </p>
-                        <div
-                          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
-                            stats.yearChange >= 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {stats.yearChange >= 0 ? '+' : ''}
-                          {stats.yearChange}%
-                        </div>
-                      </div>
+                      <p className="text-sm font-semibold text-stone-900 mb-3">
+                        This Year
+                      </p>
                       <p className="text-2xl font-bold text-stone-900">
                         {stats.eventsThisYear}
                       </p>
@@ -919,13 +1053,47 @@ export default function AdminPage() {
                   </div>
 
                   <div className="bg-white rounded-2xl p-5 border border-stone-200">
-                    <p className="text-xs font-semibold text-stone-600 uppercase tracking-wide mb-2">
-                      Revenue This Year
-                    </p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-stone-600 uppercase tracking-wide">
+                        Revenue This Year
+                      </p>
+                      <div
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
+                          stats.revenueYearChange >= 0
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        {stats.revenueYearChange >= 0 ? '+' : ''}
+                        {stats.revenueYearChange}%
+                      </div>
+                    </div>
                     <p className="text-3xl font-bold text-green-600 mb-1">
                       ${stats.revenueThisYear.toFixed(0)}
                     </p>
-                    <p className="text-stone-500 text-sm">Total earnings</p>
+                    <p className="text-stone-500 text-sm">vs last year</p>
+                  </div>
+
+                  <div className="bg-white rounded-2xl p-5 border border-stone-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-stone-600 uppercase tracking-wide">
+                        Revenue This Month
+                      </p>
+                      <div
+                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${
+                          stats.revenueMonthChange >= 0
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        {stats.revenueMonthChange >= 0 ? '+' : ''}
+                        {stats.revenueMonthChange}%
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold text-green-600 mb-1">
+                      ${stats.revenueThisMonth.toFixed(0)}
+                    </p>
+                    <p className="text-stone-500 text-sm">vs last month</p>
                   </div>
                 </div>
 
@@ -1138,33 +1306,6 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Quick Actions */}
-                <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-4 text-white inline-flex items-center gap-4">
-                  <div>
-                    <p className="text-sm font-semibold">Quick Actions</p>
-                    <p className="text-xs text-amber-100">Validate tickets</p>
-                  </div>
-                  <button
-                    onClick={() => setActiveTab('scanner')}
-                    className="bg-white text-amber-600 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-50 transition flex items-center gap-2 whitespace-nowrap"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-                      />
-                    </svg>
-                    QR Scan
-                  </button>
-                </div>
-
                 {/* Recent Activity */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="bg-white rounded-2xl p-6 border border-stone-200">
@@ -1203,43 +1344,55 @@ export default function AdminPage() {
                     <h3 className="text-lg font-bold text-stone-900 mb-4">
                       Recent Tickets
                     </h3>
-                    {tickets.slice(0, 5).map((ticket) => {
-                      const eventInfo =
-                        typeof ticket.eventId === 'object'
-                          ? ticket.eventId
-                          : null;
-                      return (
-                        <div
-                          key={ticket._id}
-                          className="flex items-center gap-4 py-3 border-b border-stone-100 last:border-0"
-                        >
-                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                            <svg
-                              className="w-5 h-5 text-green-600"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
+                    {tickets
+                      .slice()
+                      .sort((a, b) => {
+                        const aTime = new Date(
+                          a.createdAt || a.purchaseDate || 0
+                        ).getTime();
+                        const bTime = new Date(
+                          b.createdAt || b.purchaseDate || 0
+                        ).getTime();
+                        return bTime - aTime; // Newest first
+                      })
+                      .slice(0, 5)
+                      .map((ticket) => {
+                        const eventInfo =
+                          typeof ticket.eventId === 'object'
+                            ? ticket.eventId
+                            : null;
+                        return (
+                          <div
+                            key={ticket._id}
+                            className="flex items-center gap-4 py-3 border-b border-stone-100 last:border-0"
+                          >
+                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                              <svg
+                                className="w-5 h-5 text-green-600"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-stone-900 truncate">
+                                {ticket.buyerName}
+                              </p>
+                              <p className="text-sm text-stone-500">
+                                {eventInfo?.name || 'Unknown Event'}
+                              </p>
+                            </div>
+                            {getStatusBadge(ticket.status || 'valid')}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-stone-900 truncate">
-                              {ticket.buyerName}
-                            </p>
-                            <p className="text-sm text-stone-500">
-                              {eventInfo?.name || 'Unknown Event'}
-                            </p>
-                          </div>
-                          {getStatusBadge(ticket.status || 'valid')}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                     {tickets.length === 0 && (
                       <p className="text-stone-500 text-center py-4">
                         No tickets sold yet
@@ -1261,27 +1414,49 @@ export default function AdminPage() {
                     <p className="text-stone-600">Manage all your events</p>
                   </div>
 
-                  <div className="relative w-full md:w-80">
-                    <svg
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => fetchEvents()}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-medium text-sm whitespace-nowrap"
+                      title="Refresh events list"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      Refresh
+                    </button>
+                    <div className="relative w-full md:w-80">
+                      <svg
+                        className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search events..."
+                        value={eventSearch}
+                        onChange={(e) => setEventSearch(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-stone-900"
                       />
-                    </svg>
-                    <input
-                      type="text"
-                      placeholder="Search events..."
-                      value={eventSearch}
-                      onChange={(e) => setEventSearch(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-stone-900"
-                    />
+                    </div>
                   </div>
                 </div>
 
@@ -1465,35 +1640,57 @@ export default function AdminPage() {
                     </p>
                   </div>
 
-                  <div className="relative w-full md:w-80">
-                    <svg
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => fetchAllTickets()}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-medium text-sm whitespace-nowrap"
+                      title="Refresh tickets list"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      Refresh
+                    </button>
+                    <div className="relative w-full md:w-80">
+                      <svg
+                        className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search by ticket number, name, or email..."
+                        value={ticketSearch}
+                        onChange={(e) => {
+                          setTicketSearch(e.target.value);
+                          handleSearchTickets(e.target.value);
+                        }}
+                        className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-stone-900"
                       />
-                    </svg>
-                    <input
-                      type="text"
-                      placeholder="Search by ticket number, name, or email..."
-                      value={ticketSearch}
-                      onChange={(e) => {
-                        setTicketSearch(e.target.value);
-                        handleSearchTickets(e.target.value);
-                      }}
-                      className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-stone-900"
-                    />
-                    {searchingTickets && (
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                        <div className="w-5 h-5 border-2 border-stone-200 border-t-amber-500 rounded-full animate-spin"></div>
-                      </div>
-                    )}
+                      {searchingTickets && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                          <div className="w-5 h-5 border-2 border-stone-200 border-t-amber-500 rounded-full animate-spin"></div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1550,7 +1747,8 @@ export default function AdminPage() {
                                 </p>
                               </td>
                               <td className="px-6 py-4 text-stone-700">
-                                {ticket.seatNumber}
+                                {ticket.seats?.map((s) => s.seatId).join(', ') ||
+                                  'N/A'}
                               </td>
                               <td className="px-6 py-4">
                                 {getStatusBadge(ticket.status || 'valid')}
@@ -1745,7 +1943,8 @@ export default function AdminPage() {
                                 <div>
                                   <p className="text-stone-500">Seat</p>
                                   <p className="font-semibold text-stone-900">
-                                    {scanResult.ticket.seatNumber}
+                                    {scanResult.ticket.seats?.map((s) => s.seatId).join(', ') ||
+                                      'N/A'}
                                   </p>
                                 </div>
                                 <div>
@@ -1946,6 +2145,261 @@ export default function AdminPage() {
                         <option value="Concert">🎵 Concert</option>
                         <option value="Sahra">🌙 Sahra</option>
                       </select>
+                    </div>
+
+                    {/* Visual Seating Configuration */}
+                    <div className="border-t border-stone-200 pt-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h3 className="text-lg font-bold text-stone-900">
+                            Visual Seat Selection
+                          </h3>
+                          <p className="text-sm text-stone-600">
+                            Enable interactive seat map for customers
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newEvent.seatingEnabled}
+                            onChange={(e) =>
+                              setNewEvent({
+                                ...newEvent,
+                                seatingEnabled: e.target.checked,
+                              })
+                            }
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                      </div>
+
+                      {newEvent.seatingEnabled && (
+                        <div className="space-y-4 mt-4">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-stone-600">
+                              Configure sections and preview the seating layout
+                            </p>
+                            <button
+                              type="button"
+                              onClick={addSection}
+                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium text-sm transition flex items-center gap-2"
+                            >
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M12 4v16m8-8H4"
+                                />
+                              </svg>
+                              Add Section
+                            </button>
+                          </div>
+
+                          {newEvent.sections.map((section, index) => (
+                            <div
+                              key={section.id}
+                              className="border border-stone-200 rounded-xl p-4 bg-stone-50"
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <input
+                                  type="text"
+                                  value={section.name}
+                                  onChange={(e) =>
+                                    updateSection(section.id, {
+                                      name: e.target.value,
+                                    })
+                                  }
+                                  className="text-lg font-bold text-stone-900 bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-amber-500 rounded px-2"
+                                  placeholder="Section name"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeSection(section.id)}
+                                  className="text-red-500 hover:text-red-700 transition"
+                                >
+                                  <svg
+                                    className="w-5 h-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div>
+                                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                                    Columns
+                                  </label>
+                                  <input
+                                    type="number"
+                                    value={section.columns}
+                                    onChange={(e) =>
+                                      updateSection(section.id, {
+                                        columns: parseInt(e.target.value) || 1,
+                                      })
+                                    }
+                                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                                    min="1"
+                                    max="26"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                                    Rows
+                                  </label>
+                                  <input
+                                    type="number"
+                                    value={section.rows}
+                                    onChange={(e) =>
+                                      updateSection(section.id, {
+                                        rows: parseInt(e.target.value) || 1,
+                                      })
+                                    }
+                                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                                    min="1"
+                                    max="50"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                                    Price +/-
+                                  </label>
+                                  <input
+                                    type="number"
+                                    value={section.priceModifier}
+                                    onChange={(e) =>
+                                      updateSection(section.id, {
+                                        priceModifier:
+                                          parseFloat(e.target.value) || 0,
+                                      })
+                                    }
+                                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                                    step="0.01"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                                    Orientation
+                                  </label>
+                                  <select
+                                    value={section.orientation}
+                                    onChange={(e) =>
+                                      updateSection(section.id, {
+                                        orientation: e.target.value as
+                                          | 'vertical'
+                                          | 'horizontal',
+                                      })
+                                    }
+                                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                                  >
+                                    <option value="horizontal">
+                                      Horizontal
+                                    </option>
+                                    <option value="vertical">Vertical</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="mt-3 flex items-center gap-2">
+                                <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={section.accessibility}
+                                    onChange={(e) =>
+                                      updateSection(section.id, {
+                                        accessibility: e.target.checked,
+                                      })
+                                    }
+                                    className="w-4 h-4 text-amber-600 bg-stone-100 border-stone-300 rounded focus:ring-amber-500"
+                                  />
+                                  <span>Accessible seating section</span>
+                                </label>
+                              </div>
+
+                              {/* Mini preview */}
+                              <div className="mt-3 p-3 bg-white rounded-lg border border-stone-200">
+                                <div className="text-xs text-stone-600 mb-2">
+                                  Preview: {section.columns} × {section.rows} ={' '}
+                                  {section.columns * section.rows} seats
+                                </div>
+                                <div
+                                  className="grid gap-0.5"
+                                  style={{
+                                    gridTemplateColumns:
+                                      section.orientation === 'horizontal'
+                                        ? `repeat(${Math.min(
+                                            section.columns,
+                                            15
+                                          )}, minmax(0, 1fr))`
+                                        : `repeat(${Math.min(
+                                            section.rows,
+                                            15
+                                          )}, minmax(0, 1fr))`,
+                                  }}
+                                >
+                                  {Array.from({
+                                    length: Math.min(
+                                      section.columns * section.rows,
+                                      150
+                                    ),
+                                  }).map((_, i) => (
+                                    <div
+                                      key={i}
+                                      className="w-3 h-3 bg-green-500 rounded-sm"
+                                      title="Available seat"
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+
+                          {newEvent.sections.length > 0 && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                              <div className="flex items-center gap-2 text-amber-800">
+                                <svg
+                                  className="w-5 h-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                  />
+                                </svg>
+                                <span className="font-semibold">
+                                  Total calculated seats:{' '}
+                                  {calculateTotalSeatsFromSections()}
+                                </span>
+                              </div>
+                              <p className="text-sm text-amber-700 mt-1">
+                                This will override the "Total Seats" field above
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <button

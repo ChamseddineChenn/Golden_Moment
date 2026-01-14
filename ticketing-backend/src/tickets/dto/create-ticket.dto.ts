@@ -2,7 +2,7 @@ import { Types } from 'mongoose';
 
 export class CreateTicketDto {
   eventId: string | Types.ObjectId;
-  seatNumber: string;
+  seats: Array<{ sectionId?: string; seatId: string }>;
   buyerEmail?: string;
   buyerName?: string;
   metadata?: Record<string, any>;
