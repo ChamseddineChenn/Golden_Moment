@@ -13,8 +13,24 @@ export class EventsService {
   ) {}
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
-    const createdEvent = new this.eventModel(createEventDto);
+    // Ensure category is set, default to 'Concert' if not provided
+    const eventData = {
+      ...createEventDto,
+      category: createEventDto.category || 'Concert',
+    };
+
+    console.log(
+      '[EventsService] Creating event with category:',
+      eventData.category,
+    );
+
+    const createdEvent = new this.eventModel(eventData);
     const savedEvent = await createdEvent.save();
+
+    console.log(
+      '[EventsService] Event saved with category:',
+      savedEvent.category,
+    );
 
     // If seating is enabled, initialize the seat matrix
     if (
@@ -36,7 +52,12 @@ export class EventsService {
   }
 
   async findAll(): Promise<Event[]> {
-    return this.eventModel.find({ isActive: true }).exec();
+    const events = await this.eventModel.find({ isActive: true }).exec();
+    console.log(
+      '[EventsService] findAll returning events:',
+      events.map((e) => ({ id: e._id, name: e.name, category: e.category })),
+    );
+    return events;
   }
 
   async findById(id: string): Promise<Event | null> {

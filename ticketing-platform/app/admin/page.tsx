@@ -221,7 +221,11 @@ export default function AdminPage() {
 
     const categories = ['Movies', 'Theatre', 'Concert', 'Sahra'];
     categories.forEach((cat) => {
-      const categoryEvents = events.filter((e) => e.category === cat);
+      const categoryEvents = events.filter((e) => {
+        // Debug: log if category doesn't exist
+        const eventCategory = e.category || 'Concert';
+        return eventCategory === cat;
+      });
       eventsByCategory[cat] = categoryEvents.length;
 
       const categoryTickets = tickets.filter((t) => {
@@ -229,18 +233,13 @@ export default function AdminPage() {
           typeof t.eventId === 'object' ? t.eventId._id : t.eventId;
         return categoryEvents.some((e) => e._id === eventId);
       });
-
-      const usedInCategory = categoryTickets.filter(
+      ticketsByCategory[cat] = categoryTickets.length;
+      attendanceByCategory[cat] = categoryTickets.filter(
         (t) => t.status === 'used'
       ).length;
-      const attendanceRate =
-        categoryTickets.length > 0
-          ? Math.round((usedInCategory / categoryTickets.length) * 100)
-          : 0;
-
-      attendanceByCategory[cat] = attendanceRate;
-      ticketsByCategory[cat] = categoryTickets.length;
     });
+
+    console.log('DEBUG eventsByCategory:', eventsByCategory);
 
     // Calculate total revenue this year (based on tickets created/sold this year)
     const revenueThisYear = tickets
@@ -281,8 +280,6 @@ export default function AdminPage() {
         ? Math.round(
             ((revenueThisYear - revenueLastYear) / revenueLastYear) * 100
           )
-        : revenueThisYear > 0
-        ? 100
         : 0;
 
     const revenueMonthChange =
@@ -324,6 +321,8 @@ export default function AdminPage() {
   const fetchEvents = async () => {
     try {
       const response = await eventsAPI.getAll();
+      // Debug: log events to see their structure
+      console.log('Fetched events:', response.data);
       setEvents(response.data);
     } catch (err) {
       console.error('Failed to fetch events:', err);
@@ -1163,127 +1162,164 @@ export default function AdminPage() {
                     Events by Category
                   </h3>
                   <div className="bg-white rounded-2xl p-8 border border-stone-200">
-                    <div className="flex flex-col lg:flex-row items-center justify-center gap-12">
-                      {/* Pie Chart SVG */}
-                      <div className="flex items-center justify-center">
-                        <svg width="200" height="200" viewBox="0 0 200 200">
-                          {(() => {
-                            const categories = [
-                              'Movies',
-                              'Theatre',
-                              'Concert',
-                              'Sahra',
-                            ];
-                            const colors = {
-                              Movies: '#EF4444',
-                              Theatre: '#A855F7',
-                              Concert: '#EC4899',
-                              Sahra: '#FBBF24',
-                            };
-                            const eventCounts = categories.map(
-                              (cat) => stats.eventsByCategory[cat] || 0
-                            );
-                            const total = Math.max(
-                              eventCounts.reduce((a, b) => a + b, 0),
-                              1
-                            );
-                            let currentAngle = -90;
+                    {stats.totalEvents === 0 ? (
+                      <div className="flex items-center justify-center py-12">
+                        <p className="text-stone-500 text-center">
+                          No events created yet
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col lg:flex-row items-center justify-center gap-12">
+                        {/* Pie Chart SVG */}
+                        <div className="flex items-center justify-center">
+                          <svg width="200" height="200" viewBox="0 0 200 200">
+                            {(() => {
+                              const categories = [
+                                'Movies',
+                                'Theatre',
+                                'Concert',
+                                'Sahra',
+                              ];
+                              const colors = {
+                                Movies: '#EF4444',
+                                Theatre: '#A855F7',
+                                Concert: '#EC4899',
+                                Sahra: '#FBBF24',
+                              };
+                              const eventCounts = categories.map(
+                                (cat) => stats.eventsByCategory[cat] || 0
+                              );
+                              const total = eventCounts.reduce(
+                                (a, b) => a + b,
+                                0
+                              );
 
-                            return categories
-                              .map((category, idx) => {
-                                const count = eventCounts[idx];
-                                if (count === 0) return null;
-
-                                const sliceAngle = (count / total) * 360;
-                                const startAngle = currentAngle;
-                                const endAngle = currentAngle + sliceAngle;
-
-                                const startRad = (startAngle * Math.PI) / 180;
-                                const endRad = (endAngle * Math.PI) / 180;
-                                const x1 = 100 + 80 * Math.cos(startRad);
-                                const y1 = 100 + 80 * Math.sin(startRad);
-                                const x2 = 100 + 80 * Math.cos(endRad);
-                                const y2 = 100 + 80 * Math.sin(endRad);
-
-                                const largeArc = sliceAngle > 180 ? 1 : 0;
-                                const path = `M 100 100 L ${x1} ${y1} A 80 80 0 ${largeArc} 1 ${x2} ${y2} Z`;
-
-                                currentAngle = endAngle;
-
+                              if (total === 0) {
                                 return (
-                                  <path
-                                    key={category}
-                                    d={path}
-                                    fill={
-                                      colors[category as keyof typeof colors]
-                                    }
-                                    stroke="white"
-                                    strokeWidth="2"
-                                  />
+                                  <>
+                                    <circle
+                                      cx="100"
+                                      cy="100"
+                                      r="80"
+                                      fill="none"
+                                      stroke="#E7E5E4"
+                                      strokeWidth="2"
+                                    />
+                                    <circle
+                                      cx="100"
+                                      cy="100"
+                                      r="50"
+                                      fill="white"
+                                    />
+                                  </>
                                 );
-                              })
-                              .filter(Boolean);
-                          })()}
-                          <circle cx="100" cy="100" r="50" fill="white" />
-                        </svg>
-                      </div>
+                              }
 
-                      {/* Legend */}
-                      <div className="space-y-4 w-full lg:w-auto">
-                        {['Movies', 'Theatre', 'Concert', 'Sahra'].map(
-                          (category) => {
-                            const events =
-                              stats.eventsByCategory[category] || 0;
-                            const total = stats.totalEvents || 1;
-                            const percentage = Math.round(
-                              (events / total) * 100
-                            );
-                            const colorMap = {
-                              Movies: 'bg-red-500',
-                              Theatre: 'bg-purple-500',
-                              Concert: 'bg-pink-500',
-                              Sahra: 'bg-amber-400',
-                            };
-                            const emoji =
-                              category === 'Movies'
-                                ? '🎬'
-                                : category === 'Theatre'
-                                ? '🎭'
-                                : category === 'Concert'
-                                ? '🎵'
-                                : '🌙';
+                              const circumference = 2 * Math.PI * 80;
+                              let offset = 0;
 
-                            return (
-                              <div
-                                key={category}
-                                className="flex items-center justify-between gap-4"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className={`w-3 h-3 rounded-full ${
-                                      colorMap[
-                                        category as keyof typeof colorMap
-                                      ]
-                                    }`}
-                                  ></div>
-                                  <span className="text-sm font-semibold text-stone-700">
-                                    {emoji} {category}
-                                  </span>
+                              return [
+                                ...categories
+                                  .map((category, idx) => {
+                                    const count = eventCounts[idx];
+                                    if (count === 0) return null; // Don't render empty segments
+
+                                    const percentage = (count / total) * 100;
+                                    const strokeDashoffset = offset;
+                                    const strokeDasharray =
+                                      (percentage / 100) * circumference;
+
+                                    offset += strokeDasharray;
+
+                                    return (
+                                      <circle
+                                        key={category}
+                                        cx="100"
+                                        cy="100"
+                                        r="80"
+                                        fill="none"
+                                        stroke={
+                                          colors[
+                                            category as keyof typeof colors
+                                          ]
+                                        }
+                                        strokeWidth="20"
+                                        strokeDasharray={strokeDasharray}
+                                        strokeDashoffset={-strokeDashoffset}
+                                        style={{ transition: 'all 0.3s ease' }}
+                                      />
+                                    );
+                                  })
+                                  .filter(Boolean),
+                                <circle
+                                  key="center"
+                                  cx="100"
+                                  cy="100"
+                                  r="50"
+                                  fill="white"
+                                />,
+                              ];
+                            })()}
+                          </svg>
+                        </div>
+
+                        {/* Legend */}
+                        <div className="space-y-4 w-full lg:w-auto">
+                          {['Movies', 'Theatre', 'Concert', 'Sahra'].map(
+                            (category) => {
+                              const events =
+                                stats.eventsByCategory[category] || 0;
+                              const total = stats.totalEvents || 1;
+                              const percentage = Math.round(
+                                (events / total) * 100
+                              );
+                              const colorMap = {
+                                Movies: 'bg-red-500',
+                                Theatre: 'bg-purple-500',
+                                Concert: 'bg-pink-500',
+                                Sahra: 'bg-amber-400',
+                              };
+                              const emoji =
+                                category === 'Movies'
+                                  ? '🎬'
+                                  : category === 'Theatre'
+                                  ? '🎭'
+                                  : category === 'Concert'
+                                  ? '🎵'
+                                  : '🌙';
+
+                              return (
+                                <div
+                                  key={category}
+                                  className="flex items-center justify-between gap-4"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div
+                                      className={`w-3 h-3 rounded-full ${
+                                        colorMap[
+                                          category as keyof typeof colorMap
+                                        ]
+                                      }`}
+                                    ></div>
+                                    <span className="text-sm font-semibold text-stone-700">
+                                      {emoji} {category}
+                                    </span>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-bold text-stone-900">
+                                      {events}
+                                    </p>
+                                    <p className="text-xs text-stone-600">
+                                      {percentage}%
+                                    </p>
+                                  </div>
                                 </div>
-                                <div className="text-right">
-                                  <p className="text-sm font-bold text-stone-900">
-                                    {events}
-                                  </p>
-                                  <p className="text-xs text-stone-600">
-                                    {percentage}%
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          }
-                        )}
+                              );
+                            }
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
