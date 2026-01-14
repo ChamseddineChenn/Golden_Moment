@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { eventsAPI, ticketsAPI, seatsAPI } from '@/lib/api';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -49,6 +49,12 @@ export default function EventDetailPage() {
     buyerEmail: '',
   });
 
+  // Store selectedSeats in a ref so the cleanup can access the latest value
+  const selectedSeatsRef = useRef<SelectedSeat[]>([]);
+  useEffect(() => {
+    selectedSeatsRef.current = selectedSeats;
+  }, [selectedSeats]);
+
   useEffect(() => {
     const fetchEvent = async () => {
       try {
@@ -66,12 +72,15 @@ export default function EventDetailPage() {
       fetchEvent();
     }
 
-    // Cleanup: unreserve any seats when component unmounts (user leaves without buying)
+    // Cleanup: unreserve any seats when component unmounts ONLY (user leaves without buying)
+    // Using ref to get the latest selectedSeats without adding it to dependencies
     return () => {
-      if (selectedSeats.length > 0 && eventId) {
+      const seatsToUnreserve = selectedSeatsRef.current;
+      if (seatsToUnreserve.length > 0 && eventId) {
+        console.log('[EventPage] Unmounting, unreserving seats:', seatsToUnreserve);
         seatsAPI.unreserveSeats({
           eventId,
-          seats: selectedSeats.map((s) => ({
+          seats: seatsToUnreserve.map((s) => ({
             sectionId: s.sectionId,
             seatId: s.seatId,
           })),
@@ -80,7 +89,7 @@ export default function EventDetailPage() {
         });
       }
     };
-  }, [eventId, selectedSeats]);
+  }, [eventId]); // Only depend on eventId, NOT selectedSeats
 
   const handleBuyTicket = async (e: React.FormEvent) => {
     e.preventDefault();

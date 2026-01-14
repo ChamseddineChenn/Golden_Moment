@@ -33,14 +33,18 @@ export class SeatsService {
     }
 
     // Log the seat statuses for debugging
+    const reservingSeats = event.seatingLayout.sections.flatMap((section) =>
+      section.seats
+        .filter((s) => s.status === 'reserving')
+        .map((s) => `${section.id}/${s.seatId}`)
+    );
     const unavailableSeats = event.seatingLayout.sections.flatMap((section) =>
       section.seats
         .filter((s) => s.status === 'unavailable')
         .map((s) => `${section.id}/${s.seatId}`)
     );
     console.log(
-      `[SeatsService] getSeatMap called for event ${eventId}, unavailable seats:`,
-      unavailableSeats
+      `[SeatsService] getSeatMap: reserving=${reservingSeats.length} [${reservingSeats.join(', ')}], unavailable=${unavailableSeats.length}`
     );
 
     // Return the seating layout with current seat statuses
@@ -124,15 +128,24 @@ export class SeatsService {
     eventId: string,
     seatIds: { sectionId: string; seatId: string }[],
   ) {
+    console.log('='.repeat(60));
+    console.log('[SeatsService] reserveSeats START');
+    console.log('[SeatsService] eventId:', eventId);
+    console.log('[SeatsService] seatIds:', JSON.stringify(seatIds));
+
     const event = await this.eventModel.findById(eventId);
     if (!event) {
       throw new BadRequestException('Event not found');
     }
 
-    console.log(
-      `[SeatsService] reserveSeats called with ${seatIds.length} seats:`,
-      seatIds
+    // Log current state of ALL seats before update
+    const beforeReservingSeats = event.seatingLayout.sections.flatMap(
+      (section) =>
+        section.seats
+          .filter((s) => s.status === 'reserving')
+          .map((s) => `${section.id}/${s.seatId}`)
     );
+    console.log('[SeatsService] BEFORE update, reserving seats in DB:', beforeReservingSeats);
 
     const reservingUntil = new Date(Date.now() + 20 * 60 * 1000); // 20 minutes
 
@@ -143,6 +156,7 @@ export class SeatsService {
         (s) => s.id === seatRequest.sectionId,
       );
       if (!section) {
+        console.log('[SeatsService] ERROR: Section not found:', seatRequest.sectionId);
         throw new BadRequestException(
           `Section ${seatRequest.sectionId} not found`,
         );
@@ -150,10 +164,13 @@ export class SeatsService {
 
       const seat = section.seats.find((s) => s.seatId === seatRequest.seatId);
       if (!seat) {
+        console.log('[SeatsService] ERROR: Seat not found:', seatRequest.seatId);
         throw new BadRequestException(
           `Seat ${seatRequest.seatId} not found in section ${seatRequest.sectionId}`,
         );
       }
+
+      console.log('[SeatsService] Seat current status:', seat.seatId, '=', seat.status);
 
       if (seat.status === 'unavailable') {
         throw new ConflictException(
@@ -162,12 +179,11 @@ export class SeatsService {
       }
 
       // Use atomic update with arrayFilters to target the specific seat by seatId
-      // This ensures we're updating the correct seat even if array indices shift
-      await this.eventModel.updateOne(
+      console.log('[SeatsService] Executing updateOne with arrayFilters for seat:', seatRequest.seatId);
+      
+      const updateResult = await this.eventModel.updateOne(
         { 
           _id: eventId,
-          'seatingLayout.sections.id': seatRequest.sectionId,
-          'seatingLayout.sections.seats.seatId': seatRequest.seatId,
         },
         {
           $set: {
@@ -183,12 +199,8 @@ export class SeatsService {
         }
       );
 
-      console.log(
-        `[SeatsService] Atomically marked seat ${seatRequest.seatId} in section ${seatRequest.sectionId} as reserving`
-      );
+      console.log('[SeatsService] updateOne result:', JSON.stringify(updateResult));
     }
-
-    console.log(`[SeatsService] Saved all ${seatIds.length} seat reservations`);
 
     // Verify what was actually saved
     const savedEvent = await this.eventModel.findById(eventId);
@@ -199,11 +211,11 @@ export class SeatsService {
             .filter((s) => s.status === 'reserving')
             .map((s) => `${section.id}/${s.seatId}`)
       );
-      console.log(
-        '[SeatsService] After reserveSeats, reserving seats in DB:',
-        savedReservingSeats
-      );
+      console.log('[SeatsService] AFTER update, reserving seats in DB:', savedReservingSeats);
     }
+
+    console.log('[SeatsService] reserveSeats END');
+    console.log('='.repeat(60));
 
     return {
       reservedSeats: seatIds,
@@ -299,15 +311,25 @@ export class SeatsService {
     eventId: string,
     seatIds: { sectionId: string; seatId: string }[],
   ) {
+    console.log('='.repeat(60));
+    console.log('[SeatsService] unreserveSeats START');
+    console.log('[SeatsService] eventId:', eventId);
+    console.log('[SeatsService] seatIds:', JSON.stringify(seatIds));
+
     const event = await this.eventModel.findById(eventId);
     if (!event) {
+      console.log('[SeatsService] ERROR: Event not found');
       throw new BadRequestException('Event not found');
     }
 
-    console.log(
-      `[SeatsService] unreserveSeats called with ${seatIds.length} seats:`,
-      seatIds
+    // Log current state of ALL seats before update
+    const beforeReservingSeats = event.seatingLayout.sections.flatMap(
+      (section) =>
+        section.seats
+          .filter((s) => s.status === 'reserving')
+          .map((s) => `${section.id}/${s.seatId}`)
     );
+    console.log('[SeatsService] BEFORE unreserve, reserving seats in DB:', beforeReservingSeats);
 
     // Use atomic operations to avoid race conditions
     for (const seatRequest of seatIds) {
@@ -315,23 +337,22 @@ export class SeatsService {
         (s) => s.id === seatRequest.sectionId,
       );
       if (!section) {
-        console.log('[SeatsService] Section not found for unreserve, skipping');
+        console.log('[SeatsService] Section not found for unreserve, skipping:', seatRequest.sectionId);
         continue;
       }
 
       const seat = section.seats.find((s) => s.seatId === seatRequest.seatId);
       if (!seat) {
-        console.log('[SeatsService] Seat not found for unreserve, skipping');
+        console.log('[SeatsService] Seat not found for unreserve, skipping:', seatRequest.seatId);
         continue;
       }
 
+      console.log('[SeatsService] Unreserving seat:', seatRequest.seatId, 'current status:', seat.status);
+
       // Use atomic update with arrayFilters to target the specific seat by seatId
-      // This ensures we're updating the correct seat even if array indices shift
-      await this.eventModel.updateOne(
+      const updateResult = await this.eventModel.updateOne(
         { 
           _id: eventId,
-          'seatingLayout.sections.id': seatRequest.sectionId,
-          'seatingLayout.sections.seats.seatId': seatRequest.seatId,
         },
         {
           $set: {
@@ -347,12 +368,23 @@ export class SeatsService {
         }
       );
 
-      console.log(
-        `[SeatsService] Atomically marked seat ${seatRequest.seatId} in section ${seatRequest.sectionId} as available`
-      );
+      console.log('[SeatsService] unreserve updateOne result:', JSON.stringify(updateResult));
     }
 
-    console.log(`[SeatsService] Unreserved ${seatIds.length} seats`);
+    // Verify what was actually saved
+    const savedEvent = await this.eventModel.findById(eventId);
+    if (savedEvent) {
+      const afterReservingSeats = savedEvent.seatingLayout.sections.flatMap(
+        (section) =>
+          section.seats
+            .filter((s) => s.status === 'reserving')
+            .map((s) => `${section.id}/${s.seatId}`)
+      );
+      console.log('[SeatsService] AFTER unreserve, reserving seats in DB:', afterReservingSeats);
+    }
+
+    console.log('[SeatsService] unreserveSeats END');
+    console.log('='.repeat(60));
 
     return { unreservedSeats: seatIds };
   }
