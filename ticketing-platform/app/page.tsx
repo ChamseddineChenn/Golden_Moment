@@ -8,6 +8,7 @@ interface Event {
   _id: string;
   name: string;
   description: string;
+  coverImage?: string;
   date: string;
   venue: string;
   totalSeats: number;
@@ -17,8 +18,9 @@ interface Event {
 }
 
 function EventCard({ event }: { event: Event }) {
-  const ticketsAvailable = event.totalSeats - event.soldTickets;
-  const soldPercentage = (event.soldTickets / event.totalSeats) * 100;
+  const totalSeats = event.totalSeats || 0;
+  const ticketsAvailable = totalSeats - event.soldTickets;
+  const soldPercentage = totalSeats > 0 ? (event.soldTickets / totalSeats) * 100 : 0;
   const eventDate = new Date(event.date);
   const isAlmostSoldOut = soldPercentage >= 80;
   const isExpired = eventDate < new Date();
@@ -28,8 +30,15 @@ function EventCard({ event }: { event: Event }) {
       href={`/event/${event._id}`}
       className="group bg-white rounded-2xl overflow-hidden border border-stone-200 hover:border-amber-300 hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-300"
     >
-      {/* Event Image Placeholder */}
+      {/* Event Image */}
       <div className="relative h-48 bg-gradient-to-br from-stone-800 to-stone-900 overflow-hidden">
+        {event.coverImage && (
+          <img
+            src={event.coverImage}
+            alt={event.name}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
 
         {/* Date Badge */}

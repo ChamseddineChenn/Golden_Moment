@@ -18,8 +18,9 @@ interface Event {
 }
 
 function EventCard({ event }: { event: Event }) {
-  const ticketsAvailable = event.totalSeats - event.soldTickets;
-  const soldPercentage = (event.soldTickets / event.totalSeats) * 100;
+  const totalSeats = event.totalSeats || 0;
+  const ticketsAvailable = totalSeats - event.soldTickets;
+  const soldPercentage = totalSeats > 0 ? (event.soldTickets / totalSeats) * 100 : 0;
   const eventDate = new Date(event.date);
   const isAlmostSoldOut = soldPercentage >= 80;
   const isExpired = eventDate < new Date();

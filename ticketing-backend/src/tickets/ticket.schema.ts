@@ -47,6 +47,9 @@ export class Ticket extends Document {
   @Prop({ type: Number, default: 0 })
   totalPrice: number;
 
+  @Prop({ enum: ['Free', 'Standard', 'EarlyBird', 'VIP'], default: 'Free' })
+  ticketType: string;
+
   @Prop({ type: Object, default: {} })
   metadata: Record<string, any>;
 }

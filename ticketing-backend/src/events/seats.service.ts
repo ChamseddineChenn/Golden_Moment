@@ -26,7 +26,10 @@ export class SeatsService {
           name: event.name,
           venue: event.venue,
           date: event.date,
-          basePrice: event.ticketPrice,
+          basePrice:
+            event.ticketTypes?.Free?.price ||
+            event.ticketTypes?.Standard?.price ||
+            0,
         },
         seatingLayout: { enabled: false, sections: [] },
       };
@@ -54,7 +57,10 @@ export class SeatsService {
         name: event.name,
         venue: event.venue,
         date: event.date,
-        basePrice: event.ticketPrice,
+        basePrice:
+          event.ticketTypes?.Free?.price ||
+          event.ticketTypes?.Standard?.price ||
+          0,
       },
       seatingLayout: {
         enabled: event.seatingLayout.enabled,
@@ -62,13 +68,19 @@ export class SeatsService {
           id: section.id,
           name: section.name,
           priceModifier: section.priceModifier || 0,
-          seats: section.seats.map((seat) => ({
-            seatId: seat.seatId,
-            row: seat.row,
-            column: seat.column,
-            status: seat.status,
-            price: event.ticketPrice + (section.priceModifier || 0),
-          })),
+          seats: section.seats.map((seat) => {
+            const basePrice =
+              event.ticketTypes?.Free?.price ||
+              event.ticketTypes?.Standard?.price ||
+              0;
+            return {
+              seatId: seat.seatId,
+              row: seat.row,
+              column: seat.column,
+              status: seat.status,
+              price: basePrice + (section.priceModifier || 0),
+            };
+          }),
         })),
       },
     };

@@ -39,10 +39,12 @@ interface SelectedSeat {
 
 interface SeatMapProps {
   eventId: string;
+  selectedTicketType?: string;
+  ticketTypePrice?: number;
   onSeatsSelected?: (seats: SelectedSeat[], total: number) => void;
 }
 
-export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
+export default function SeatMap({ eventId, selectedTicketType, ticketTypePrice = 0, onSeatsSelected }: SeatMapProps) {
   const [seatMapData, setSeatMapData] = useState<SeatMapData | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,9 +58,10 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
   }, [eventId]);
 
   useEffect(() => {
-    const total = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
+    // Recalculate total whenever ticket type price changes
+    const total = selectedSeats.length * (ticketTypePrice || 0);
     onSeatsSelected?.(selectedSeats, total);
-  }, [selectedSeats, onSeatsSelected]);
+  }, [selectedSeats, ticketTypePrice, onSeatsSelected]);
 
   const loadSeatMap = async () => {
     try {
@@ -100,10 +103,8 @@ export default function SeatMap({ eventId, onSeatsSelected }: SeatMapProps) {
       console.log('[SeatMap] Deselected seat:', seat.seatId);
     } else {
       // Select
-      const price =
-        seatMapData!.event.basePrice +
-        (seatMapData?.seatingLayout.sections.find((s) => s.id === sectionId)
-          ?.priceModifier || 0);
+      // Use the ticket type price passed from parent, or fallback to basePrice
+      const price = ticketTypePrice || seatMapData!.event.basePrice;
 
       const newSeat: SelectedSeat = {
         sectionId,

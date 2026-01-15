@@ -126,6 +126,28 @@ export class TicketsService {
       throw new Error('Cannot purchase tickets for past events');
     }
 
+    // VALIDATE TICKET TYPE AVAILABILITY BEFORE LOCKING SEATS
+    const ticketType = createTicketDto.ticketType || 'Free';
+    if (!event.ticketTypes?.[ticketType]?.enabled) {
+      throw new Error(
+        `Ticket type '${ticketType}' is not available for this event`,
+      );
+    }
+
+    // Check Early Bird limit BEFORE locking seats
+    if (ticketType === 'EarlyBird') {
+      const earlyBirdLimit = event.ticketTypes.EarlyBird.limit;
+      if (
+        earlyBirdLimit &&
+        earlyBirdLimit > 0 &&
+        event.earlyBirdCount >= earlyBirdLimit
+      ) {
+        throw new Error(
+          'Early Bird tickets have reached their limit for this event',
+        );
+      }
+    }
+
     // Auto-assign seats if not provided
     if (!createTicketDto.seats || createTicketDto.seats.length === 0) {
       console.log('[TicketsService] No seats provided, auto-assigning...');
@@ -175,8 +197,14 @@ export class TicketsService {
     // QR code only contains the encrypted token (not sensitive data)
     const qrCode = await QRCode.toDataURL(encryptedToken);
 
-    // Calculate total price
+    // Calculate total price based on ticket type
     let totalPrice = 0;
+    // (ticketType already validated above before seat locking)
+
+    // Determine base price from ticket type
+    const basePrice = event.ticketTypes[ticketType]?.price || 0;
+
+    // Calculate total price with seat modifiers
     if (
       createTicketDto.seats &&
       createTicketDto.seats.length > 0 &&
@@ -187,13 +215,13 @@ export class TicketsService {
           (s) => s.id === seat.sectionId,
         );
         if (section) {
-          totalPrice += event.ticketPrice + (section.priceModifier || 0);
+          totalPrice += basePrice + (section.priceModifier || 0);
         } else {
-          totalPrice += event.ticketPrice;
+          totalPrice += basePrice;
         }
       }
     } else {
-      totalPrice = event.ticketPrice || 0;
+      totalPrice = basePrice;
     }
 
     console.log('[TicketsService] Creating ticket document...');
@@ -207,12 +235,19 @@ export class TicketsService {
       qrToken: token,
       expiresAt,
       totalPrice,
+      ticketType,
       metadata: createTicketDto.metadata || {},
     };
 
     const createdTicket = new this.ticketModel(ticketData);
     const savedTicket = await createdTicket.save();
     console.log('[TicketsService] ✅ Ticket saved:', savedTicket._id);
+
+    // Update event's Early Bird count if applicable
+    const updateData: any = {};
+    if (ticketType === 'EarlyBird') {
+      updateData.earlyBirdCount = (event.earlyBirdCount || 0) + 1;
+    }
 
     // Update event's sold tickets count
     if (event.seatingLayout?.enabled) {
@@ -227,21 +262,21 @@ export class TicketsService {
             (s) => s.status === 'unavailable',
           ).length;
         }
-        await this.eventsService.update(createTicketDto.eventId.toString(), {
-          soldTickets: unavailableSeatsCount,
-        });
-        console.log(
-          '[TicketsService] Updated soldTickets count:',
-          unavailableSeatsCount,
-        );
+        updateData.soldTickets = unavailableSeatsCount;
       }
     } else {
       const ticketCountForEvent = await this.ticketModel.countDocuments({
         eventId: createTicketDto.eventId,
       });
-      await this.eventsService.update(createTicketDto.eventId.toString(), {
-        soldTickets: ticketCountForEvent,
-      });
+      updateData.soldTickets = ticketCountForEvent;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await this.eventsService.update(
+        createTicketDto.eventId.toString(),
+        updateData,
+      );
+      console.log('[TicketsService] Updated event:', updateData);
     }
 
     console.log(

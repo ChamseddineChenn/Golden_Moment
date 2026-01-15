@@ -10,11 +10,21 @@ interface Event {
   _id: string;
   name: string;
   description: string;
+  longDescription?: string;
+  coverImage?: string;
   date: string;
   venue: string;
-  totalSeats: number;
   soldTickets: number;
-  ticketPrice?: number;
+  ticketTypes?: {
+    Free: { enabled: boolean; price?: number };
+    Standard: { enabled: boolean; price?: number };
+    EarlyBird: { enabled: boolean; price?: number; limit?: number };
+    VIP: { enabled: boolean; price?: number };
+  };
+  earlyBirdCount?: number;
+  category?: string;
+  isDraft?: boolean;
+  isPublished?: boolean;
   seatingLayout?: {
     enabled: boolean;
     sections: any[];
@@ -47,10 +57,50 @@ export default function EventDetailPage() {
   const [formData, setFormData] = useState({
     buyerName: '',
     buyerEmail: '',
+    selectedTicketType: 'Free',
   });
 
   // Selected seats are tracked locally only - NOT synced to backend until payment
   // This removes the live reservation system
+
+  // Helper to get available ticket types for this event
+  const getAvailableTicketTypes = () => {
+    if (!event?.ticketTypes) return [];
+    const available: Array<{
+      type: string;
+      enabled: boolean;
+      price: number;
+      limit?: number;
+    }> = [];
+    for (const [type, config] of Object.entries(event.ticketTypes)) {
+      if (config.enabled) {
+        available.push({
+          type,
+          enabled: true,
+          price: config.price || 0,
+          limit:
+            type === 'EarlyBird'
+              ? (config as any).limit
+              : undefined,
+        });
+      }
+    }
+    return available;
+  };
+
+  // Check if EarlyBird tickets are sold out
+  const isEarlyBirdSoldOut = () => {
+    if (!event?.ticketTypes?.EarlyBird) return false;
+    const limit = (event.ticketTypes.EarlyBird as any).limit;
+    return limit && event.earlyBirdCount >= limit;
+  };
+
+  // Get price for selected ticket type
+  const getTicketTypePrice = () => {
+    const types = getAvailableTicketTypes();
+    const selected = types.find((t) => t.type === formData.selectedTicketType);
+    return selected?.price || 0;
+  };
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -73,6 +123,31 @@ export default function EventDetailPage() {
     // Users can navigate away without unreserving - seats remain available for others
   }, [eventId]);
 
+  // Update selected ticket type when event loads to use first available type
+  useEffect(() => {
+    if (event) {
+      const availableTypes = getAvailableTicketTypes();
+      if (availableTypes.length > 0) {
+        // Set to first available type if current selection is not available
+        if (!availableTypes.find((t) => t.type === formData.selectedTicketType)) {
+          setFormData((prev) => ({
+            ...prev,
+            selectedTicketType: availableTypes[0].type,
+          }));
+        }
+      }
+    }
+  }, [event]);
+
+  // Recalculate total price when ticket type changes (for visual seating)
+  useEffect(() => {
+    if (selectedSeats.length > 0) {
+      const pricePerSeat = getTicketTypePrice();
+      const newTotal = selectedSeats.length * pricePerSeat;
+      setTotalPrice(newTotal);
+    }
+  }, [formData.selectedTicketType, event?.ticketTypes]);
+
   const handleBuyTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!event) return;
@@ -80,6 +155,16 @@ export default function EventDetailPage() {
     try {
       setSubmitting(true);
       setError(null);
+
+      // Validate selected ticket type is available
+      const availableTypes = getAvailableTicketTypes();
+      if (!availableTypes.find((t) => t.type === formData.selectedTicketType)) {
+        setError(
+          `Ticket type "${formData.selectedTicketType}" is not available for this event`
+        );
+        setSubmitting(false);
+        return;
+      }
 
       // If visual seating is enabled, atomically finalize the selected seats at purchase time
       if (event.seatingLayout?.enabled && selectedSeats.length > 0) {
@@ -98,6 +183,7 @@ export default function EventDetailPage() {
           })),
           buyerName: formData.buyerName,
           buyerEmail: formData.buyerEmail,
+          ticketType: formData.selectedTicketType,
         };
 
         const response = await seatsAPI.finalizePurchase(purchaseData);
@@ -115,6 +201,7 @@ export default function EventDetailPage() {
           seats: [],
           buyerName: formData.buyerName,
           buyerEmail: formData.buyerEmail,
+          ticketType: formData.selectedTicketType,
         };
 
         const response = await ticketsAPI.create(ticketData);
@@ -123,10 +210,23 @@ export default function EventDetailPage() {
         router.push(`/receipt/${ticket._id}`);
       }
     } catch (err: any) {
-      // Handle race condition - seat was just purchased by another user
+      // Extract error message from various possible locations
+      let errorMessage = 'Failed to purchase ticket. Please try again.';
+      
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (typeof err.response?.data === 'string') {
+        errorMessage = err.response.data;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      // Handle specific error cases
       if (
         err.response?.status === 409 ||
-        err.response?.data?.message?.includes('just sold')
+        errorMessage.includes('just sold')
       ) {
         setError(
           'One or more seats were just purchased by another user. Please select different seats and try again.'
@@ -135,11 +235,14 @@ export default function EventDetailPage() {
         window.location.reload();
       } else if (err.response?.status === 400) {
         setError(
-          err.response?.data?.message ||
+          errorMessage ||
             'Invalid seat selection. Please try again.'
         );
+      } else if (errorMessage.includes('not available') || errorMessage.includes('Early Bird')) {
+        // Ticket type validation errors
+        setError(errorMessage);
       } else {
-        setError('Failed to purchase ticket. Please try again.');
+        setError(errorMessage);
       }
       console.error('[EventDetail] Purchase failed:', err);
     } finally {
@@ -212,8 +315,6 @@ export default function EventDetailPage() {
     );
   }
 
-  const ticketsAvailable = event.totalSeats - event.soldTickets;
-  const soldPercentage = (event.soldTickets / event.totalSeats) * 100;
   const eventDate = new Date(event.date);
 
   return (
@@ -252,10 +353,47 @@ export default function EventDetailPage() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <div className="bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 text-white">
-        <div className="max-w-7xl mx-auto px-6 py-16">
-          <div className="flex items-start justify-between flex-wrap gap-6">
+      {/* Cover Image with Overlay */}
+      <div
+        className="relative w-full h-96 bg-stone-900"
+        style={{
+          backgroundImage: event.coverImage
+            ? `url('${event.coverImage}')`
+            : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        {/* Dark overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/50 to-transparent"></div>
+
+        {/* Content overlaid on image */}
+        <div className="relative h-full max-w-7xl mx-auto px-6 flex flex-col justify-between py-16">
+          {/* Top section - Back button */}
+          <div>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-amber-400 hover:text-amber-300 font-medium transition"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Back to Events
+            </Link>
+          </div>
+
+          {/* Bottom section - Title and description */}
+          <div className="flex items-end justify-between flex-wrap gap-6">
             <div className="flex-1 min-w-0">
               <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full text-sm font-medium mb-4">
                 <svg
@@ -277,10 +415,10 @@ export default function EventDetailPage() {
                   year: 'numeric',
                 })}
               </div>
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 text-white">
                 {event.name}
               </h1>
-              <p className="text-xl text-stone-300 max-w-2xl">
+              <p className="text-xl text-stone-200 max-w-2xl">
                 {event.description}
               </p>
             </div>
@@ -343,15 +481,19 @@ export default function EventDetailPage() {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"
+                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   />
                 </svg>
               </div>
               <div>
-                <p className="text-sm text-stone-500">Ticket Price</p>
+                <p className="text-sm text-stone-500">Ticket Types</p>
                 <p className="font-semibold text-stone-900">
-                  {event.ticketPrice
-                    ? `$${event.ticketPrice.toFixed(2)}`
+                  {event.ticketTypes &&
+                  Object.values(event.ticketTypes).some((t) => t.enabled)
+                    ? Object.entries(event.ticketTypes)
+                        .filter(([_, config]) => config.enabled)
+                        .map(([type]) => type)
+                        .join(', ')
                     : 'TBD'}
                 </p>
               </div>
@@ -401,15 +543,31 @@ export default function EventDetailPage() {
                 </svg>
               </div>
               <div>
-                <p className="text-sm text-stone-500">Capacity</p>
+                <p className="text-sm text-stone-500">Status</p>
                 <p className="font-semibold text-stone-900">
-                  {event.totalSeats} Seats
+                  {event.soldTickets > 0 ? 'Tickets Available' : 'Now Open'}
                 </p>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Long Description Section */}
+      {event.longDescription && (
+        <div className="bg-stone-50 border-y border-stone-200">
+          <div className="max-w-7xl mx-auto px-6 py-12">
+            <h2 className="text-3xl font-bold text-stone-900 mb-6">
+              About This Event
+            </h2>
+            <div className="prose prose-stone max-w-none">
+              <p className="text-lg text-stone-700 leading-relaxed whitespace-pre-wrap">
+                {event.longDescription}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-12">
@@ -437,61 +595,19 @@ export default function EventDetailPage() {
                 Fill in your details to secure your spot
               </p>
 
-              {ticketsAvailable === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed border-stone-200 rounded-xl">
-                  <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg
-                      className="w-8 h-8 text-stone-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-                      />
-                    </svg>
-                  </div>
-                  <p className="text-xl font-semibold text-stone-900 mb-2">
-                    This event is sold out
-                  </p>
-                  <p className="text-stone-500 mb-6">
-                    All tickets have been purchased
-                  </p>
-                  <Link
-                    href="/"
-                    className="inline-flex items-center gap-2 text-amber-600 hover:text-amber-700 font-medium"
-                  >
-                    Explore other events
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </Link>
-                </div>
-              ) : (
-                <>
-                  {/* Visual Seat Selection */}
-                  {event.seatingLayout?.enabled ? (
-                    <div className="space-y-6">
-                      <SeatMap
-                        eventId={eventId}
-                        onSeatsSelected={(seats, total) => {
-                          setSelectedSeats(seats);
-                          setTotalPrice(total);
-                        }}
-                      />
+              <>
+                {/* Visual Seat Selection */}
+                {event.seatingLayout?.enabled ? (
+                  <div className="space-y-6">
+                    <SeatMap
+                      eventId={eventId}
+                      selectedTicketType={formData.selectedTicketType}
+                      ticketTypePrice={getTicketTypePrice()}
+                      onSeatsSelected={(seats, total) => {
+                        setSelectedSeats(seats);
+                        setTotalPrice(total);
+                      }}
+                    />
 
                       {selectedSeats.length > 0 && (
                         <div className="border-t border-stone-200 pt-6">
@@ -502,6 +618,74 @@ export default function EventDetailPage() {
                             onSubmit={handleBuyTicket}
                             className="space-y-6"
                           >
+                            <div>
+                              <label className="block text-sm font-semibold text-stone-700 mb-2">
+                                Ticket Type
+                              </label>
+                              {getAvailableTicketTypes().length > 1 ? (
+                                <div className="space-y-3">
+                                  {getAvailableTicketTypes().map((ticketType) => {
+                                    const isEarlyBirdAndSoldOut = ticketType.type === 'EarlyBird' && isEarlyBirdSoldOut();
+                                    return (
+                                      <label
+                                        key={ticketType.type}
+                                        className={`flex items-center gap-3 p-3 border rounded-xl transition ${
+                                          isEarlyBirdAndSoldOut
+                                            ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
+                                            : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
+                                        }`}
+                                      >
+                                        <input
+                                          type="radio"
+                                          name="ticketType"
+                                          value={ticketType.type}
+                                          checked={
+                                            formData.selectedTicketType ===
+                                            ticketType.type
+                                          }
+                                          onChange={(e) =>
+                                            setFormData({
+                                              ...formData,
+                                              selectedTicketType:
+                                                e.target.value,
+                                            })
+                                          }
+                                          disabled={isEarlyBirdAndSoldOut}
+                                          className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
+                                        />
+                                        <div className="flex-1">
+                                          <p className="font-semibold text-stone-900">
+                                            {ticketType.type}
+                                          </p>
+                                          <p className="text-sm text-stone-600">
+                                            ${ticketType.price.toFixed(2)}
+                                          </p>
+                                          {ticketType.type === 'EarlyBird' &&
+                                            ticketType.limit && (
+                                              <p className={`text-xs ${isEarlyBirdAndSoldOut ? 'text-red-700' : 'text-amber-700'}`}>
+                                                {event?.earlyBirdCount || 0}/{
+                                                  ticketType.limit
+                                                }{' '}
+                                                {isEarlyBirdAndSoldOut ? 'sold out' : 'sold'}
+                                              </p>
+                                            )}
+                                        </div>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
+                                  <p className="font-semibold text-stone-900">
+                                    {getAvailableTicketTypes()[0]?.type}
+                                  </p>
+                                  <p className="text-sm text-stone-600">
+                                    ${getTicketTypePrice().toFixed(2)}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
                             <div>
                               <label className="block text-sm font-semibold text-stone-700 mb-2">
                                 Full Name
@@ -613,6 +797,73 @@ export default function EventDetailPage() {
 
                       <div>
                         <label className="block text-sm font-semibold text-stone-700 mb-2">
+                          Ticket Type
+                        </label>
+                        {getAvailableTicketTypes().length > 1 ? (
+                          <div className="space-y-3">
+                            {getAvailableTicketTypes().map((ticketType) => {
+                              const isEarlyBirdAndSoldOut = ticketType.type === 'EarlyBird' && isEarlyBirdSoldOut();
+                              return (
+                                <label
+                                  key={ticketType.type}
+                                  className={`flex items-center gap-3 p-3 border rounded-xl transition ${
+                                    isEarlyBirdAndSoldOut
+                                      ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
+                                      : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="ticketType"
+                                    value={ticketType.type}
+                                    checked={
+                                      formData.selectedTicketType ===
+                                      ticketType.type
+                                    }
+                                    onChange={(e) =>
+                                      setFormData({
+                                        ...formData,
+                                        selectedTicketType: e.target.value,
+                                      })
+                                    }
+                                    disabled={isEarlyBirdAndSoldOut}
+                                    className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
+                                  />
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-stone-900">
+                                      {ticketType.type}
+                                    </p>
+                                    <p className="text-sm text-stone-600">
+                                      ${ticketType.price.toFixed(2)}
+                                    </p>
+                                    {ticketType.type === 'EarlyBird' &&
+                                      ticketType.limit && (
+                                        <p className={`text-xs ${isEarlyBirdAndSoldOut ? 'text-red-700' : 'text-amber-700'}`}>
+                                          {event?.earlyBirdCount || 0}/{
+                                            ticketType.limit
+                                          }{' '}
+                                          {isEarlyBirdAndSoldOut ? 'sold out' : 'sold'}
+                                        </p>
+                                      )}
+                                  </div>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
+                            <p className="font-semibold text-stone-900">
+                              {getAvailableTicketTypes()[0]?.type}
+                            </p>
+                            <p className="text-sm text-stone-600">
+                              ${getTicketTypePrice().toFixed(2)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-stone-700 mb-2">
                           Full Name
                         </label>
                         <input
@@ -678,7 +929,7 @@ export default function EventDetailPage() {
                               />
                             </svg>
                             Complete Purchase ($
-                            {event.ticketPrice?.toFixed(2) || '0.00'})
+                            {getTicketTypePrice().toFixed(2)})
                           </>
                         )}
                       </button>
@@ -690,7 +941,6 @@ export default function EventDetailPage() {
                     </form>
                   )}
                 </>
-              )}
             </div>
           </div>
 
@@ -698,46 +948,8 @@ export default function EventDetailPage() {
           <div>
             <div className="bg-white rounded-2xl border border-stone-200 p-6 sticky top-24">
               <h3 className="text-lg font-bold text-stone-900 mb-6">
-                Availability
+                About This Event
               </h3>
-
-              <div className="mb-6">
-                <div className="flex justify-between mb-2">
-                  <span className="text-sm text-stone-500">Tickets Sold</span>
-                  <span className="font-semibold text-stone-900">
-                    {event.soldTickets}/{event.totalSeats}
-                  </span>
-                </div>
-                <div className="w-full h-3 bg-stone-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all ${
-                      soldPercentage < 50
-                        ? 'bg-green-500'
-                        : soldPercentage < 80
-                        ? 'bg-amber-500'
-                        : 'bg-red-500'
-                    }`}
-                    style={{ width: `${soldPercentage}%` }}
-                  ></div>
-                </div>
-                <p className="text-xs text-stone-500 mt-2">
-                  {soldPercentage.toFixed(0)}% sold
-                </p>
-              </div>
-
-              <div
-                className={`p-4 rounded-xl text-center font-bold ${
-                  ticketsAvailable === 0
-                    ? 'bg-stone-100 text-stone-500'
-                    : ticketsAvailable < 20
-                    ? 'bg-red-50 text-red-600 border border-red-200'
-                    : 'bg-green-50 text-green-600 border border-green-200'
-                }`}
-              >
-                {ticketsAvailable === 0
-                  ? 'SOLD OUT'
-                  : `${event.soldTickets}/${event.totalSeats} Sold`}
-              </div>
 
               <div className="mt-8 space-y-4">
                 <h4 className="text-sm font-semibold text-stone-700">

@@ -13,42 +13,105 @@ export class EventsService {
   ) {}
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
-    // Ensure category is set, default to 'Concert' if not provided
-    const eventData = {
-      ...createEventDto,
-      category: createEventDto.category || 'Concert',
-    };
-
-    console.log(
-      '[EventsService] Creating event with category:',
-      eventData.category,
-    );
-
-    const createdEvent = new this.eventModel(eventData);
-    const savedEvent = await createdEvent.save();
-
-    console.log(
-      '[EventsService] Event saved with category:',
-      savedEvent.category,
-    );
-
-    // If seating is enabled, initialize the seat matrix
-    if (
-      createEventDto.seatingLayout?.enabled &&
-      createEventDto.seatingLayout?.sections?.length > 0
-    ) {
-      await this.seatsService.initializeSeats(
-        savedEvent._id.toString(),
-        createEventDto.seatingLayout.sections,
+    try {
+      console.log(
+        '[EventsService] Creating event with data:',
+        JSON.stringify(createEventDto, null, 2),
       );
-      // Reload the event to get the initialized seating
-      const reloadedEvent = await this.eventModel
-        .findById(savedEvent._id)
-        .exec();
-      return reloadedEvent || savedEvent;
-    }
 
-    return savedEvent;
+      // Ensure category is set, default to 'Concert' if not provided
+      let eventData: any = {
+        ...createEventDto,
+        category: createEventDto.category || 'Concert',
+      };
+
+      // Convert date to Date object if it's a string
+      if (typeof eventData.date === 'string') {
+        eventData.date = new Date(eventData.date);
+      }
+
+      // Calculate totalSeats from seating layout if not provided
+      if (!eventData.totalSeats && eventData.seatingLayout?.sections) {
+        eventData.totalSeats = eventData.seatingLayout.sections.reduce(
+          (total: number, section: any) => {
+            return total + (section.columns || 0) * (section.rows || 0);
+          },
+          0,
+        );
+        console.log(
+          '[EventsService] Calculated totalSeats from seating layout:',
+          eventData.totalSeats,
+        );
+      } else if (!eventData.totalSeats) {
+        // Default to 0 if not provided and no seating layout
+        eventData.totalSeats = 0;
+      }
+
+      // Ensure ticketTypes has the proper structure
+      if (!eventData.ticketTypes) {
+        eventData.ticketTypes = {
+          Free: { enabled: true, price: 0 },
+          Standard: { enabled: false, price: 0 },
+          EarlyBird: { enabled: false, price: 0, limit: 0 },
+          VIP: { enabled: false, price: 0 },
+        };
+      } else {
+        // Fill in any missing ticketType fields
+        eventData.ticketTypes = {
+          Free: eventData.ticketTypes.Free || {
+            enabled: true,
+            price: 0,
+          },
+          Standard: eventData.ticketTypes.Standard || {
+            enabled: false,
+            price: 0,
+          },
+          EarlyBird: eventData.ticketTypes.EarlyBird || {
+            enabled: false,
+            price: 0,
+            limit: 0,
+          },
+          VIP: eventData.ticketTypes.VIP || {
+            enabled: false,
+            price: 0,
+          },
+        };
+      }
+
+      console.log(
+        '[EventsService] Processed event data:',
+        JSON.stringify(eventData, null, 2),
+      );
+
+      const createdEvent = new this.eventModel(eventData);
+      const savedEvent = await createdEvent.save();
+
+      console.log(
+        '[EventsService] Event saved successfully with ID:',
+        savedEvent._id,
+      );
+
+      // If seating is enabled, initialize the seat matrix
+      if (
+        createEventDto.seatingLayout?.enabled &&
+        createEventDto.seatingLayout?.sections?.length > 0
+      ) {
+        await this.seatsService.initializeSeats(
+          savedEvent._id.toString(),
+          createEventDto.seatingLayout.sections,
+        );
+        // Reload the event to get the initialized seating
+        const reloadedEvent = await this.eventModel
+          .findById(savedEvent._id)
+          .exec();
+        return reloadedEvent || savedEvent;
+      }
+
+      return savedEvent;
+    } catch (error) {
+      console.error('[EventsService] Error creating event:', error);
+      throw error;
+    }
   }
 
   async findAll(): Promise<Event[]> {
@@ -60,14 +123,124 @@ export class EventsService {
     return events;
   }
 
-  async findById(id: string): Promise<Event | null> {
-    return this.eventModel.findById(id).exec();
+  async findAllPublished(): Promise<Event[]> {
+    // Only return published events (hide drafts from customers)
+    let events = await this.eventModel.find({ isActive: true, isDraft: false }).exec();
+    // Ensure all events have totalSeats calculated
+    events = events.map((event: any) => {
+      if (!event.totalSeats || event.totalSeats === 0) {
+        if (event.seatingLayout?.sections && Array.isArray(event.seatingLayout.sections)) {
+          event.totalSeats = event.seatingLayout.sections.reduce(
+            (total: number, section: any) => {
+              // Sections have their own rows/columns that need multiplication
+              if (section.rows && section.columns) {
+                return total + (section.columns * section.rows);
+              }
+              // Or if they already have seats array, count those
+              return total + (section.seats?.length || 0);
+            },
+            0,
+          );
+        } else {
+          event.totalSeats = 0;
+        }
+      }
+      return event;
+    });
+    console.log('[EventsService] findAllPublished returning totalSeats:', events.slice(0, 1).map((e: any) => e.totalSeats));
+    return events;
   }
 
-  async update(id: string, updateData: Partial<Event>): Promise<Event | null> {
-    return this.eventModel
-      .findByIdAndUpdate(id, updateData, { new: true })
-      .exec();
+  async findAllAdmin(): Promise<Event[]> {
+    // Return all events for admin (including drafts, excluding inactive)
+    let events = await this.eventModel.find({ isActive: true }).exec();
+    // Ensure all events have totalSeats calculated
+    events = events.map((event: any) => {
+      if (!event.totalSeats || event.totalSeats === 0) {
+        if (event.seatingLayout?.sections && Array.isArray(event.seatingLayout.sections)) {
+          event.totalSeats = event.seatingLayout.sections.reduce(
+            (total: number, section: any) => {
+              // Sections have their own rows/columns that need multiplication
+              if (section.rows && section.columns) {
+                return total + (section.columns * section.rows);
+              }
+              // Or if they already have seats array, count those
+              return total + (section.seats?.length || 0);
+            },
+            0,
+          );
+        } else {
+          event.totalSeats = 0;
+        }
+      }
+      return event;
+    });
+    console.log('[EventsService] findAllAdmin returning totalSeats:', events.slice(0, 1).map((e: any) => e.totalSeats));
+    return events;
+  }
+
+  async findById(id: string): Promise<Event | null> {
+    let event = await this.eventModel.findById(id).exec();
+    if (event && (!event.totalSeats || event.totalSeats === 0)) {
+      if ((event as any).seatingLayout?.sections && Array.isArray((event as any).seatingLayout.sections)) {
+        (event as any).totalSeats = (event as any).seatingLayout.sections.reduce(
+          (total: number, section: any) => {
+            // Sections have their own rows/columns that need multiplication
+            if (section.rows && section.columns) {
+              return total + (section.columns * section.rows);
+            }
+            // Or if they already have seats array, count those
+            return total + (section.seats?.length || 0);
+          },
+          0,
+        );
+      } else {
+        (event as any).totalSeats = 0;
+      }
+    }
+    return event;
+  }
+
+  async update(id: string, updateData: Partial<Event> | any): Promise<Event | null> {
+    try {
+      // Convert date to Date object if it's a string
+      if (updateData.date && typeof updateData.date === 'string') {
+        updateData.date = new Date(updateData.date);
+      }
+
+      // Ensure ticketTypes has proper structure if provided
+      if (updateData.ticketTypes) {
+        updateData.ticketTypes = {
+          Free: updateData.ticketTypes.Free || {
+            enabled: true,
+            price: 0,
+          },
+          Standard: updateData.ticketTypes.Standard || {
+            enabled: false,
+            price: 0,
+          },
+          EarlyBird: updateData.ticketTypes.EarlyBird || {
+            enabled: false,
+            price: 0,
+            limit: 0,
+          },
+          VIP: updateData.ticketTypes.VIP || {
+            enabled: false,
+            price: 0,
+          },
+        };
+      }
+
+      console.log('[EventsService] Updating event:', id);
+      const updated = await this.eventModel
+        .findByIdAndUpdate(id, updateData, { new: true })
+        .exec();
+      console.log('[EventsService] Event updated successfully:', updated?._id);
+      return updated;
+    } catch (error) {
+      console.error('[EventsService] Error updating event:', error);
+      throw error;
+    }
   }
 
   async delete(id: string): Promise<void> {

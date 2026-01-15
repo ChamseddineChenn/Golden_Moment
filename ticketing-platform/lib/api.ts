@@ -13,6 +13,20 @@ const apiClient = axios.create({
   },
 });
 
+// Add error interceptor to log errors
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('[API] Error response:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message,
+    });
+    return Promise.reject(error);
+  }
+);
+
 // Add response interceptor to log seat data requests
 apiClient.interceptors.response.use((response) => {
   if (response.config.url?.includes('/seats/')) {
@@ -39,10 +53,45 @@ apiClient.interceptors.response.use((response) => {
 
 // Events API
 export const eventsAPI = {
-  create: (eventData: any) => apiClient.post('/events', eventData),
-  getAll: () => apiClient.get('/events'),
+  create: (eventData: any) => {
+    console.log('[API] POST /events with data:', JSON.stringify(eventData, null, 2));
+    return apiClient.post('/events', eventData);
+  },
+  getAll: () => {
+    const response = apiClient.get('/events');
+    response.then((res) => {
+      console.log('[API] GET /events response:', JSON.stringify(res.data.slice(0, 1), null, 2));
+    }).catch(() => {});
+    return response;
+  }, // Public - published only
+  getAllAdmin: () => {
+    const response = apiClient.get('/events/admin/all');
+    response.then((res) => {
+      console.log('[API] GET /events/admin/all response:', JSON.stringify(res.data.slice(0, 1), null, 2));
+    }).catch(() => {});
+    return response;
+  }, // Admin - all events including drafts
   getById: (id: string) => apiClient.get(`/events/${id}`),
+  update: (id: string, eventData: any) => {
+    console.log('[API] PUT /events/:id with data:', JSON.stringify(eventData, null, 2));
+    return apiClient.put(`/events/${id}`, eventData);
+  },
   delete: (id: string) => apiClient.delete(`/events/${id}`),
+};
+
+// Upload API - uses backend for secure Cloudinary uploads
+export const uploadImage = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // Upload to backend endpoint (backend handles Cloudinary API key/secret securely)
+  const response = await apiClient.post('/upload/image', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return response.data.secure_url;
 };
 
 // Tickets API
@@ -93,12 +142,14 @@ export const seatsAPI = {
     seats: { sectionId: string; seatId: string }[];
     buyerName: string;
     buyerEmail: string;
+    ticketType?: string;
   }) => {
     console.log('[seatsAPI] finalizePurchase called with:', {
       eventId: data.eventId,
       seats: data.seats,
       buyerName: data.buyerName,
       buyerEmail: data.buyerEmail,
+      ticketType: data.ticketType,
     });
     return apiClient.post('/seats/finalize-purchase', data);
   },

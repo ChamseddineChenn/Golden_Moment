@@ -52,12 +52,14 @@ export class SeatsController {
       seats: { sectionId: string; seatId: string }[];
       buyerName: string;
       buyerEmail: string;
+      ticketType?: string;
     },
   ) {
     console.log('[SeatsController] finalizePurchase called:', {
       eventId: body.eventId,
       seatCount: body.seats.length,
       buyerName: body.buyerName,
+      ticketType: body.ticketType,
     });
 
     // Delegate to TicketsService which handles:
@@ -69,6 +71,7 @@ export class SeatsController {
       seats: body.seats,
       buyerName: body.buyerName,
       buyerEmail: body.buyerEmail,
+      ticketType: (body.ticketType || 'Free') as 'Free' | 'Standard' | 'EarlyBird' | 'VIP',
     });
   }
 

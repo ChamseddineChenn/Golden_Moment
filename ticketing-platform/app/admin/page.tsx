@@ -9,12 +9,22 @@ interface Event {
   _id: string;
   name: string;
   description: string;
+  longDescription?: string;
+  coverImage?: string;
   date: string;
   venue: string;
-  totalSeats: number;
   soldTickets: number;
-  ticketPrice?: number;
+  ticketTypes?: {
+    Free: { enabled: boolean; price?: number };
+    Standard: { enabled: boolean; price?: number };
+    EarlyBird: { enabled: boolean; price?: number; limit?: number };
+    VIP: { enabled: boolean; price?: number };
+  };
+  earlyBirdCount?: number;
   category?: string;
+  isDraft?: boolean;
+  isPublished?: boolean;
+  seatingLayout?: Array<any>;
 }
 
 interface Ticket {
@@ -65,15 +75,28 @@ export default function AdminPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Event editing and preview states
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [previewEvent, setPreviewEvent] = useState<Event | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+
   // Create event form
   const [newEvent, setNewEvent] = useState({
     name: '',
     description: '',
+    longDescription: '',
+    coverImage: '',
+    coverImageFile: null as File | null,
     date: '',
     venue: '',
-    totalSeats: '',
-    ticketPrice: '',
+    ticketTypes: {
+      Free: { enabled: true, price: 0 as string | number },
+      Standard: { enabled: false, price: '' as string | number },
+      EarlyBird: { enabled: false, price: '' as string | number, limit: '' as string | number },
+      VIP: { enabled: false, price: '' as string | number },
+    },
     category: 'Concert',
+    isDraft: true,
     seatingEnabled: false,
     sections: [] as Array<{
       id: string;
@@ -289,7 +312,6 @@ export default function AdminPage() {
           )
         : 0;
 
-    const totalSeats = events.reduce((acc, e) => acc + e.totalSeats, 0);
     const soldSeats = events.reduce((acc, e) => acc + e.soldTickets, 0);
 
     setStats({
@@ -303,9 +325,9 @@ export default function AdminPage() {
       weekChange,
       dayChange,
       totalTickets: tickets.length,
-      totalSeats: totalSeats,
+      totalSeats: soldSeats,
       soldPercentage:
-        totalSeats > 0 ? Math.round((soldSeats / totalSeats) * 100) : 0,
+        soldSeats > 0 ? Math.round((soldSeats / soldSeats) * 100) : 0,
       revenueThisYear,
       revenueThisMonth,
       revenueLastYear,
@@ -320,7 +342,7 @@ export default function AdminPage() {
 
   const fetchEvents = async () => {
     try {
-      const response = await eventsAPI.getAll();
+      const response = await eventsAPI.getAllAdmin();
       // Debug: log events to see their structure
       console.log('Fetched events:', response.data);
       setEvents(response.data);
@@ -397,6 +419,30 @@ export default function AdminPage() {
     }, 0);
   };
 
+  const handleCoverImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      const { uploadImage } = await import('@/lib/api');
+      const imageUrl = await uploadImage(file);
+      setNewEvent((prev) => ({
+        ...prev,
+        coverImage: imageUrl,
+        coverImageFile: file,
+      }));
+      setSuccess('Cover image uploaded successfully!');
+    } catch (err) {
+      setError('Failed to upload cover image. Check Cloudinary configuration.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -404,55 +450,105 @@ export default function AdminPage() {
     setSuccess(null);
 
     try {
+      // Convert ticketTypes prices from strings to numbers
+      const ticketTypes = {
+        Free: { enabled: newEvent.ticketTypes.Free.enabled, price: 0 },
+        Standard: {
+          enabled: newEvent.ticketTypes.Standard.enabled,
+          price: newEvent.ticketTypes.Standard.enabled
+            ? parseFloat(newEvent.ticketTypes.Standard.price as string) || 0
+            : 0,
+        },
+        EarlyBird: {
+          enabled: newEvent.ticketTypes.EarlyBird.enabled,
+          price: newEvent.ticketTypes.EarlyBird.enabled
+            ? parseFloat(newEvent.ticketTypes.EarlyBird.price as string) || 0
+            : 0,
+          limit: newEvent.ticketTypes.EarlyBird.enabled
+            ? parseInt(newEvent.ticketTypes.EarlyBird.limit as string) || 0
+            : 0,
+        },
+        VIP: {
+          enabled: newEvent.ticketTypes.VIP.enabled,
+          price: newEvent.ticketTypes.VIP.enabled
+            ? parseFloat(newEvent.ticketTypes.VIP.price as string) || 0
+            : 0,
+        },
+      };
+
       const eventData: any = {
         name: newEvent.name,
         description: newEvent.description,
+        longDescription: newEvent.longDescription,
+        coverImage: newEvent.coverImage,
         date: newEvent.date,
         venue: newEvent.venue,
-        totalSeats:
-          newEvent.seatingEnabled && newEvent.sections.length > 0
-            ? calculateTotalSeatsFromSections()
-            : parseInt(newEvent.totalSeats),
-        ticketPrice: parseFloat(newEvent.ticketPrice) || 0,
+        ticketTypes,
         category: newEvent.category,
+        isDraft: newEvent.isDraft,
+        isPublished: !newEvent.isDraft,
       };
 
-      // Add seating layout if enabled
+      // Add seating layout if enabled and calculate totalSeats
       if (newEvent.seatingEnabled && newEvent.sections.length > 0) {
         eventData.seatingLayout = {
           enabled: true,
           sections: newEvent.sections,
         };
-      }
-
-      const response = await eventsAPI.create(eventData);
-
-      // Initialize seats if seating is enabled
-      if (newEvent.seatingEnabled && newEvent.sections.length > 0) {
-        await fetch(
-          `http://localhost:3002/seats/event/${response.data._id}/initialize`,
-          {
-            method: 'POST',
-          }
+        // Calculate total seats from sections
+        eventData.totalSeats = newEvent.sections.reduce(
+          (total, section) => total + (section.columns * section.rows),
+          0
         );
+      } else {
+        // If no seating layout, default to 0
+        eventData.totalSeats = 0;
       }
 
-      setSuccess('Event created successfully!');
+      // If editing, call update endpoint instead of create
+      if (editingEventId) {
+        await eventsAPI.update(editingEventId, eventData);
+        setSuccess('Event updated successfully!');
+      } else {
+        const response = await eventsAPI.create(eventData);
+
+        // Initialize seats if seating is enabled
+        if (newEvent.seatingEnabled && newEvent.sections.length > 0) {
+          await fetch(
+            `http://localhost:3002/seats/event/${response.data._id}/initialize`,
+            {
+              method: 'POST',
+            }
+          );
+        }
+
+        setSuccess('Event created successfully!');
+      }
+
       setNewEvent({
         name: '',
         description: '',
+        longDescription: '',
+        coverImage: '',
+        coverImageFile: null,
         date: '',
         venue: '',
-        totalSeats: '',
-        ticketPrice: '',
+        ticketTypes: {
+          Free: { enabled: true, price: 0 },
+          Standard: { enabled: false, price: '' },
+          EarlyBird: { enabled: false, price: '', limit: '' },
+          VIP: { enabled: false, price: '' },
+        },
         category: 'Concert',
+        isDraft: true,
         seatingEnabled: false,
         sections: [],
       });
+      setEditingEventId(null);
       fetchEvents();
       setTimeout(() => setActiveTab('events'), 1500);
     } catch (err) {
-      setError('Failed to create event. Please try again.');
+      setError('Failed to save event. Please try again.');
       console.error(err);
     } finally {
       setLoading(false);
@@ -468,6 +564,34 @@ export default function AdminPage() {
       fetchEvents();
     } catch (err) {
       setError('Failed to delete event.');
+      console.error(err);
+    }
+  };
+
+  const handlePublishEvent = async (id: string) => {
+    try {
+      await eventsAPI.update(id, {
+        isDraft: false,
+        isPublished: true,
+      });
+      setSuccess('Event published successfully!');
+      fetchEvents();
+    } catch (err) {
+      setError('Failed to publish event.');
+      console.error(err);
+    }
+  };
+
+  const handleUnpublishEvent = async (id: string) => {
+    try {
+      await eventsAPI.update(id, {
+        isDraft: true,
+        isPublished: false,
+      });
+      setSuccess('Event unpublished and moved to draft.');
+      fetchEvents();
+    } catch (err) {
+      setError('Failed to unpublish event.');
       console.error(err);
     }
   };
@@ -863,7 +987,6 @@ export default function AdminPage() {
                 </button>
               </div>
             )}
-
             {success && (
               <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
                 <svg
@@ -886,7 +1009,6 @@ export default function AdminPage() {
                 </button>
               </div>
             )}
-
             {/* Dashboard Tab */}
             {activeTab === 'dashboard' && (
               <div className="space-y-6 flex flex-col">
@@ -1346,7 +1468,7 @@ export default function AdminPage() {
                           </p>
                         </div>
                         <span className="text-sm text-stone-600">
-                          {event.soldTickets}/{event.totalSeats}
+                          {event.soldTickets} sold
                         </span>
                       </div>
                     ))}
@@ -1419,7 +1541,6 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
             {/* Events Tab */}
             {activeTab === 'events' && (
               <div className="space-y-6">
@@ -1522,22 +1643,19 @@ export default function AdminPage() {
                                 )
                               : 0;
 
-                          // Get category average occupancy
+                          // Get category ticket sales
                           const categoryEvents = events.filter(
                             (e) => e.category === event.category
-                          );
-                          const totalCategorySeats = categoryEvents.reduce(
-                            (acc, e) => acc + e.totalSeats,
-                            0
                           );
                           const totalCategorySold = categoryEvents.reduce(
                             (acc, e) => acc + e.soldTickets,
                             0
                           );
                           const categoryOccupancyRate =
-                            totalCategorySeats > 0
+                            totalCategorySold > 0
                               ? Math.round(
-                                  (totalCategorySold / totalCategorySeats) * 100
+                                  (totalCategorySold / categoryEvents.length) *
+                                    100
                                 )
                               : 0;
 
@@ -1553,6 +1671,18 @@ export default function AdminPage() {
                                 <p className="text-sm text-stone-500 line-clamp-1">
                                   {event.venue}
                                 </p>
+                                <div className="flex items-center gap-2 mt-2">
+                                  {event.isDraft && (
+                                    <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
+                                      Draft
+                                    </span>
+                                  )}
+                                  {!event.isDraft && event.isPublished && (
+                                    <span className="inline-block px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
+                                      Published
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-6 py-4">
                                 <span className="text-sm font-medium">
@@ -1609,12 +1739,144 @@ export default function AdminPage() {
                                 </p>
                               </td>
                               <td className="px-6 py-4">
-                                <button
-                                  onClick={() => handleDeleteEvent(event._id)}
-                                  className="text-red-600 hover:text-red-800 transition text-sm font-medium"
-                                >
-                                  Delete
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  {!event.isDraft && (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const updates = {
+                                            isDraft: true,
+                                            isPublished: false,
+                                          };
+                                          await eventsAPI.update(
+                                            event._id,
+                                            updates
+                                          );
+                                          fetchEvents();
+                                        } catch (error) {
+                                          console.error(
+                                            'Error unpublishing event:',
+                                            error
+                                          );
+                                        }
+                                      }}
+                                      className="text-xs px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded transition font-medium"
+                                      title="Unpublish event"
+                                    >
+                                      Unpublish
+                                    </button>
+                                  )}
+                                  {event.isDraft && (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          const updates = {
+                                            isDraft: false,
+                                            isPublished: true,
+                                          };
+                                          await eventsAPI.update(
+                                            event._id,
+                                            updates
+                                          );
+                                          fetchEvents();
+                                        } catch (error) {
+                                          console.error(
+                                            'Error publishing event:',
+                                            error
+                                          );
+                                        }
+                                      }}
+                                      className="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 text-green-800 rounded transition font-medium"
+                                      title="Publish event"
+                                    >
+                                      Publish
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      setEditingEventId(event._id);
+                                      setNewEvent({
+                                        name: event.name,
+                                        description: event.description,
+                                        longDescription:
+                                          event.longDescription || '',
+                                        coverImage: event.coverImage || '',
+                                        coverImageFile: null,
+                                        date: event.date,
+                                        venue: event.venue,
+                                        ticketTypes: event.ticketTypes
+                                          ? {
+                                              Free: {
+                                                enabled:
+                                                  event.ticketTypes.Free
+                                                    ?.enabled ?? true,
+                                                price: 0,
+                                              },
+                                              Standard: {
+                                                enabled:
+                                                  event.ticketTypes.Standard
+                                                    ?.enabled ?? false,
+                                                price:
+                                                  event.ticketTypes.Standard
+                                                    ?.price?.toString() ?? '',
+                                              },
+                                              EarlyBird: {
+                                                enabled:
+                                                  event.ticketTypes.EarlyBird
+                                                    ?.enabled ?? false,
+                                                price:
+                                                  event.ticketTypes.EarlyBird
+                                                    ?.price?.toString() ?? '',
+                                                limit:
+                                                  event.ticketTypes.EarlyBird
+                                                    ?.limit?.toString() ?? '',
+                                              },
+                                              VIP: {
+                                                enabled:
+                                                  event.ticketTypes.VIP
+                                                    ?.enabled ?? false,
+                                                price:
+                                                  event.ticketTypes.VIP?.price?.toString() ??
+                                                  '',
+                                              },
+                                            }
+                                          : {
+                                              Free: { enabled: true, price: 0 },
+                                              Standard: {
+                                                enabled: false,
+                                                price: '',
+                                              },
+                                              EarlyBird: {
+                                                enabled: false,
+                                                price: '',
+                                                limit: '',
+                                              },
+                                              VIP: { enabled: false, price: '' },
+                                            },
+                                        category: event.category || 'Concert',
+                                        isDraft: event.isDraft ?? true,
+                                        seatingEnabled:
+                                          (event.seatingLayout &&
+                                            event.seatingLayout.length > 0) ??
+                                          false,
+                                        sections: event.seatingLayout || [],
+                                      });
+                                      // Switch to create tab to show the form
+                                      setActiveTab('create');
+                                    }}
+                                    className="text-xs px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 rounded transition font-medium"
+                                    title="Edit event"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteEvent(event._id)}
+                                    className="text-xs px-2 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded transition font-medium"
+                                    title="Delete event"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -1643,7 +1905,6 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
             {/* Tickets Tab */}
             {activeTab === 'tickets' && (
               <div className="space-y-6">
@@ -1812,7 +2073,6 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
             {/* QR Scanner Tab */}
             {activeTab === 'scanner' && (
               <div className="max-w-2xl mx-auto">
@@ -2024,16 +2284,17 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
             {/* Create Event Tab */}
             {activeTab === 'create' && (
               <div className="max-w-2xl mx-auto">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-stone-900">
-                    Create New Event
+                    {editingEventId ? 'Edit Event' : 'Create New Event'}
                   </h2>
                   <p className="text-stone-600">
-                    Fill in the details to create a new event
+                    {editingEventId
+                      ? 'Update event details (seating configuration is locked)'
+                      : 'Fill in the details to create a new event'}
                   </p>
                 </div>
 
@@ -2057,7 +2318,7 @@ export default function AdminPage() {
 
                     <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
-                        Description
+                        Short Description
                       </label>
                       <textarea
                         value={newEvent.description}
@@ -2068,10 +2329,108 @@ export default function AdminPage() {
                           })
                         }
                         className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                        rows={4}
-                        placeholder="Describe your event"
+                        rows={3}
+                        placeholder="Brief description for event listing"
                         required
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                        Long Description
+                      </label>
+                      <textarea
+                        value={newEvent.longDescription}
+                        onChange={(e) =>
+                          setNewEvent({
+                            ...newEvent,
+                            longDescription: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        rows={6}
+                        placeholder="Detailed description for event details page"
+                      />
+                      <p className="mt-1 text-xs text-stone-500">
+                        This will be displayed on the event details page
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                        Cover Image
+                      </label>
+                      <div className="space-y-4">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setNewEvent({
+                                ...newEvent,
+                                coverImageFile: file,
+                              });
+                              try {
+                                setLoading(true);
+                                const { uploadImage } = await import(
+                                  '@/lib/api'
+                                );
+                                const imageUrl = await uploadImage(file);
+                                setNewEvent((prev) => ({
+                                  ...prev,
+                                  coverImage: imageUrl,
+                                }));
+                                setSuccess(
+                                  'Cover image uploaded successfully!'
+                                );
+                              } catch (err) {
+                                setError(
+                                  'Failed to upload cover image. Check Cloudinary configuration.'
+                                );
+                                console.error(err);
+                              } finally {
+                                setLoading(false);
+                              }
+                            }
+                          }}
+                          className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        />
+                        {newEvent.coverImage && (
+                          <div className="relative w-full h-48 bg-stone-100 rounded-xl overflow-hidden">
+                            <img
+                              src={newEvent.coverImage}
+                              alt="Cover preview"
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setNewEvent({
+                                  ...newEvent,
+                                  coverImage: '',
+                                  coverImageFile: null,
+                                })
+                              }
+                              className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition"
+                            >
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div>
@@ -2089,49 +2448,238 @@ export default function AdminPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-semibold text-stone-700 mb-2">
-                          Total Seats
-                        </label>
-                        <input
-                          type="number"
-                          value={newEvent.totalSeats}
-                          onChange={(e) =>
-                            setNewEvent({
-                              ...newEvent,
-                              totalSeats: e.target.value,
-                            })
-                          }
-                          className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                          placeholder="e.g., 100"
-                          min="1"
-                          required
-                        />
+                    {/* Ticket Types Section */}
+                    <div className="border-t border-stone-200 pt-6">
+                      <h3 className="text-lg font-semibold text-stone-900 mb-4">
+                        Ticket Types
+                      </h3>
+                      <p className="text-sm text-stone-600 mb-4">
+                        Select which ticket types are available for this event.
+                        Customers will only see the types you enable.
+                      </p>
+
+                      {/* Free Ticket Type */}
+                      <div className="mb-6 p-4 border border-stone-200 rounded-lg bg-stone-50">
+                        <div className="flex items-center gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={newEvent.ticketTypes.Free.enabled}
+                              onChange={(e) =>
+                                setNewEvent({
+                                  ...newEvent,
+                                  ticketTypes: {
+                                    ...newEvent.ticketTypes,
+                                    Free: {
+                                      ...newEvent.ticketTypes.Free,
+                                      enabled: e.target.checked,
+                                    },
+                                  },
+                                })
+                              }
+                              className="w-5 h-5 rounded border-stone-300 cursor-pointer"
+                            />
+                            <span className="font-semibold text-stone-900">
+                              Free
+                            </span>
+                          </label>
+                          <span className="text-sm text-stone-600">
+                            (Always $0 - no price input needed)
+                          </span>
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-semibold text-stone-700 mb-2">
-                          Ticket Price ($)
-                        </label>
-                        <input
-                          type="number"
-                          value={newEvent.ticketPrice}
-                          onChange={(e) =>
-                            setNewEvent({
-                              ...newEvent,
-                              ticketPrice: e.target.value,
-                            })
-                          }
-                          className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                          placeholder="e.g., 29.99"
-                          step="0.01"
-                          min="0"
-                        />
+                      {/* Standard Ticket Type */}
+                      <div className="mb-6 p-4 border border-stone-200 rounded-lg">
+                        <div className="flex items-center gap-4 mb-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={newEvent.ticketTypes.Standard.enabled}
+                              onChange={(e) =>
+                                setNewEvent({
+                                  ...newEvent,
+                                  ticketTypes: {
+                                    ...newEvent.ticketTypes,
+                                    Standard: {
+                                      ...newEvent.ticketTypes.Standard,
+                                      enabled: e.target.checked,
+                                    },
+                                  },
+                                })
+                              }
+                              className="w-5 h-5 rounded border-stone-300 cursor-pointer"
+                            />
+                            <span className="font-semibold text-stone-900">
+                              Standard
+                            </span>
+                          </label>
+                        </div>
+                        {newEvent.ticketTypes.Standard.enabled && (
+                          <div>
+                            <label className="block text-sm font-medium text-stone-700 mb-2">
+                              Price ($)
+                            </label>
+                            <input
+                              type="number"
+                              value={newEvent.ticketTypes.Standard.price}
+                              onChange={(e) =>
+                                setNewEvent({
+                                  ...newEvent,
+                                  ticketTypes: {
+                                    ...newEvent.ticketTypes,
+                                    Standard: {
+                                      ...newEvent.ticketTypes.Standard,
+                                      price: e.target.value,
+                                    },
+                                  },
+                                })
+                              }
+                              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                              placeholder="e.g., 29.99"
+                              step="0.01"
+                              min="0"
+                            />
+                          </div>
+                        )}
                       </div>
-                    </div>
 
-                    <div>
+                      {/* Early Bird Ticket Type */}
+                      <div className="mb-6 p-4 border border-stone-200 rounded-lg">
+                        <div className="flex items-center gap-4 mb-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={newEvent.ticketTypes.EarlyBird.enabled}
+                              onChange={(e) =>
+                                setNewEvent({
+                                  ...newEvent,
+                                  ticketTypes: {
+                                    ...newEvent.ticketTypes,
+                                    EarlyBird: {
+                                      ...newEvent.ticketTypes.EarlyBird,
+                                      enabled: e.target.checked,
+                                    },
+                                  },
+                                })
+                              }
+                              className="w-5 h-5 rounded border-stone-300 cursor-pointer"
+                            />
+                            <span className="font-semibold text-stone-900">
+                              Early Bird
+                            </span>
+                          </label>
+                        </div>
+                        {newEvent.ticketTypes.EarlyBird.enabled && (
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-sm font-medium text-stone-700 mb-2">
+                                Price ($)
+                              </label>
+                              <input
+                                type="number"
+                                value={newEvent.ticketTypes.EarlyBird.price}
+                                onChange={(e) =>
+                                  setNewEvent({
+                                    ...newEvent,
+                                    ticketTypes: {
+                                      ...newEvent.ticketTypes,
+                                      EarlyBird: {
+                                        ...newEvent.ticketTypes.EarlyBird,
+                                        price: e.target.value,
+                                      },
+                                    },
+                                  })
+                                }
+                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                                placeholder="e.g., 19.99"
+                                step="0.01"
+                                min="0"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-stone-700 mb-2">
+                                Ticket Limit (max tickets to sell)
+                              </label>
+                              <input
+                                type="number"
+                                value={newEvent.ticketTypes.EarlyBird.limit}
+                                onChange={(e) =>
+                                  setNewEvent({
+                                    ...newEvent,
+                                    ticketTypes: {
+                                      ...newEvent.ticketTypes,
+                                      EarlyBird: {
+                                        ...newEvent.ticketTypes.EarlyBird,
+                                        limit: e.target.value,
+                                      },
+                                    },
+                                  })
+                                }
+                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                                placeholder="e.g., 50"
+                                min="1"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* VIP Ticket Type */}
+                      <div className="mb-6 p-4 border border-stone-200 rounded-lg">
+                        <div className="flex items-center gap-4 mb-3">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={newEvent.ticketTypes.VIP.enabled}
+                              onChange={(e) =>
+                                setNewEvent({
+                                  ...newEvent,
+                                  ticketTypes: {
+                                    ...newEvent.ticketTypes,
+                                    VIP: {
+                                      ...newEvent.ticketTypes.VIP,
+                                      enabled: e.target.checked,
+                                    },
+                                  },
+                                })
+                              }
+                              className="w-5 h-5 rounded border-stone-300 cursor-pointer"
+                            />
+                            <span className="font-semibold text-stone-900">
+                              VIP
+                            </span>
+                          </label>
+                        </div>
+                        {newEvent.ticketTypes.VIP.enabled && (
+                          <div>
+                            <label className="block text-sm font-medium text-stone-700 mb-2">
+                              Price ($)
+                            </label>
+                            <input
+                              type="number"
+                              value={newEvent.ticketTypes.VIP.price}
+                              onChange={(e) =>
+                                setNewEvent({
+                                  ...newEvent,
+                                  ticketTypes: {
+                                    ...newEvent.ticketTypes,
+                                    VIP: {
+                                      ...newEvent.ticketTypes.VIP,
+                                      price: e.target.value,
+                                    },
+                                  },
+                                })
+                              }
+                              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                              placeholder="e.g., 49.99"
+                              step="0.01"
+                              min="0"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>                    <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
                         Venue
                       </label>
@@ -2421,20 +2969,142 @@ export default function AdminPage() {
                       )}
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {loading ? (
-                        <>
-                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                          Creating...
-                        </>
-                      ) : (
-                        <>
+                    <div className="border-t border-stone-200 pt-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-lg font-bold text-stone-900">
+                            Save as Draft
+                          </h3>
+                          <p className="text-sm text-stone-600">
+                            {newEvent.isDraft
+                              ? 'Event will be hidden until published'
+                              : 'Event will be published immediately'}
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={newEvent.isDraft}
+                            onChange={(e) =>
+                              setNewEvent({
+                                ...newEvent,
+                                isDraft: e.target.checked,
+                              })
+                            }
+                            className="sr-only peer"
+                          />
+                          <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowPreview(true)}
+                        disabled={!newEvent.name || !newEvent.description}
+                        className="flex-1 bg-stone-200 hover:bg-stone-300 text-stone-900 py-4 rounded-xl font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                          />
+                        </svg>
+                        Preview
+                      </button>
+                      {editingEventId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingEventId(null);
+                            setNewEvent({
+                              name: '',
+                              description: '',
+                              longDescription: '',
+                              coverImage: '',
+                              coverImageFile: null,
+                              date: '',
+                              venue: '',
+                              ticketTypes: {
+                                Free: { enabled: true, price: 0 },
+                                Standard: { enabled: false, price: '' },
+                                EarlyBird: { enabled: false, price: '', limit: '' },
+                                VIP: { enabled: false, price: '' },
+                              },
+                              category: 'Concert',
+                              isDraft: true,
+                              seatingEnabled: false,
+                              sections: [],
+                            });
+                            setActiveTab('events');
+                          }}
+                          className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 py-4 rounded-xl font-semibold transition"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {loading ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                            {editingEventId ? 'Saving...' : 'Creating...'}
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 4v16m8-8H4"
+                              />
+                            </svg>
+                            {editingEventId ? 'Save Changes' : 'Create Event'}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Preview Modal */}
+                {showPreview && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                      {/* Modal Header */}
+                      <div className="sticky top-0 bg-white border-b border-stone-200 p-6 flex items-center justify-between">
+                        <h3 className="text-2xl font-bold text-stone-900">
+                          Event Preview
+                        </h3>
+                        <button
+                          onClick={() => setShowPreview(false)}
+                          className="text-stone-500 hover:text-stone-900 transition"
+                        >
                           <svg
-                            className="w-5 h-5"
+                            className="w-6 h-6"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -2443,17 +3113,149 @@ export default function AdminPage() {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               strokeWidth={2}
-                              d="M12 4v16m8-8H4"
+                              d="M6 18L18 6M6 6l12 12"
                             />
                           </svg>
-                          Create Event
-                        </>
-                      )}
-                    </button>
-                  </form>
-                </div>
+                        </button>
+                      </div>
+
+                      {/* Modal Content */}
+                      <div className="p-6 space-y-6">
+                        {/* Cover Image */}
+                        {newEvent.coverImage && (
+                          <div className="relative w-full h-64 bg-stone-200 rounded-xl overflow-hidden">
+                            <img
+                              src={newEvent.coverImage}
+                              alt={newEvent.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+
+                        {/* Event Title */}
+                        <div>
+                          <h1 className="text-4xl font-bold text-stone-900 mb-2">
+                            {newEvent.name || 'Event Name'}
+                          </h1>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="inline-block px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm font-semibold">
+                              {newEvent.category}
+                            </span>
+                            {newEvent.isDraft && (
+                              <span className="inline-block px-3 py-1 bg-gray-100 text-gray-800 rounded-full text-sm font-semibold">
+                                Draft
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Short Description */}
+                        <div>
+                          <h2 className="text-lg font-semibold text-stone-900 mb-2">
+                            About This Event
+                          </h2>
+                          <p className="text-stone-700 leading-relaxed">
+                            {newEvent.description || 'No description provided'}
+                          </p>
+                        </div>
+
+                        {/* Long Description */}
+                        {newEvent.longDescription && (
+                          <div>
+                            <h2 className="text-lg font-semibold text-stone-900 mb-2">
+                              Event Details
+                            </h2>
+                            <p className="text-stone-700 leading-relaxed whitespace-pre-wrap">
+                              {newEvent.longDescription}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Event Information Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Date & Time */}
+                          <div className="bg-stone-50 rounded-xl p-4">
+                            <h3 className="text-sm font-semibold text-stone-700 mb-1">
+                              Date & Time
+                            </h3>
+                            <p className="text-stone-900">
+                              {newEvent.date
+                                ? new Date(newEvent.date).toLocaleString()
+                                : 'Date not set'}
+                            </p>
+                          </div>
+
+                          {/* Venue */}
+                          <div className="bg-stone-50 rounded-xl p-4">
+                            <h3 className="text-sm font-semibold text-stone-700 mb-1">
+                              Venue
+                            </h3>
+                            <p className="text-stone-900">
+                              {newEvent.venue || 'Venue not set'}
+                            </p>
+                          </div>
+
+                          {/* Ticket Types */}
+                          <div className="bg-stone-50 rounded-xl p-4">
+                            <h3 className="text-sm font-semibold text-stone-700 mb-2">
+                              Available Ticket Types
+                            </h3>
+                            <div className="space-y-1 text-sm">
+                              {Object.entries(newEvent.ticketTypes).map(
+                                ([type, config]) =>
+                                  config.enabled && (
+                                    <p key={type} className="text-stone-700">
+                                      <span className="font-medium">{type}:</span>{' '}
+                                      <span className="text-amber-600">
+                                        $
+                                        {(config.price as string | number) ? (
+                                          typeof config.price === 'string'
+                                            ? parseFloat(config.price)
+                                            : config.price
+                                        ).toFixed(2) : (
+                                          '0.00'
+                                        )}
+                                      </span>
+                                      {type === 'EarlyBird' &&
+                                        'limit' in config &&
+                                        (config as any).limit && (
+                                          <span className="text-stone-500 text-xs ml-2">
+                                            (limit:{' '}
+                                            {(config as any).limit as string | number})
+                                          </span>
+                                        )}
+                                    </p>
+                                  )
+                              )}
+                              {!Object.values(newEvent.ticketTypes).some(
+                                (t) => t.enabled
+                              ) && (
+                                <p className="text-stone-500 italic">
+                                  No ticket types enabled
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Seating Info */}
+                          {newEvent.seatingEnabled &&
+                            newEvent.sections.length > 0 && (
+                              <div className="bg-stone-50 rounded-xl p-4">
+                                <h3 className="text-sm font-semibold text-stone-700 mb-1">
+                                  Total Seats
+                                </h3>
+                                <p className="text-2xl font-bold text-stone-900">
+                                  {calculateTotalSeatsFromSections()}
+                                </p>
+                              </div>
+                            )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+            )}{' '}
           </div>
         </main>
       </div>
