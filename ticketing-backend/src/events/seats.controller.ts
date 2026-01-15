@@ -71,7 +71,11 @@ export class SeatsController {
       seats: body.seats,
       buyerName: body.buyerName,
       buyerEmail: body.buyerEmail,
-      ticketType: (body.ticketType || 'Free') as 'Free' | 'Standard' | 'EarlyBird' | 'VIP',
+      ticketType: (body.ticketType || 'Free') as
+        | 'Free'
+        | 'Standard'
+        | 'EarlyBird'
+        | 'VIP',
     });
   }
 

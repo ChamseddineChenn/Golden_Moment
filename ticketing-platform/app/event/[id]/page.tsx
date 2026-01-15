@@ -15,6 +15,7 @@ interface Event {
   date: string;
   venue: string;
   soldTickets: number;
+  totalSeats?: number;
   ticketTypes?: {
     Free: { enabled: boolean; price?: number };
     Standard: { enabled: boolean; price?: number };
@@ -78,10 +79,7 @@ export default function EventDetailPage() {
           type,
           enabled: true,
           price: config.price || 0,
-          limit:
-            type === 'EarlyBird'
-              ? (config as any).limit
-              : undefined,
+          limit: type === 'EarlyBird' ? (config as any).limit : undefined,
         });
       }
     }
@@ -92,7 +90,7 @@ export default function EventDetailPage() {
   const isEarlyBirdSoldOut = () => {
     if (!event?.ticketTypes?.EarlyBird) return false;
     const limit = (event.ticketTypes.EarlyBird as any).limit;
-    return limit && event.earlyBirdCount >= limit;
+    return limit && (event.earlyBirdCount ?? 0) >= limit;
   };
 
   // Get price for selected ticket type
@@ -129,7 +127,9 @@ export default function EventDetailPage() {
       const availableTypes = getAvailableTicketTypes();
       if (availableTypes.length > 0) {
         // Set to first available type if current selection is not available
-        if (!availableTypes.find((t) => t.type === formData.selectedTicketType)) {
+        if (
+          !availableTypes.find((t) => t.type === formData.selectedTicketType)
+        ) {
           setFormData((prev) => ({
             ...prev,
             selectedTicketType: availableTypes[0].type,
@@ -162,6 +162,13 @@ export default function EventDetailPage() {
         setError(
           `Ticket type "${formData.selectedTicketType}" is not available for this event`
         );
+        setSubmitting(false);
+        return;
+      }
+
+      // Validate max 10 seat purchase limit
+      if (selectedSeats.length > 10) {
+        setError('Maximum 10 seats per purchase. Please select fewer seats.');
         setSubmitting(false);
         return;
       }
@@ -212,7 +219,7 @@ export default function EventDetailPage() {
     } catch (err: any) {
       // Extract error message from various possible locations
       let errorMessage = 'Failed to purchase ticket. Please try again.';
-      
+
       if (err.response?.data?.message) {
         errorMessage = err.response.data.message;
       } else if (err.response?.data?.error) {
@@ -224,21 +231,18 @@ export default function EventDetailPage() {
       }
 
       // Handle specific error cases
-      if (
-        err.response?.status === 409 ||
-        errorMessage.includes('just sold')
-      ) {
+      if (err.response?.status === 409 || errorMessage.includes('just sold')) {
         setError(
           'One or more seats were just purchased by another user. Please select different seats and try again.'
         );
         // Reload the seat map to show current availability
         window.location.reload();
       } else if (err.response?.status === 400) {
-        setError(
-          errorMessage ||
-            'Invalid seat selection. Please try again.'
-        );
-      } else if (errorMessage.includes('not available') || errorMessage.includes('Early Bird')) {
+        setError(errorMessage || 'Invalid seat selection. Please try again.');
+      } else if (
+        errorMessage.includes('not available') ||
+        errorMessage.includes('Early Bird')
+      ) {
         // Ticket type validation errors
         setError(errorMessage);
       } else {
@@ -310,6 +314,89 @@ export default function EventDetailPage() {
             The event you&apos;re looking for doesn&apos;t exist or has been
             removed.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if event is sold out
+  const eventTotalSeats = event.totalSeats || 0;
+  const isSoldOut = eventTotalSeats > 0 && event.soldTickets >= eventTotalSeats;
+
+  if (isSoldOut) {
+    return (
+      <div className="min-h-screen bg-stone-50">
+        <header className="bg-white border-b border-stone-200">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <Link
+              href="/"
+              className="text-amber-600 hover:text-amber-700 font-medium flex items-center gap-2"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Back to Events
+            </Link>
+          </div>
+        </header>
+        <div className="max-w-7xl mx-auto px-6 py-16">
+          <div className="max-w-lg mx-auto text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg
+                className="w-8 h-8 text-red-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4v2m0 4v2M6.343 3h11.314a2 2 0 011.857 1.043l1.914 3.86a1 1 0 01.14.381H2.412a1 1 0 01.14-.381l1.914-3.86A2 2 0 016.343 3M6.343 3a2 2 0 00-1.857 1.043L2.571 7.903"
+                />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-stone-900 mb-3">
+              Event Sold Out
+            </h1>
+            <p className="text-stone-600 mb-4 text-lg">
+              Sorry, this event has reached its maximum capacity and is no
+              longer available for purchase.
+            </p>
+            <p className="text-stone-500 mb-8">
+              All tickets for &quot;{event.name}&quot; have been sold. Please
+              check back later for other events or sign up for notifications.
+            </p>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold transition"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Back to Browse Events
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -609,169 +696,332 @@ export default function EventDetailPage() {
                       }}
                     />
 
-                      {selectedSeats.length > 0 && (
-                        <div className="border-t border-stone-200 pt-6">
-                          <h3 className="text-lg font-bold text-stone-900 mb-4">
-                            Complete Your Booking
-                          </h3>
-                          <form
-                            onSubmit={handleBuyTicket}
-                            className="space-y-6"
+                    {selectedSeats.length > 0 && (
+                      <div className="border-t border-stone-200 pt-6">
+                        <h3 className="text-lg font-bold text-stone-900 mb-4">
+                          Complete Your Booking
+                        </h3>
+                        <form onSubmit={handleBuyTicket} className="space-y-6">
+                          <div>
+                            <label className="block text-sm font-semibold text-stone-700 mb-2">
+                              Ticket Type
+                            </label>
+                            {getAvailableTicketTypes().length > 1 ? (
+                              <div className="space-y-3">
+                                {getAvailableTicketTypes().map((ticketType) => {
+                                  const isEarlyBirdAndSoldOut =
+                                    ticketType.type === 'EarlyBird' &&
+                                    isEarlyBirdSoldOut();
+                                  return (
+                                    <label
+                                      key={ticketType.type}
+                                      className={`flex items-center gap-3 p-3 border rounded-xl transition ${
+                                        isEarlyBirdAndSoldOut
+                                          ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
+                                          : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
+                                      }`}
+                                    >
+                                      <input
+                                        type="radio"
+                                        name="ticketType"
+                                        value={ticketType.type}
+                                        checked={
+                                          formData.selectedTicketType ===
+                                          ticketType.type
+                                        }
+                                        onChange={(e) =>
+                                          setFormData({
+                                            ...formData,
+                                            selectedTicketType: e.target.value,
+                                          })
+                                        }
+                                        disabled={isEarlyBirdAndSoldOut}
+                                        className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
+                                      />
+                                      <div className="flex-1">
+                                        <p className="font-semibold text-stone-900">
+                                          {ticketType.type}
+                                        </p>
+                                        <p className="text-sm text-stone-600">
+                                          {ticketType.price === 0
+                                            ? 'Free'
+                                            : `$${ticketType.price.toFixed(2)}`}
+                                        </p>
+                                        {ticketType.type === 'EarlyBird' &&
+                                          ticketType.limit && (
+                                            <p
+                                              className={`text-xs ${
+                                                isEarlyBirdAndSoldOut
+                                                  ? 'text-red-700'
+                                                  : 'text-amber-700'
+                                              }`}
+                                            >
+                                              {event?.earlyBirdCount || 0}/
+                                              {ticketType.limit}{' '}
+                                              {isEarlyBirdAndSoldOut
+                                                ? 'sold out'
+                                                : 'sold'}
+                                            </p>
+                                          )}
+                                      </div>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
+                                <p className="font-semibold text-stone-900">
+                                  {getAvailableTicketTypes()[0]?.type}
+                                </p>
+                                <p className="text-sm text-stone-600">
+                                  {getTicketTypePrice() === 0
+                                    ? 'Free'
+                                    : `$${getTicketTypePrice().toFixed(2)}`}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-stone-700 mb-2">
+                              Full Name
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Your full name"
+                              value={formData.buyerName}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  buyerName: e.target.value,
+                                })
+                              }
+                              className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-stone-700 mb-2">
+                              Email Address
+                            </label>
+                            <input
+                              type="email"
+                              placeholder="your@email.com"
+                              value={formData.buyerEmail}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  buyerEmail: e.target.value,
+                                })
+                              }
+                              className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                              required
+                            />
+                            <p className="text-xs text-stone-500 mt-2">
+                              Your e-ticket will be sent to this address
+                            </p>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={submitting}
+                            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
                           >
-                            <div>
-                              <label className="block text-sm font-semibold text-stone-700 mb-2">
-                                Ticket Type
-                              </label>
-                              {getAvailableTicketTypes().length > 1 ? (
-                                <div className="space-y-3">
-                                  {getAvailableTicketTypes().map((ticketType) => {
-                                    const isEarlyBirdAndSoldOut = ticketType.type === 'EarlyBird' && isEarlyBirdSoldOut();
-                                    return (
-                                      <label
-                                        key={ticketType.type}
-                                        className={`flex items-center gap-3 p-3 border rounded-xl transition ${
-                                          isEarlyBirdAndSoldOut
-                                            ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
-                                            : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
-                                        }`}
-                                      >
-                                        <input
-                                          type="radio"
-                                          name="ticketType"
-                                          value={ticketType.type}
-                                          checked={
-                                            formData.selectedTicketType ===
-                                            ticketType.type
-                                          }
-                                          onChange={(e) =>
-                                            setFormData({
-                                              ...formData,
-                                              selectedTicketType:
-                                                e.target.value,
-                                            })
-                                          }
-                                          disabled={isEarlyBirdAndSoldOut}
-                                          className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
-                                        />
-                                        <div className="flex-1">
-                                          <p className="font-semibold text-stone-900">
-                                            {ticketType.type}
-                                          </p>
-                                          <p className="text-sm text-stone-600">
-                                            ${ticketType.price.toFixed(2)}
-                                          </p>
-                                          {ticketType.type === 'EarlyBird' &&
-                                            ticketType.limit && (
-                                              <p className={`text-xs ${isEarlyBirdAndSoldOut ? 'text-red-700' : 'text-amber-700'}`}>
-                                                {event?.earlyBirdCount || 0}/{
-                                                  ticketType.limit
-                                                }{' '}
-                                                {isEarlyBirdAndSoldOut ? 'sold out' : 'sold'}
-                                              </p>
-                                            )}
-                                        </div>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
+                            {submitting ? (
+                              <>
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                <svg
+                                  className="w-5 h-5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M5 13l4 4L19 7"
+                                  />
+                                </svg>
+                                Complete Purchase (${totalPrice.toFixed(2)})
+                              </>
+                            )}
+                          </button>
+
+                          <p className="text-xs text-stone-500 text-center">
+                            Your tickets will be instantly generated with unique
+                            QR codes
+                          </p>
+                        </form>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Automatic Seat Assignment - No visual seating */
+                  <form onSubmit={handleBuyTicket} className="space-y-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                      <div className="flex items-start gap-3">
+                        <svg
+                          className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <div>
+                          <p className="text-sm font-semibold text-blue-900">
+                            Automatic Seat Assignment
+                          </p>
+                          <p className="text-xs text-blue-700 mt-1">
+                            Your seat will be automatically assigned when you
+                            complete your purchase
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                        Ticket Type
+                      </label>
+                      {getAvailableTicketTypes().length > 1 ? (
+                        <div className="space-y-3">
+                          {getAvailableTicketTypes().map((ticketType) => {
+                            const isEarlyBirdAndSoldOut =
+                              ticketType.type === 'EarlyBird' &&
+                              isEarlyBirdSoldOut();
+                            return (
+                              <label
+                                key={ticketType.type}
+                                className={`flex items-center gap-3 p-3 border rounded-xl transition ${
+                                  isEarlyBirdAndSoldOut
+                                    ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
+                                    : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="ticketType"
+                                  value={ticketType.type}
+                                  checked={
+                                    formData.selectedTicketType ===
+                                    ticketType.type
+                                  }
+                                  onChange={(e) =>
+                                    setFormData({
+                                      ...formData,
+                                      selectedTicketType: e.target.value,
+                                    })
+                                  }
+                                  disabled={isEarlyBirdAndSoldOut}
+                                  className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
+                                />
+                                <div className="flex-1">
                                   <p className="font-semibold text-stone-900">
-                                    {getAvailableTicketTypes()[0]?.type}
+                                    {ticketType.type}
                                   </p>
                                   <p className="text-sm text-stone-600">
-                                    ${getTicketTypePrice().toFixed(2)}
+                                    ${ticketType.price.toFixed(2)}
                                   </p>
+                                  {ticketType.type === 'EarlyBird' &&
+                                    ticketType.limit && (
+                                      <p
+                                        className={`text-xs ${
+                                          isEarlyBirdAndSoldOut
+                                            ? 'text-red-700'
+                                            : 'text-amber-700'
+                                        }`}
+                                      >
+                                        {event?.earlyBirdCount || 0}/
+                                        {ticketType.limit}{' '}
+                                        {isEarlyBirdAndSoldOut
+                                          ? 'sold out'
+                                          : 'sold'}
+                                      </p>
+                                    )}
                                 </div>
-                              )}
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-semibold text-stone-700 mb-2">
-                                Full Name
                               </label>
-                              <input
-                                type="text"
-                                placeholder="Your full name"
-                                value={formData.buyerName}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    buyerName: e.target.value,
-                                  })
-                                }
-                                className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                                required
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-semibold text-stone-700 mb-2">
-                                Email Address
-                              </label>
-                              <input
-                                type="email"
-                                placeholder="your@email.com"
-                                value={formData.buyerEmail}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    buyerEmail: e.target.value,
-                                  })
-                                }
-                                className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                                required
-                              />
-                              <p className="text-xs text-stone-500 mt-2">
-                                Your e-ticket will be sent to this address
-                              </p>
-                            </div>
-
-                            <button
-                              type="submit"
-                              disabled={submitting}
-                              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
-                            >
-                              {submitting ? (
-                                <>
-                                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                  Processing...
-                                </>
-                              ) : (
-                                <>
-                                  <svg
-                                    className="w-5 h-5"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M5 13l4 4L19 7"
-                                    />
-                                  </svg>
-                                  Complete Purchase (${totalPrice.toFixed(2)})
-                                </>
-                              )}
-                            </button>
-
-                            <p className="text-xs text-stone-500 text-center">
-                              Your tickets will be instantly generated with
-                              unique QR codes
-                            </p>
-                          </form>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
+                          <p className="font-semibold text-stone-900">
+                            {getAvailableTicketTypes()[0]?.type}
+                          </p>
+                          <p className="text-sm text-stone-600">
+                            ${getTicketTypePrice().toFixed(2)}
+                          </p>
                         </div>
                       )}
                     </div>
-                  ) : (
-                    /* Automatic Seat Assignment - No visual seating */
-                    <form onSubmit={handleBuyTicket} className="space-y-6">
-                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-                        <div className="flex items-start gap-3">
+
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Your full name"
+                        value={formData.buyerName}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            buyerName: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        placeholder="your@email.com"
+                        value={formData.buyerEmail}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            buyerEmail: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        required
+                      />
+                      <p className="text-xs text-stone-500 mt-2">
+                        Your e-ticket will be sent to this address
+                      </p>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {submitting ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          Processing...
+                        </>
+                      ) : (
+                        <>
                           <svg
-                            className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0"
+                            className="w-5 h-5"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -780,167 +1030,22 @@ export default function EventDetailPage() {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               strokeWidth={2}
-                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              d="M5 13l4 4L19 7"
                             />
                           </svg>
-                          <div>
-                            <p className="text-sm font-semibold text-blue-900">
-                              Automatic Seat Assignment
-                            </p>
-                            <p className="text-xs text-blue-700 mt-1">
-                              Your seat will be automatically assigned when you
-                              complete your purchase
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                          Complete Purchase ($
+                          {getTicketTypePrice().toFixed(2)})
+                        </>
+                      )}
+                    </button>
 
-                      <div>
-                        <label className="block text-sm font-semibold text-stone-700 mb-2">
-                          Ticket Type
-                        </label>
-                        {getAvailableTicketTypes().length > 1 ? (
-                          <div className="space-y-3">
-                            {getAvailableTicketTypes().map((ticketType) => {
-                              const isEarlyBirdAndSoldOut = ticketType.type === 'EarlyBird' && isEarlyBirdSoldOut();
-                              return (
-                                <label
-                                  key={ticketType.type}
-                                  className={`flex items-center gap-3 p-3 border rounded-xl transition ${
-                                    isEarlyBirdAndSoldOut
-                                      ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
-                                      : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
-                                  }`}
-                                >
-                                  <input
-                                    type="radio"
-                                    name="ticketType"
-                                    value={ticketType.type}
-                                    checked={
-                                      formData.selectedTicketType ===
-                                      ticketType.type
-                                    }
-                                    onChange={(e) =>
-                                      setFormData({
-                                        ...formData,
-                                        selectedTicketType: e.target.value,
-                                      })
-                                    }
-                                    disabled={isEarlyBirdAndSoldOut}
-                                    className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
-                                  />
-                                  <div className="flex-1">
-                                    <p className="font-semibold text-stone-900">
-                                      {ticketType.type}
-                                    </p>
-                                    <p className="text-sm text-stone-600">
-                                      ${ticketType.price.toFixed(2)}
-                                    </p>
-                                    {ticketType.type === 'EarlyBird' &&
-                                      ticketType.limit && (
-                                        <p className={`text-xs ${isEarlyBirdAndSoldOut ? 'text-red-700' : 'text-amber-700'}`}>
-                                          {event?.earlyBirdCount || 0}/{
-                                            ticketType.limit
-                                          }{' '}
-                                          {isEarlyBirdAndSoldOut ? 'sold out' : 'sold'}
-                                        </p>
-                                      )}
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
-                            <p className="font-semibold text-stone-900">
-                              {getAvailableTicketTypes()[0]?.type}
-                            </p>
-                            <p className="text-sm text-stone-600">
-                              ${getTicketTypePrice().toFixed(2)}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-stone-700 mb-2">
-                          Full Name
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Your full name"
-                          value={formData.buyerName}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              buyerName: e.target.value,
-                            })
-                          }
-                          className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                          required
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-stone-700 mb-2">
-                          Email Address
-                        </label>
-                        <input
-                          type="email"
-                          placeholder="your@email.com"
-                          value={formData.buyerEmail}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              buyerEmail: e.target.value,
-                            })
-                          }
-                          className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                          required
-                        />
-                        <p className="text-xs text-stone-500 mt-2">
-                          Your e-ticket will be sent to this address
-                        </p>
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {submitting ? (
-                          <>
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
-                            Complete Purchase ($
-                            {getTicketTypePrice().toFixed(2)})
-                          </>
-                        )}
-                      </button>
-
-                      <p className="text-xs text-stone-500 text-center">
-                        Your ticket will be instantly generated with a unique QR
-                        code
-                      </p>
-                    </form>
-                  )}
-                </>
+                    <p className="text-xs text-stone-500 text-center">
+                      Your ticket will be instantly generated with a unique QR
+                      code
+                    </p>
+                  </form>
+                )}
+              </>
             </div>
           </div>
 

@@ -54,29 +54,47 @@ apiClient.interceptors.response.use((response) => {
 // Events API
 export const eventsAPI = {
   create: (eventData: any) => {
-    console.log('[API] POST /events with data:', JSON.stringify(eventData, null, 2));
+    console.log(
+      '[API] POST /events with data:',
+      JSON.stringify(eventData, null, 2)
+    );
     return apiClient.post('/events', eventData);
   },
   getAll: () => {
     const response = apiClient.get('/events');
-    response.then((res) => {
-      console.log('[API] GET /events response:', JSON.stringify(res.data.slice(0, 1), null, 2));
-    }).catch(() => {});
+    response
+      .then((res) => {
+        console.log(
+          '[API] GET /events response:',
+          JSON.stringify(res.data.slice(0, 1), null, 2)
+        );
+      })
+      .catch(() => {});
     return response;
   }, // Public - published only
   getAllAdmin: () => {
     const response = apiClient.get('/events/admin/all');
-    response.then((res) => {
-      console.log('[API] GET /events/admin/all response:', JSON.stringify(res.data.slice(0, 1), null, 2));
-    }).catch(() => {});
+    response
+      .then((res) => {
+        console.log(
+          '[API] GET /events/admin/all response:',
+          JSON.stringify(res.data.slice(0, 1), null, 2)
+        );
+      })
+      .catch(() => {});
     return response;
   }, // Admin - all events including drafts
   getById: (id: string) => apiClient.get(`/events/${id}`),
   update: (id: string, eventData: any) => {
-    console.log('[API] PUT /events/:id with data:', JSON.stringify(eventData, null, 2));
+    console.log(
+      '[API] PUT /events/:id with data:',
+      JSON.stringify(eventData, null, 2)
+    );
     return apiClient.put(`/events/${id}`, eventData);
   },
   delete: (id: string) => apiClient.delete(`/events/${id}`),
+  deleteImage: (publicId: string) =>
+    apiClient.post(`/upload/delete-image`, { publicId }),
 };
 
 // Upload API - uses backend for secure Cloudinary uploads
@@ -91,7 +109,10 @@ export const uploadImage = async (file: File) => {
     },
   });
 
-  return response.data.secure_url;
+  return {
+    secure_url: response.data.secure_url,
+    public_id: response.data.public_id,
+  };
 };
 
 // Tickets API
@@ -107,6 +128,7 @@ export const ticketsAPI = {
     apiClient.post(`/tickets/${ticketId}/mark-used`),
   validate: (ticketNumber: string) =>
     apiClient.post('/tickets/validate', { ticketNumber }),
+  delete: (ticketId: string) => apiClient.delete(`/tickets/${ticketId}`),
 };
 
 // Seats API

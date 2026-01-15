@@ -4,12 +4,14 @@ import { Model } from 'mongoose';
 import { Event } from './event.schema';
 import { CreateEventDto } from './dto/create-event.dto';
 import { SeatsService } from './seats.service';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class EventsService {
   constructor(
     @InjectModel(Event.name) private eventModel: Model<Event>,
     private seatsService: SeatsService,
+    private uploadService: UploadService,
   ) {}
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
@@ -125,16 +127,21 @@ export class EventsService {
 
   async findAllPublished(): Promise<Event[]> {
     // Only return published events (hide drafts from customers)
-    let events = await this.eventModel.find({ isActive: true, isDraft: false }).exec();
+    let events = await this.eventModel
+      .find({ isActive: true, isDraft: false })
+      .exec();
     // Ensure all events have totalSeats calculated
     events = events.map((event: any) => {
       if (!event.totalSeats || event.totalSeats === 0) {
-        if (event.seatingLayout?.sections && Array.isArray(event.seatingLayout.sections)) {
+        if (
+          event.seatingLayout?.sections &&
+          Array.isArray(event.seatingLayout.sections)
+        ) {
           event.totalSeats = event.seatingLayout.sections.reduce(
             (total: number, section: any) => {
               // Sections have their own rows/columns that need multiplication
               if (section.rows && section.columns) {
-                return total + (section.columns * section.rows);
+                return total + section.columns * section.rows;
               }
               // Or if they already have seats array, count those
               return total + (section.seats?.length || 0);
@@ -147,7 +154,10 @@ export class EventsService {
       }
       return event;
     });
-    console.log('[EventsService] findAllPublished returning totalSeats:', events.slice(0, 1).map((e: any) => e.totalSeats));
+    console.log(
+      '[EventsService] findAllPublished returning totalSeats:',
+      events.slice(0, 1).map((e: any) => e.totalSeats),
+    );
     return events;
   }
 
@@ -157,12 +167,15 @@ export class EventsService {
     // Ensure all events have totalSeats calculated
     events = events.map((event: any) => {
       if (!event.totalSeats || event.totalSeats === 0) {
-        if (event.seatingLayout?.sections && Array.isArray(event.seatingLayout.sections)) {
+        if (
+          event.seatingLayout?.sections &&
+          Array.isArray(event.seatingLayout.sections)
+        ) {
           event.totalSeats = event.seatingLayout.sections.reduce(
             (total: number, section: any) => {
               // Sections have their own rows/columns that need multiplication
               if (section.rows && section.columns) {
-                return total + (section.columns * section.rows);
+                return total + section.columns * section.rows;
               }
               // Or if they already have seats array, count those
               return total + (section.seats?.length || 0);
@@ -175,25 +188,30 @@ export class EventsService {
       }
       return event;
     });
-    console.log('[EventsService] findAllAdmin returning totalSeats:', events.slice(0, 1).map((e: any) => e.totalSeats));
+    console.log(
+      '[EventsService] findAllAdmin returning totalSeats:',
+      events.slice(0, 1).map((e: any) => e.totalSeats),
+    );
     return events;
   }
 
   async findById(id: string): Promise<Event | null> {
     let event = await this.eventModel.findById(id).exec();
     if (event && (!event.totalSeats || event.totalSeats === 0)) {
-      if ((event as any).seatingLayout?.sections && Array.isArray((event as any).seatingLayout.sections)) {
-        (event as any).totalSeats = (event as any).seatingLayout.sections.reduce(
-          (total: number, section: any) => {
-            // Sections have their own rows/columns that need multiplication
-            if (section.rows && section.columns) {
-              return total + (section.columns * section.rows);
-            }
-            // Or if they already have seats array, count those
-            return total + (section.seats?.length || 0);
-          },
-          0,
-        );
+      if (
+        (event as any).seatingLayout?.sections &&
+        Array.isArray((event as any).seatingLayout.sections)
+      ) {
+        (event as any).totalSeats = (
+          event as any
+        ).seatingLayout.sections.reduce((total: number, section: any) => {
+          // Sections have their own rows/columns that need multiplication
+          if (section.rows && section.columns) {
+            return total + section.columns * section.rows;
+          }
+          // Or if they already have seats array, count those
+          return total + (section.seats?.length || 0);
+        }, 0);
       } else {
         (event as any).totalSeats = 0;
       }
@@ -201,7 +219,10 @@ export class EventsService {
     return event;
   }
 
-  async update(id: string, updateData: Partial<Event> | any): Promise<Event | null> {
+  async update(
+    id: string,
+    updateData: Partial<Event> | any,
+  ): Promise<Event | null> {
     try {
       // Convert date to Date object if it's a string
       if (updateData.date && typeof updateData.date === 'string') {
@@ -244,6 +265,43 @@ export class EventsService {
   }
 
   async delete(id: string): Promise<void> {
+    // Fetch the event to get its cover image public_id
+    const event = await this.eventModel.findById(id).exec();
+
+    if (event && event.coverImage) {
+      let publicId = event.coverImagePublicId;
+
+      // If public_id is not stored, try to extract it from the URL
+      // Cloudinary URLs: https://res.cloudinary.com/{cloud}/{type}/upload/{public_id}
+      if (!publicId && event.coverImage.includes('cloudinary.com')) {
+        try {
+          const urlParts = event.coverImage.split('/upload/');
+          if (urlParts.length > 1) {
+            // Get everything after /upload/ and remove file extension
+            publicId = urlParts[1].split('.')[0];
+            console.log(
+              `[EventsService] Extracted public_id from URL: ${publicId}`,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            '[EventsService] Could not extract public_id from URL:',
+            error,
+          );
+        }
+      }
+
+      if (publicId) {
+        // Delete the cover image from Cloudinary
+        console.log(
+          `[EventsService] Deleting Cloudinary image with public_id: ${publicId}`,
+        );
+        await this.uploadService.deleteImage(publicId);
+      }
+    }
+
+    // Delete the event from database
     await this.eventModel.findByIdAndDelete(id).exec();
+    console.log(`[EventsService] Event ${id} deleted successfully`);
   }
 }

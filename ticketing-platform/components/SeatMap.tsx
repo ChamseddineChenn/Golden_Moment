@@ -44,7 +44,12 @@ interface SeatMapProps {
   onSeatsSelected?: (seats: SelectedSeat[], total: number) => void;
 }
 
-export default function SeatMap({ eventId, selectedTicketType, ticketTypePrice = 0, onSeatsSelected }: SeatMapProps) {
+export default function SeatMap({
+  eventId,
+  selectedTicketType,
+  ticketTypePrice = 0,
+  onSeatsSelected,
+}: SeatMapProps) {
   const [seatMapData, setSeatMapData] = useState<SeatMapData | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<SelectedSeat[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +107,12 @@ export default function SeatMap({ eventId, selectedTicketType, ticketTypePrice =
       );
       console.log('[SeatMap] Deselected seat:', seat.seatId);
     } else {
+      // Check max 10 seat limit
+      if (selectedSeats.length >= 10) {
+        console.log('[SeatMap] Cannot select more than 10 seats');
+        return;
+      }
+
       // Select
       // Use the ticket type price passed from parent, or fallback to basePrice
       const price = ticketTypePrice || seatMapData!.event.basePrice;

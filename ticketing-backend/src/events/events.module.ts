@@ -6,11 +6,13 @@ import { Event, EventSchema } from './event.schema';
 import { SeatsService } from './seats.service';
 import { SeatsController } from './seats.controller';
 import { TicketsModule } from '../tickets/tickets.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Event.name, schema: EventSchema }]),
     forwardRef(() => TicketsModule),
+    UploadModule,
   ],
   controllers: [EventsController, SeatsController],
   providers: [EventsService, SeatsService],

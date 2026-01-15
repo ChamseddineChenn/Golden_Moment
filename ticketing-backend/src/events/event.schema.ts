@@ -52,6 +52,9 @@ export class Event extends Document {
   @Prop()
   coverImage: string; // Cloudinary URL
 
+  @Prop()
+  coverImagePublicId?: string; // Cloudinary public_id for deletion
+
   @Prop({ required: true })
   date: Date;
 

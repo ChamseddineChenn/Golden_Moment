@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Body,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
@@ -25,6 +26,20 @@ export class UploadController {
       success: true,
       secure_url: result.secure_url,
       public_id: result.public_id,
+    };
+  }
+
+  @Post('delete-image')
+  async deleteImage(@Body('publicId') publicId: string) {
+    if (!publicId) {
+      throw new BadRequestException('publicId is required');
+    }
+
+    await this.uploadService.deleteImage(publicId);
+
+    return {
+      success: true,
+      message: 'Image deleted successfully',
     };
   }
 }

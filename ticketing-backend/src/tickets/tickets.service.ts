@@ -148,6 +148,50 @@ export class TicketsService {
       }
     }
 
+    // VALIDATE TOTAL CAPACITY: Ensure purchase won't exceed total seats
+    if (event.totalSeats && event.totalSeats > 0) {
+      const seatsToAdd =
+        (createTicketDto.seats && createTicketDto.seats.length) || 1;
+
+      // For events with seating layout (sections): verify available seats in sections
+      if (
+        event.seatingLayout?.enabled &&
+        event.seatingLayout.sections?.length > 0
+      ) {
+        // Count total available seats across all sections
+        let totalAvailable = 0;
+        for (const section of event.seatingLayout.sections) {
+          if (section.seats && Array.isArray(section.seats)) {
+            const availableInSection = section.seats.filter(
+              (s) => s.status === 'available',
+            ).length;
+            totalAvailable += availableInSection;
+          }
+        }
+
+        if (totalAvailable < seatsToAdd) {
+          throw new Error(
+            `Not enough seats available. Requested: ${seatsToAdd}, Available: ${totalAvailable}`,
+          );
+        }
+      } else {
+        // For standing room events (no seating layout): compare against totalSeats vs soldTickets
+        const remainingCapacity = event.totalSeats - (event.soldTickets || 0);
+        if (remainingCapacity < seatsToAdd) {
+          throw new Error(
+            `Event is sold out or insufficient capacity. Remaining: ${Math.max(0, remainingCapacity)}, Requested: ${seatsToAdd}`,
+          );
+        }
+      }
+    }
+
+    // Validate max 10 seat purchase limit
+    if (createTicketDto.seats && createTicketDto.seats.length > 10) {
+      throw new Error(
+        'Maximum 10 seats per purchase allowed. Please select fewer seats.',
+      );
+    }
+
     // Auto-assign seats if not provided
     if (!createTicketDto.seats || createTicketDto.seats.length === 0) {
       console.log('[TicketsService] No seats provided, auto-assigning...');
@@ -511,5 +555,118 @@ export class TicketsService {
       .findOne({ ticketNumber })
       .populate('eventId')
       .exec();
+  }
+
+  async delete(id: string): Promise<{ success: boolean; message: string }> {
+    console.log('[TicketsService] ========== TICKET DELETION START ==========');
+    console.log('[TicketsService] Deleting ticket:', id);
+
+    // Find the ticket to get event info and seat info BEFORE deleting
+    const ticket = await this.ticketModel.findById(id).exec();
+    if (!ticket) {
+      throw new Error('Ticket not found');
+    }
+
+    const eventId = ticket.eventId.toString();
+    console.log('[TicketsService] Ticket EventID:', eventId);
+    console.log('[TicketsService] Ticket Type:', ticket.ticketType);
+    console.log('[TicketsService] Ticket Seats:', ticket.seats);
+
+    // Get the event to check seating status BEFORE deleting
+    const event = await this.eventsService.findById(eventId);
+    if (!event) {
+      throw new Error('Event not found');
+    }
+
+    // STEP 1: Unreserve seats if this is a seated event
+    if (
+      event.seatingLayout?.enabled &&
+      ticket.seats &&
+      ticket.seats.length > 0
+    ) {
+      console.log('[TicketsService] Unreserving seats from seating layout...');
+
+      // Mark all seats as available again
+      for (const seat of ticket.seats) {
+        if (seat.sectionId && seat.seatId) {
+          console.log(
+            `[TicketsService] Marking seat available: ${seat.sectionId}/${seat.seatId}`,
+          );
+
+          // Atomically mark the seat as available
+          await this.seatsService.markSeatAvailable(
+            eventId,
+            seat.sectionId,
+            seat.seatId,
+          );
+        }
+      }
+    }
+
+    // STEP 2: Delete the ticket
+    await this.ticketModel.findByIdAndDelete(id).exec();
+    console.log('[TicketsService] ✅ Ticket deleted:', id);
+
+    // STEP 3: Recalculate event counts
+    const updateData: any = {};
+
+    // Recalculate soldTickets
+    if (event.seatingLayout?.enabled) {
+      // For seated events, count unavailable seats
+      let unavailableSeatsCount = 0;
+      const updatedEvent = await this.eventsService.findById(eventId);
+      if (updatedEvent?.seatingLayout) {
+        for (const section of updatedEvent.seatingLayout.sections) {
+          unavailableSeatsCount += section.seats.filter(
+            (s) => s.status === 'unavailable',
+          ).length;
+        }
+      }
+      updateData.soldTickets = unavailableSeatsCount;
+      console.log(
+        '[TicketsService] Recalculated soldTickets (seated):',
+        unavailableSeatsCount,
+      );
+    } else {
+      // For non-seated events, count remaining tickets
+      const ticketCountForEvent = await this.ticketModel.countDocuments({
+        eventId: eventId,
+      });
+      updateData.soldTickets = ticketCountForEvent;
+      console.log(
+        '[TicketsService] Recalculated soldTickets (non-seated):',
+        ticketCountForEvent,
+      );
+    }
+
+    // Recalculate earlyBirdCount
+    if (ticket.ticketType === 'EarlyBird') {
+      const earlyBirdCountForEvent = await this.ticketModel.countDocuments({
+        eventId: eventId,
+        ticketType: 'EarlyBird',
+      });
+      updateData.earlyBirdCount = earlyBirdCountForEvent;
+      console.log(
+        '[TicketsService] Recalculated earlyBirdCount:',
+        earlyBirdCountForEvent,
+      );
+    }
+
+    // STEP 4: Update the event
+    if (Object.keys(updateData).length > 0) {
+      await this.eventsService.update(eventId, updateData);
+      console.log(
+        '[TicketsService] ✅ Updated event after ticket deletion:',
+        updateData,
+      );
+    }
+
+    console.log(
+      '[TicketsService] ========== TICKET DELETION SUCCESS ==========',
+    );
+    return {
+      success: true,
+      message: 'Ticket deleted successfully and availability counts updated',
+    };
   }
 }

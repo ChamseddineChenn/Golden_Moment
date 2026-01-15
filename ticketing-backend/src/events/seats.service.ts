@@ -302,6 +302,43 @@ export class SeatsService {
     return { soldSeats: seatIds };
   }
 
+  // Mark a seat as available (used when deleting a ticket)
+  async markSeatAvailable(
+    eventId: string,
+    sectionId: string,
+    seatId: string,
+  ): Promise<void> {
+    console.log(
+      `[SeatsService] markSeatAvailable: Marking ${sectionId}/${seatId} as available`,
+    );
+
+    const result = await this.eventModel.updateOne(
+      { _id: eventId },
+      {
+        $set: {
+          'seatingLayout.sections.$[section].seats.$[seatToFree].status':
+            'available',
+        },
+      },
+      {
+        arrayFilters: [
+          { 'section.id': sectionId },
+          { 'seatToFree.seatId': seatId },
+        ],
+      },
+    );
+
+    if (result.modifiedCount === 0) {
+      console.warn(
+        `[SeatsService] WARNING: Seat ${sectionId}/${seatId} not found or already available`,
+      );
+    } else {
+      console.log(
+        `[SeatsService] ✅ Seat marked available: ${sectionId}/${seatId}`,
+      );
+    }
+  }
+
   // NO LONGER NEEDED: Cron job for expired reservations is removed
   // Since live reservations are disabled, there's nothing to expire
   // All seats are either 'available' or 'unavailable' (sold)

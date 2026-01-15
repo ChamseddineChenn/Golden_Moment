@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { eventsAPI, ticketsAPI } from '@/lib/api';
 import Link from 'next/link';
 import jsQR from 'jsqr';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 interface Event {
   _id: string;
@@ -11,9 +13,11 @@ interface Event {
   description: string;
   longDescription?: string;
   coverImage?: string;
+  coverImagePublicId?: string;
   date: string;
   venue: string;
   soldTickets: number;
+  totalSeats?: number;
   ticketTypes?: {
     Free: { enabled: boolean; price?: number };
     Standard: { enabled: boolean; price?: number };
@@ -57,8 +61,7 @@ export default function AdminPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [creatingEvent, setCreatingEvent] = useState(false);
 
   // Search states
   const [eventSearch, setEventSearch] = useState('');
@@ -86,18 +89,24 @@ export default function AdminPage() {
     description: '',
     longDescription: '',
     coverImage: '',
+    coverImagePublicId: '',
     coverImageFile: null as File | null,
     date: '',
     venue: '',
     ticketTypes: {
       Free: { enabled: true, price: 0 as string | number },
       Standard: { enabled: false, price: '' as string | number },
-      EarlyBird: { enabled: false, price: '' as string | number, limit: '' as string | number },
+      EarlyBird: {
+        enabled: false,
+        price: '' as string | number,
+        limit: '' as string | number,
+      },
       VIP: { enabled: false, price: '' as string | number },
     },
     category: 'Concert',
     isDraft: true,
     seatingEnabled: false,
+    totalSeats: '' as string | number,
     sections: [] as Array<{
       id: string;
       name: string;
@@ -428,15 +437,18 @@ export default function AdminPage() {
     try {
       setLoading(true);
       const { uploadImage } = await import('@/lib/api');
-      const imageUrl = await uploadImage(file);
+      const uploadResult = await uploadImage(file);
       setNewEvent((prev) => ({
         ...prev,
-        coverImage: imageUrl,
+        coverImage: uploadResult.secure_url,
+        coverImagePublicId: uploadResult.public_id,
         coverImageFile: file,
       }));
-      setSuccess('Cover image uploaded successfully!');
+      toast.success('Cover image uploaded successfully!');
     } catch (err) {
-      setError('Failed to upload cover image. Check Cloudinary configuration.');
+      toast.error(
+        'Failed to upload cover image. Check Cloudinary configuration.'
+      );
       console.error(err);
     } finally {
       setLoading(false);
@@ -446,10 +458,23 @@ export default function AdminPage() {
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
-    setSuccess(null);
+    setCreatingEvent(true);
 
     try {
+      // Validate that at least one ticket type is enabled
+      const hasEnabledTicketType =
+        newEvent.ticketTypes.Free.enabled ||
+        newEvent.ticketTypes.Standard.enabled ||
+        newEvent.ticketTypes.EarlyBird.enabled ||
+        newEvent.ticketTypes.VIP.enabled;
+
+      if (!hasEnabledTicketType) {
+        toast.error('Please select at least one ticket type for this event.');
+        setLoading(false);
+        setCreatingEvent(false);
+        return;
+      }
+
       // Convert ticketTypes prices from strings to numbers
       const ticketTypes = {
         Free: { enabled: newEvent.ticketTypes.Free.enabled, price: 0 },
@@ -481,6 +506,7 @@ export default function AdminPage() {
         description: newEvent.description,
         longDescription: newEvent.longDescription,
         coverImage: newEvent.coverImage,
+        coverImagePublicId: newEvent.coverImagePublicId,
         date: newEvent.date,
         venue: newEvent.venue,
         ticketTypes,
@@ -497,18 +523,21 @@ export default function AdminPage() {
         };
         // Calculate total seats from sections
         eventData.totalSeats = newEvent.sections.reduce(
-          (total, section) => total + (section.columns * section.rows),
+          (total, section) => total + section.columns * section.rows,
           0
         );
+      } else if (!newEvent.seatingEnabled && newEvent.totalSeats) {
+        // For standing room events without visual seating, use manual totalSeats
+        eventData.totalSeats = parseInt(newEvent.totalSeats as string) || 0;
       } else {
-        // If no seating layout, default to 0
+        // If no seating layout and no manual seats, default to 0
         eventData.totalSeats = 0;
       }
 
       // If editing, call update endpoint instead of create
       if (editingEventId) {
         await eventsAPI.update(editingEventId, eventData);
-        setSuccess('Event updated successfully!');
+        toast.success('Event updated successfully!');
       } else {
         const response = await eventsAPI.create(eventData);
 
@@ -522,7 +551,7 @@ export default function AdminPage() {
           );
         }
 
-        setSuccess('Event created successfully!');
+        toast.success('Event created successfully!');
       }
 
       setNewEvent({
@@ -530,6 +559,7 @@ export default function AdminPage() {
         description: '',
         longDescription: '',
         coverImage: '',
+        coverImagePublicId: '',
         coverImageFile: null,
         date: '',
         venue: '',
@@ -542,16 +572,18 @@ export default function AdminPage() {
         category: 'Concert',
         isDraft: true,
         seatingEnabled: false,
+        totalSeats: '',
         sections: [],
       });
       setEditingEventId(null);
       fetchEvents();
       setTimeout(() => setActiveTab('events'), 1500);
     } catch (err) {
-      setError('Failed to save event. Please try again.');
+      toast.error('Failed to save event. Please try again.');
       console.error(err);
     } finally {
       setLoading(false);
+      setCreatingEvent(false);
     }
   };
 
@@ -560,11 +592,36 @@ export default function AdminPage() {
 
     try {
       await eventsAPI.delete(id);
-      setSuccess('Event deleted successfully!');
+      toast.success('Event deleted successfully!');
       fetchEvents();
     } catch (err) {
-      setError('Failed to delete event.');
+      toast.error('Failed to delete event.');
       console.error(err);
+    }
+  };
+
+  const handleDeleteTicket = async (id: string) => {
+    if (
+      !confirm(
+        'Are you sure you want to delete this ticket? This will also free up the reserved seats.'
+      )
+    )
+      return;
+
+    try {
+      setLoading(true);
+      await ticketsAPI.delete(id);
+      toast.success(
+        'Ticket deleted successfully! Seats and counts have been updated.'
+      );
+      // Refresh the tickets list
+      const allTickets = await ticketsAPI.getAll();
+      setTickets(allTickets.data);
+    } catch (err) {
+      toast.error('Failed to delete ticket.');
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -574,10 +631,10 @@ export default function AdminPage() {
         isDraft: false,
         isPublished: true,
       });
-      setSuccess('Event published successfully!');
+      toast.success('Event published successfully!');
       fetchEvents();
     } catch (err) {
-      setError('Failed to publish event.');
+      toast.error('Failed to publish event.');
       console.error(err);
     }
   };
@@ -588,10 +645,10 @@ export default function AdminPage() {
         isDraft: true,
         isPublished: false,
       });
-      setSuccess('Event unpublished and moved to draft.');
+      toast.success('Event unpublished and moved to draft.');
       fetchEvents();
     } catch (err) {
-      setError('Failed to unpublish event.');
+      toast.error('Failed to unpublish event.');
       console.error(err);
     }
   };
@@ -965,50 +1022,18 @@ export default function AdminPage() {
 
           <div className="p-6">
             {/* Alerts */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {error}
-                <button
-                  onClick={() => setError(null)}
-                  className="ml-auto text-red-500 hover:text-red-700"
-                >
-                  &times;
-                </button>
-              </div>
-            )}
-            {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-6 flex items-center gap-3">
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {success}
-                <button
-                  onClick={() => setSuccess(null)}
-                  className="ml-auto text-green-500 hover:text-green-700"
-                >
-                  &times;
-                </button>
-              </div>
-            )}
+            <ToastContainer
+              position="top-right"
+              autoClose={4000}
+              hideProgressBar={false}
+              newestOnTop={true}
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="light"
+            />
             {/* Dashboard Tab */}
             {activeTab === 'dashboard' && (
               <div className="space-y-6 flex flex-col">
@@ -1801,6 +1826,8 @@ export default function AdminPage() {
                                         longDescription:
                                           event.longDescription || '',
                                         coverImage: event.coverImage || '',
+                                        coverImagePublicId:
+                                          event.coverImagePublicId || '',
                                         coverImageFile: null,
                                         date: event.date,
                                         venue: event.venue,
@@ -1817,19 +1844,19 @@ export default function AdminPage() {
                                                   event.ticketTypes.Standard
                                                     ?.enabled ?? false,
                                                 price:
-                                                  event.ticketTypes.Standard
-                                                    ?.price?.toString() ?? '',
+                                                  event.ticketTypes.Standard?.price?.toString() ??
+                                                  '',
                                               },
                                               EarlyBird: {
                                                 enabled:
                                                   event.ticketTypes.EarlyBird
                                                     ?.enabled ?? false,
                                                 price:
-                                                  event.ticketTypes.EarlyBird
-                                                    ?.price?.toString() ?? '',
+                                                  event.ticketTypes.EarlyBird?.price?.toString() ??
+                                                  '',
                                                 limit:
-                                                  event.ticketTypes.EarlyBird
-                                                    ?.limit?.toString() ?? '',
+                                                  event.ticketTypes.EarlyBird?.limit?.toString() ??
+                                                  '',
                                               },
                                               VIP: {
                                                 enabled:
@@ -1851,7 +1878,10 @@ export default function AdminPage() {
                                                 price: '',
                                                 limit: '',
                                               },
-                                              VIP: { enabled: false, price: '' },
+                                              VIP: {
+                                                enabled: false,
+                                                price: '',
+                                              },
                                             },
                                         category: event.category || 'Concert',
                                         isDraft: event.isDraft ?? true,
@@ -1859,6 +1889,7 @@ export default function AdminPage() {
                                           (event.seatingLayout &&
                                             event.seatingLayout.length > 0) ??
                                           false,
+                                        totalSeats: event.totalSeats || '',
                                         sections: event.seatingLayout || [],
                                       });
                                       // Switch to create tab to show the form
@@ -1869,6 +1900,13 @@ export default function AdminPage() {
                                   >
                                     Edit
                                   </button>
+                                  <Link
+                                    href={`/event/${event._id}`}
+                                    className="text-xs px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-800 rounded transition font-medium"
+                                    title="Preview event"
+                                  >
+                                    Preview
+                                  </Link>
                                   <button
                                     onClick={() => handleDeleteEvent(event._id)}
                                     className="text-xs px-2 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded transition font-medium"
@@ -1995,6 +2033,9 @@ export default function AdminPage() {
                           <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
                             Actions
                           </th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                            Delete
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-stone-100">
@@ -2039,6 +2080,14 @@ export default function AdminPage() {
                                 >
                                   View Ticket
                                 </Link>
+                              </td>
+                              <td className="px-6 py-4">
+                                <button
+                                  onClick={() => handleDeleteTicket(ticket._id)}
+                                  className="text-red-600 hover:text-red-800 transition text-sm font-medium"
+                                >
+                                  Delete
+                                </button>
                               </td>
                             </tr>
                           );
@@ -2315,7 +2364,6 @@ export default function AdminPage() {
                         required
                       />
                     </div>
-
                     <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
                         Short Description
@@ -2334,7 +2382,6 @@ export default function AdminPage() {
                         required
                       />
                     </div>
-
                     <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
                         Long Description
@@ -2355,7 +2402,6 @@ export default function AdminPage() {
                         This will be displayed on the event details page
                       </p>
                     </div>
-
                     <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
                         Cover Image
@@ -2376,16 +2422,17 @@ export default function AdminPage() {
                                 const { uploadImage } = await import(
                                   '@/lib/api'
                                 );
-                                const imageUrl = await uploadImage(file);
+                                const uploadResult = await uploadImage(file);
                                 setNewEvent((prev) => ({
                                   ...prev,
-                                  coverImage: imageUrl,
+                                  coverImage: uploadResult.secure_url,
+                                  coverImagePublicId: uploadResult.public_id,
                                 }));
-                                setSuccess(
+                                toast.success(
                                   'Cover image uploaded successfully!'
                                 );
                               } catch (err) {
-                                setError(
+                                toast.error(
                                   'Failed to upload cover image. Check Cloudinary configuration.'
                                 );
                                 console.error(err);
@@ -2405,14 +2452,42 @@ export default function AdminPage() {
                             />
                             <button
                               type="button"
-                              onClick={() =>
-                                setNewEvent({
-                                  ...newEvent,
-                                  coverImage: '',
-                                  coverImageFile: null,
-                                })
-                              }
-                              className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition"
+                              onClick={async () => {
+                                try {
+                                  // Delete from Cloudinary if public_id exists
+                                  if (newEvent.coverImagePublicId) {
+                                    setLoading(true);
+                                    const { eventsAPI } = await import(
+                                      '@/lib/api'
+                                    );
+                                    await eventsAPI.deleteImage(
+                                      newEvent.coverImagePublicId
+                                    );
+                                  }
+                                  // Clear the image fields
+                                  setNewEvent({
+                                    ...newEvent,
+                                    coverImage: '',
+                                    coverImagePublicId: '',
+                                    coverImageFile: null,
+                                  });
+                                  toast.success('Image removed');
+                                } catch (err) {
+                                  console.error('Error deleting image:', err);
+                                  // Still clear the image field even if delete fails
+                                  setNewEvent({
+                                    ...newEvent,
+                                    coverImage: '',
+                                    coverImagePublicId: '',
+                                    coverImageFile: null,
+                                  });
+                                  toast.success('Image removed');
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }}
+                              className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition disabled:opacity-50"
+                              disabled={loading}
                             >
                               <svg
                                 className="w-4 h-4"
@@ -2432,7 +2507,6 @@ export default function AdminPage() {
                         )}
                       </div>
                     </div>
-
                     <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
                         Date & Time
@@ -2447,7 +2521,6 @@ export default function AdminPage() {
                         required
                       />
                     </div>
-
                     {/* Ticket Types Section */}
                     <div className="border-t border-stone-200 pt-6">
                       <h3 className="text-lg font-semibold text-stone-900 mb-4">
@@ -2679,7 +2752,8 @@ export default function AdminPage() {
                           </div>
                         )}
                       </div>
-                    </div>                    <div>
+                    </div>{' '}
+                    <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
                         Venue
                       </label>
@@ -2694,7 +2768,6 @@ export default function AdminPage() {
                         required
                       />
                     </div>
-
                     <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
                         Category
@@ -2713,7 +2786,6 @@ export default function AdminPage() {
                         <option value="Sahra">🌙 Sahra</option>
                       </select>
                     </div>
-
                     {/* Visual Seating Configuration */}
                     <div className="border-t border-stone-200 pt-6">
                       <div className="flex items-center justify-between mb-4">
@@ -2968,7 +3040,39 @@ export default function AdminPage() {
                         </div>
                       )}
                     </div>
-
+                    {/* Manual Total Seats for Standing Room Events */}
+                    {!newEvent.seatingEnabled && (
+                      <div className="border-t border-stone-200 pt-6">
+                        <div>
+                          <label className="block text-sm font-semibold text-stone-700 mb-2">
+                            Total Event Capacity
+                          </label>
+                          <p className="text-xs text-stone-500 mb-3">
+                            Set the total number of available spots (e.g., for
+                            standing room, raves, or general admission events)
+                          </p>
+                          <input
+                            type="number"
+                            min="1"
+                            value={newEvent.totalSeats}
+                            onChange={(e) =>
+                              setNewEvent({
+                                ...newEvent,
+                                totalSeats: e.target.value
+                                  ? parseInt(e.target.value)
+                                  : '',
+                              })
+                            }
+                            placeholder="e.g., 500"
+                            className="w-full px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                          />
+                          <p className="text-xs text-stone-500 mt-2">
+                            Seats will be automatically assigned as generic
+                            passes when customers purchase tickets
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="border-t border-stone-200 pt-6">
                       <div className="flex items-center justify-between">
                         <div>
@@ -2997,7 +3101,6 @@ export default function AdminPage() {
                         </label>
                       </div>
                     </div>
-
                     <div className="flex gap-3">
                       <button
                         type="button"
@@ -3036,18 +3139,24 @@ export default function AdminPage() {
                               description: '',
                               longDescription: '',
                               coverImage: '',
+                              coverImagePublicId: '',
                               coverImageFile: null,
                               date: '',
                               venue: '',
                               ticketTypes: {
                                 Free: { enabled: true, price: 0 },
                                 Standard: { enabled: false, price: '' },
-                                EarlyBird: { enabled: false, price: '', limit: '' },
+                                EarlyBird: {
+                                  enabled: false,
+                                  price: '',
+                                  limit: '',
+                                },
                                 VIP: { enabled: false, price: '' },
                               },
                               category: 'Concert',
                               isDraft: true,
                               seatingEnabled: false,
+                              totalSeats: '',
                               sections: [],
                             });
                             setActiveTab('events');
@@ -3059,10 +3168,10 @@ export default function AdminPage() {
                       )}
                       <button
                         type="submit"
-                        disabled={loading}
+                        disabled={loading || creatingEvent}
                         className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
                       >
-                        {loading ? (
+                        {loading || creatingEvent ? (
                           <>
                             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                             {editingEventId ? 'Saving...' : 'Creating...'}
@@ -3205,23 +3314,29 @@ export default function AdminPage() {
                                 ([type, config]) =>
                                   config.enabled && (
                                     <p key={type} className="text-stone-700">
-                                      <span className="font-medium">{type}:</span>{' '}
+                                      <span className="font-medium">
+                                        {type}:
+                                      </span>{' '}
                                       <span className="text-amber-600">
                                         $
-                                        {(config.price as string | number) ? (
-                                          typeof config.price === 'string'
-                                            ? parseFloat(config.price)
-                                            : config.price
-                                        ).toFixed(2) : (
-                                          '0.00'
-                                        )}
+                                        {(config.price as string | number)
+                                          ? (typeof config.price === 'string'
+                                              ? parseFloat(config.price)
+                                              : config.price
+                                            ).toFixed(2)
+                                          : '0.00'}
                                       </span>
                                       {type === 'EarlyBird' &&
                                         'limit' in config &&
                                         (config as any).limit && (
                                           <span className="text-stone-500 text-xs ml-2">
                                             (limit:{' '}
-                                            {(config as any).limit as string | number})
+                                            {
+                                              (config as any).limit as
+                                                | string
+                                                | number
+                                            }
+                                            )
                                           </span>
                                         )}
                                     </p>

@@ -15,16 +15,180 @@ interface Event {
   soldTickets: number;
   ticketPrice?: number;
   category?: string;
+  ticketTypes?: {
+    Free: { enabled: boolean; price?: number };
+    Standard: { enabled: boolean; price?: number };
+    EarlyBird: { enabled: boolean; price?: number; limit?: number };
+    VIP: { enabled: boolean; price?: number };
+  };
 }
 
 function EventCard({ event }: { event: Event }) {
   const totalSeats = event.totalSeats || 0;
   const ticketsAvailable = totalSeats - event.soldTickets;
-  const soldPercentage = totalSeats > 0 ? (event.soldTickets / totalSeats) * 100 : 0;
+  const soldPercentage =
+    totalSeats > 0 ? (event.soldTickets / totalSeats) * 100 : 0;
   const eventDate = new Date(event.date);
   const isAlmostSoldOut = soldPercentage >= 80;
   const isExpired = eventDate < new Date();
+  const isSoldOut = ticketsAvailable <= 0 && totalSeats > 0;
 
+  // Get the pricing display text
+  const getPricingText = () => {
+    if (!event.ticketTypes) return null;
+
+    // Check if Free ticket is available
+    if (event.ticketTypes.Free?.enabled) {
+      return 'Free';
+    }
+
+    // Get minimum price from enabled paid ticket types
+    const enabledPaidTypes = [
+      event.ticketTypes.Standard,
+      event.ticketTypes.EarlyBird,
+      event.ticketTypes.VIP,
+    ].filter((type) => type?.enabled && type?.price !== undefined);
+
+    if (enabledPaidTypes.length === 0) return null;
+
+    const minPrice = Math.min(...enabledPaidTypes.map((t) => t!.price || 0));
+    return minPrice === 0 ? 'Free' : `Starting from $${minPrice.toFixed(2)}`;
+  };
+
+  const pricingText = getPricingText();
+
+  // If sold out, render as div instead of Link to prevent navigation
+  if (isSoldOut) {
+    return (
+      <div className="group bg-white rounded-2xl overflow-hidden border border-stone-200 opacity-60 cursor-not-allowed">
+        {/* Event Image */}
+        <div className="relative h-48 bg-gradient-to-br from-stone-800 to-stone-900 overflow-hidden">
+          {event.coverImage && (
+            <img
+              src={event.coverImage}
+              alt={event.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+
+          {/* Date Badge */}
+          <div className="absolute top-4 left-4 bg-white rounded-xl p-3 text-center shadow-lg">
+            <p className="text-xs font-bold text-amber-600 uppercase">
+              {eventDate.toLocaleString('en-US', { month: 'short' })}
+            </p>
+            <p className="text-2xl font-bold text-stone-900 -mt-1">
+              {eventDate.getDate()}
+            </p>
+          </div>
+
+          {/* Status Badge */}
+          {isExpired && (
+            <div className="absolute top-4 right-4 bg-stone-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+              Expired
+            </div>
+          )}
+          {!isExpired && isAlmostSoldOut && ticketsAvailable > 0 && (
+            <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+              Almost Sold Out
+            </div>
+          )}
+          {!isExpired && ticketsAvailable === 0 && (
+            <div className="absolute top-4 right-4 bg-stone-800 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+              Sold Out
+            </div>
+          )}
+
+          {/* Price Badge */}
+          {pricingText && (
+            <div className="absolute bottom-4 right-4 bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
+              {pricingText}
+            </div>
+          )}
+
+          {/* Event Title */}
+          <div className="absolute bottom-4 left-4 right-4 pr-20">
+            <h3 className="text-xl font-bold text-white group-hover:text-amber-300 transition">
+              {event.name}
+            </h3>
+          </div>
+        </div>
+
+        {/* Event Details */}
+        <div className="p-6">
+          <p className="text-stone-600 text-sm line-clamp-2 mb-4">
+            {event.description}
+          </p>
+
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center gap-3 text-sm text-stone-700">
+              <svg
+                className="w-4 h-4 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              <span className="truncate">{event.venue}</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-stone-700">
+              <svg
+                className="w-4 h-4 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span>
+                {eventDate.toLocaleString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Availability */}
+          <div className="pt-4 border-t border-stone-100">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-stone-500">Availability</span>
+              <span className="text-sm font-semibold text-stone-400">
+                {Math.max(0, ticketsAvailable)}/{totalSeats}
+              </span>
+            </div>
+            <div className="w-full bg-stone-200 rounded-full h-2">
+              <div
+                className="bg-stone-400 h-2 rounded-full transition-all"
+                style={{
+                  width: `${Math.min(100, soldPercentage)}%`,
+                }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Normal clickable card for available events
   return (
     <Link
       href={`/event/${event._id}`}
@@ -69,9 +233,9 @@ function EventCard({ event }: { event: Event }) {
         )}
 
         {/* Price Badge */}
-        {event.ticketPrice && (
+        {pricingText && (
           <div className="absolute bottom-4 right-4 bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
-            ${event.ticketPrice.toFixed(2)}
+            {pricingText}
           </div>
         )}
 
