@@ -1,42 +1,36 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { Role } from '../enums/role.enum';
 
-export enum UserRole {
-  ADMIN = 'admin',
-  USER = 'user',
-}
+export type UserDocument = User & Document;
 
 @Schema({ timestamps: true })
-export class User extends Document {
+export class User {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, select: false })
   password: string;
 
-  @Prop({ required: true, enum: UserRole, default: UserRole.USER })
-  role: UserRole;
+  @Prop({ type: String, enum: Role, default: Role.USER })
+  role: Role;
+
+  @Prop({ default: true })
+  isActive: boolean;
 
   @Prop({ default: false })
-  isEmailVerified: boolean;
+  emailVerified: boolean;
 
-  @Prop({ default: false })
-  isLocked: boolean;
+  @Prop({ type: Date })
+  lastLoginAt: Date;
 
-  @Prop({ default: 0 })
-  failedLoginAttempts: number;
+  @Prop({ type: String, select: false }) // Hashed refresh token
+  refreshTokenHash?: string;
 
-  @Prop({ type: Date, default: null })
-  lockedUntil: Date;
-
-  @Prop({ type: Date, default: null })
-  lastLogin: Date;
-
-  @Prop({ type: Date, default: Date.now })
-  passwordChangedAt: Date;
+  timestamps: true;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-UserSchema.index({ email: 1 }, { unique: true });
-UserSchema.index({ isLocked: 1, lockedUntil: 1 });
+// Indexes for performance
+UserSchema.index({ email: 1 });

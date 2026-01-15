@@ -1,11 +1,14 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { AppModule } from './app.module';
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
+  const logger = new Logger('Bootstrap');
 
   // Security Headers
   app.use(
@@ -14,6 +17,8 @@ async function bootstrap() {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
         },
       },
       hsts: {
@@ -24,34 +29,37 @@ async function bootstrap() {
     }),
   );
 
-  // CORS - Strict origin
+  // Cookie Parser
+  app.use(cookieParser());
+
+  // CORS
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: configService.get<string>('cors.origin'),
     credentials: true, // Allow cookies
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Cookie Parser
-  app.use(cookieParser());
-
   // Global Validation Pipe
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Strip unknown properties
-      forbidNonWhitelisted: true, // Throw error on unknown properties
-      transform: true, // Auto-transform payloads to DTO types
+      whitelist: true, // Strip properties that don't have decorators
+      forbidNonWhitelisted: true, // Throw error if non-whitelisted properties are present
+      transform: true, // Transform payloads to DTO instances
       transformOptions: {
         enableImplicitConversion: true,
       },
     }),
   );
 
-  // Global prefix
+  // Global Prefix
   app.setGlobalPrefix('api');
 
-  const port = process.env.PORT || 4000;
+  const port = configService.get<number>('port');
   await app.listen(port);
-  console.log(`🚀 Server running on http://localhost:${port}`);
+
+  logger.log(`Application is running on: http://localhost:${port}`);
+  logger.log(`Environment: ${process.env.NODE_ENV}`);
 }
+
 bootstrap();
