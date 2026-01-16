@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { eventsAPI, ticketsAPI } from '@/lib/api';
 import Link from 'next/link';
-import jsQR from 'jsqr';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -75,8 +75,8 @@ export default function AdminPage() {
     ticket?: Ticket;
   } | null>(null);
   const [scanning, setScanning] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const qrScannerRef = useRef<Html5QrcodeScanner | null>(null);
 
   // Event editing and preview states
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -653,92 +653,81 @@ export default function AdminPage() {
     }
   };
 
-  // QR Code scanning from uploaded image
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setScanning(true);
+  // QR Code scanning from camera
+  const openCameraScanner = () => {
+    setShowCameraModal(true);
     setScanResult(null);
+  };
 
-    try {
-      const image = new Image();
-      image.src = URL.createObjectURL(file);
-
-      await new Promise((resolve) => {
-        image.onload = resolve;
-      });
-
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      canvas.width = image.width;
-      canvas.height = image.height;
-      ctx.drawImage(image, 0, 0);
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert',
-      });
-
-      if (code) {
-        console.log('QR Code raw data:', code.data);
-
-        // The QR code now contains only the encrypted token (not JSON)
-        const encryptedToken = code.data;
-
-        if (encryptedToken) {
-          try {
-            // Validate the ticket via API using encrypted token
-            const response = await fetch(
-              'http://localhost:3002/tickets/validate-qr',
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ encryptedToken }),
-              }
-            );
-            const data = await response.json();
-            setScanResult(data);
-
-            // Refresh tickets list
-            fetchAllTickets();
-          } catch (apiErr: unknown) {
-            console.error('API validation error:', apiErr);
-            setScanResult({
-              success: false,
-              message: 'Failed to validate ticket. Server error.',
-            });
-          }
-        } else {
-          setScanResult({
-            success: false,
-            message: `Invalid QR code format.`,
-          });
-        }
-      } else {
-        setScanResult({
-          success: false,
-          message: 'No QR code found in the image. Please try a clearer image.',
-        });
-      }
-    } catch (err) {
-      console.error('Error scanning QR code:', err);
-      setScanResult({
-        success: false,
-        message: 'Error processing image. Please try again.',
-      });
-    } finally {
-      setScanning(false);
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+  const closeCameraScanner = () => {
+    setShowCameraModal(false);
+    if (qrScannerRef.current) {
+      qrScannerRef.current.clear();
+      qrScannerRef.current = null;
     }
   };
+
+  // Initialize camera scanner when modal opens
+  useEffect(() => {
+    if (!showCameraModal) return;
+
+    const scanner = new Html5QrcodeScanner(
+      'qr-reader',
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      false
+    );
+
+    qrScannerRef.current = scanner;
+
+    scanner.render(
+      async (encryptedToken: string) => {
+        // Scanner found a QR code
+        console.log('QR Code scanned:', encryptedToken);
+        setScanning(true);
+
+        try {
+          // Validate the ticket via API using encrypted token
+          const response = await fetch(
+            'http://localhost:3002/tickets/validate-qr',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ encryptedToken }),
+            }
+          );
+          const data = await response.json();
+          setScanResult(data);
+
+          // Refresh tickets list
+          fetchAllTickets();
+
+          // Clear scanner for next scan
+          if (qrScannerRef.current) {
+            qrScannerRef.current.clear();
+          }
+        } catch (apiErr: unknown) {
+          console.error('API validation error:', apiErr);
+          setScanResult({
+            success: false,
+            message: 'Failed to validate ticket. Server error.',
+          });
+        } finally {
+          setScanning(false);
+        }
+      },
+      (error: string) => {
+        // Error is normal (scanning in progress), only log if severe
+        console.debug('Scanner error:', error);
+      }
+    );
+
+    return () => {
+      if (qrScannerRef.current) {
+        qrScannerRef.current.clear();
+        qrScannerRef.current = null;
+      }
+    };
+  }, [showCameraModal]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -878,9 +867,6 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-stone-100">
-      {/* Hidden canvas for QR processing */}
-      <canvas ref={canvasRef} className="hidden" />
-
       {/* Top Navbar */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
@@ -2135,29 +2121,22 @@ export default function AdminPage() {
                 </div>
 
                 <div className="bg-white rounded-2xl border border-stone-200 p-8">
-                  {/* Upload Area */}
-                  <div
-                    className="border-2 border-dashed border-stone-300 rounded-2xl p-12 text-center hover:border-amber-400 transition cursor-pointer"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-
-                    {scanning ? (
-                      <div>
-                        <div className="w-16 h-16 border-4 border-stone-200 border-t-amber-500 rounded-full animate-spin mx-auto mb-4"></div>
-                        <p className="text-stone-600">Scanning QR code...</p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  {/* Camera Scanner Button */}
+                  <div className="text-center mb-8">
+                    <button
+                      onClick={openCameraScanner}
+                      disabled={scanning}
+                      className="inline-flex items-center gap-3 bg-amber-500 text-white px-8 py-4 rounded-xl font-semibold hover:bg-amber-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {scanning ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Scanning...</span>
+                        </>
+                      ) : (
+                        <>
                           <svg
-                            className="w-8 h-8 text-amber-600"
+                            className="w-6 h-6"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -2166,22 +2145,60 @@ export default function AdminPage() {
                               strokeLinecap="round"
                               strokeLinejoin="round"
                               strokeWidth={2}
-                              d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
                             />
                           </svg>
-                        </div>
-                        <p className="text-lg font-semibold text-stone-900 mb-2">
-                          Upload QR Code Image
-                        </p>
-                        <p className="text-stone-500 text-sm mb-4">
-                          Click here or drag and drop an image
-                        </p>
-                        <button className="bg-amber-500 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-amber-600 transition">
-                          Select Image
-                        </button>
-                      </>
-                    )}
+                          <span>Open Camera Scanner</span>
+                        </>
+                      )}
+                    </button>
                   </div>
+
+                  {/* Camera Modal */}
+                  {showCameraModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+                      <div className="bg-white rounded-2xl w-full max-w-lg mx-4">
+                        <div className="flex items-center justify-between p-6 border-b border-stone-200">
+                          <h3 className="text-lg font-bold text-stone-900">
+                            Scan QR Code
+                          </h3>
+                          <button
+                            onClick={closeCameraScanner}
+                            className="text-stone-400 hover:text-stone-600 transition"
+                          >
+                            <svg
+                              className="w-6 h-6"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M6 18L18 6M6 6l12 12"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="p-6">
+                          <div
+                            id="qr-reader"
+                            style={{ width: '100%' }}
+                          ></div>
+                          <p className="text-sm text-stone-500 mt-4 text-center">
+                            Position the QR code in front of your camera
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Scan Result */}
                   {scanResult && (
@@ -2298,8 +2315,7 @@ export default function AdminPage() {
                           1
                         </span>
                         <span>
-                          Ask the attendee to show their e-ticket (on phone or
-                          printed)
+                          Click &quot;Open Camera Scanner&quot; to activate your camera
                         </span>
                       </li>
                       <li className="flex items-start gap-2">
@@ -2307,8 +2323,7 @@ export default function AdminPage() {
                           2
                         </span>
                         <span>
-                          Take a photo of the QR code or have them send you the
-                          ticket image
+                          Grant camera permission when your browser asks
                         </span>
                       </li>
                       <li className="flex items-start gap-2">
@@ -2316,7 +2331,7 @@ export default function AdminPage() {
                           3
                         </span>
                         <span>
-                          Upload the image here to validate the ticket
+                          Point the camera at the attendee&apos;s QR code (phone or printed)
                         </span>
                       </li>
                       <li className="flex items-start gap-2">
@@ -2324,8 +2339,15 @@ export default function AdminPage() {
                           4
                         </span>
                         <span>
-                          If valid, the ticket will be marked as
-                          &quot;Used&quot; and entry is granted
+                          The scanner automatically detects and validates the ticket instantly
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="w-5 h-5 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center text-xs font-bold shrink-0">
+                          5
+                        </span>
+                        <span>
+                          If valid, the ticket is marked as &quot;Used&quot; and entry is granted
                         </span>
                       </li>
                     </ol>

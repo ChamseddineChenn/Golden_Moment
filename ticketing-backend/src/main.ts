@@ -6,10 +6,12 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       // Allow all localhost URLs (any port)
+      // Allow local network IP addresses (192.168.x.x, 10.x.x.x, etc)
       if (
         !origin ||
         origin.startsWith('http://localhost:') ||
-        origin.startsWith('http://127.0.0.1:')
+        origin.startsWith('http://127.0.0.1:') ||
+        /^http:\/\/(192\.168|10\.)\d+\.\d+\.\d+:\d+$/.test(origin)
       ) {
         callback(null, true);
       } else {
