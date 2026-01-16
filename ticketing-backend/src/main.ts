@@ -5,16 +5,22 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow all localhost URLs (any port)
-      // Allow local network IP addresses (192.168.x.x, 10.x.x.x, etc)
+      // Allow:
+      // - No origin (same-origin requests)
+      // - localhost:* (development)
+      // - 127.0.0.1:* (development loopback)
+      // - 192.168.x.x:* (private network)
+      // - 10.x.x.x:* (private network)
+      // - 172.16.x.x to 172.31.x.x:* (private network)
       if (
         !origin ||
         origin.startsWith('http://localhost:') ||
         origin.startsWith('http://127.0.0.1:') ||
-        /^http:\/\/(192\.168|10\.)\d+\.\d+\.\d+:\d+$/.test(origin)
+        /^http:\/\/(192\.168|10|172\.(?:1[6-9]|2[0-9]|3[01]))\.(\d{1,3})\.(\d{1,3}):\d+$/.test(origin)
       ) {
         callback(null, true);
       } else {
+        console.log(`[CORS] Rejected origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },
