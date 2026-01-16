@@ -1,13 +1,8 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  BadRequestException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { UsersService } from '../users/users.service';
 import { LoginAttemptsService } from '../users/login-attempts.service';
 import { SignupDto } from './dto/signup.dto';
@@ -26,82 +21,78 @@ export class AuthService {
   ) {}
 
   async signup(signupDto: SignupDto, res: Response) {
-    // Create user
     const user = await this.usersService.create({
       email: signupDto.email,
       password: signupDto.password,
     });
 
-    // Generate tokens
     const { accessToken, refreshToken } = await this.generateTokens(
-      user._id.toString(),
+      user.id,
       user.email,
       user.role,
     );
 
-    // Store refresh token hash
-    await this.usersService.updateRefreshToken(user._id.toString(), refreshToken);
+    await this.usersService.updateRefreshToken(user.id, refreshToken);
 
-    // Set cookies
     this.setAuthCookies(res, accessToken, refreshToken);
 
     return {
       success: true,
       message: 'User registered successfully',
       user: {
-        id: user._id.toString(),
+        id: user.id,
         email: user.email,
         role: user.role,
       },
     };
   }
 
-  async login(loginDto: LoginDto, ipAddress: string, userAgent: string, res: Response) {
-    // Check if account is locked
-    const isLocked = await this.loginAttemptsService.isAccountLocked(loginDto.email);
+  async login(
+    loginDto: LoginDto,
+    ipAddress: string,
+    userAgent: string,
+    res: Response,
+  ) {
+    const isLocked = await this.loginAttemptsService.isAccountLocked(
+      loginDto.email,
+    );
     if (isLocked) {
       throw new UnauthorizedException(
         'Account temporarily locked due to multiple failed login attempts. Please try again later.',
       );
     }
 
-    // Find user with password
     const user = await this.usersService.findByEmail(loginDto.email, true);
 
     if (!user) {
-      // Track failed attempt
       await this.loginAttemptsService.trackAttempt(
         loginDto.email,
         ipAddress,
         userAgent,
         false,
       );
-
-      // Generic error message to prevent user enumeration
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      loginDto.password,
+      user.password,
+    );
 
     if (!isPasswordValid) {
-      // Track failed attempt
       await this.loginAttemptsService.trackAttempt(
         loginDto.email,
         ipAddress,
         userAgent,
         false,
       );
-
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Check if user is active
     if (!user.isActive) {
       throw new UnauthorizedException('Account is deactivated');
     }
 
-    // Track successful attempt
     await this.loginAttemptsService.trackAttempt(
       loginDto.email,
       ipAddress,
@@ -109,23 +100,18 @@ export class AuthService {
       true,
     );
 
-    // Clear previous failed attempts
     await this.loginAttemptsService.clearAttempts(loginDto.email);
 
-    // Update last login
-    await this.usersService.updateLastLogin(user._id.toString());
+    await this.usersService.updateLastLogin(user.id);
 
-    // Generate tokens
     const { accessToken, refreshToken } = await this.generateTokens(
-      user._id.toString(),
+      user.id,
       user.email,
       user.role,
     );
 
-    // Store refresh token hash
-    await this.usersService.updateRefreshToken(user._id.toString(), refreshToken);
+    await this.usersService.updateRefreshToken(user.id, refreshToken);
 
-    // Set cookies
     this.setAuthCookies(res, accessToken, refreshToken);
 
     this.logger.log(`User ${user.email} logged in successfully`);
@@ -134,21 +120,29 @@ export class AuthService {
       success: true,
       message: 'Login successful',
       user: {
-        id: user._id.toString(),
+        id: user.id,
         email: user.email,
         role: user.role,
       },
     };
   }
 
-  async refreshTokens(userId: string, email: string, role: string, res: Response) {
-    // Generate new tokens
-    const { accessToken, refreshToken } = await this.generateTokens(userId, email, role);
+  async refreshTokens(
+    userId: string,
+    email: string,
+    role: string,
+    res: Response,
+  ) {
+    const roleEnum = role === 'admin' ? Role.ADMIN : Role.USER;
 
-    // Update stored refresh token
+    const { accessToken, refreshToken } = await this.generateTokens(
+      userId,
+      email,
+      roleEnum,
+    );
+
     await this.usersService.updateRefreshToken(userId, refreshToken);
 
-    // Set new cookies
     this.setAuthCookies(res, accessToken, refreshToken);
 
     return {
@@ -158,10 +152,8 @@ export class AuthService {
   }
 
   async logout(userId: string, res: Response) {
-    // Clear refresh token from database
     await this.usersService.updateRefreshToken(userId, null);
 
-    // Clear cookies
     this.clearAuthCookies(res);
 
     return {
@@ -171,40 +163,52 @@ export class AuthService {
   }
 
   private async generateTokens(userId: string, email: string, role: Role) {
-    const payload = { sub: userId, email, role };
+    const payload = {
+      sub: userId,
+      email,
+      role: role.toString(),
+    };
+
+    const accessSecret =
+      this.configService.get<string>('jwt.accessSecret') || 'access-secret';
+    const refreshSecret =
+      this.configService.get<string>('jwt.refreshSecret') || 'refresh-secret';
 
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: this.configService.get<string>('jwt.accessSecret'),
-        expiresIn: this.configService.get<string>('jwt.accessExpiration'),
+      this.jwtService.sign(payload, {
+        secret: accessSecret,
+        expiresIn: '15m',
       }),
-      this.jwtService.signAsync(payload, {
-        secret: this.configService.get<string>('jwt.refreshSecret'),
-        expiresIn: this.configService.get<string>('jwt.refreshExpiration'),
+      this.jwtService.sign(payload, {
+        secret: refreshSecret,
+        expiresIn: '7d',
       }),
     ]);
 
     return { accessToken, refreshToken };
   }
 
-  private setAuthCookies(res: Response, accessToken: string, refreshToken: string) {
-    const isProduction = this.configService.get<string>('NODE_ENV') === 'production';
+  private setAuthCookies(
+    res: Response,
+    accessToken: string,
+    refreshToken: string,
+  ) {
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
 
-    // Access token cookie (15 minutes)
     res.cookie('access_token', accessToken, {
-      httpOnly: true, // Prevents JavaScript access
-      secure: isProduction, // HTTPS only in production
-      sameSite: 'strict', // CSRF protection
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000,
       path: '/',
     });
 
-    // Refresh token cookie (7 days)
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
   }
@@ -219,7 +223,7 @@ export class AuthService {
     return {
       success: true,
       user: {
-        id: user._id.toString(),
+        id: user.id,
         email: user.email,
         role: user.role,
       },
