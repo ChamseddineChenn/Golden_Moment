@@ -869,29 +869,30 @@ export default function AdminPage() {
     <div className="min-h-screen bg-stone-100">
       {/* Top Navbar */}
       <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
+        <div className="max-w-7xl mx-auto px-3 md:px-6">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0">
+              <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
                 <span className="text-white text-lg font-bold">G</span>
               </div>
-              <div>
-                <h1 className="text-lg font-bold text-stone-900">
+              <div className="min-w-0">
+                <h1 className="text-base md:text-lg font-bold text-stone-900 truncate">
                   Admin Portal
                 </h1>
-                <p className="text-xs text-stone-500 -mt-0.5">
+                <p className="text-xs text-stone-500 -mt-0.5 hidden sm:block">
                   Golden Moment Events
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
               <Link
                 href="/"
-                className="text-stone-600 hover:text-stone-900 transition flex items-center gap-2 text-sm"
+                className="text-stone-600 hover:text-stone-900 transition flex items-center gap-1 md:gap-2 text-xs md:text-sm p-2"
+                title="View public site"
               >
                 <svg
-                  className="w-4 h-4"
+                  className="w-4 h-4 md:w-5 md:h-5 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -903,11 +904,11 @@ export default function AdminPage() {
                     d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
                   />
                 </svg>
-                View Site
+                <span className="hidden sm:inline">View Site</span>
               </Link>
-              <div className="w-8 h-8 bg-stone-200 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 md:w-10 md:h-10 bg-stone-200 rounded-full flex items-center justify-center flex-shrink-0">
                 <svg
-                  className="w-4 h-4 text-stone-600"
+                  className="w-4 h-4 md:w-5 md:h-5 text-stone-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -987,26 +988,39 @@ export default function AdminPage() {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1">
+        <main className="flex-1 overflow-hidden">
           {/* Mobile Tab Navigation */}
-          <nav className="lg:hidden flex gap-2 p-6 bg-white border-b border-stone-200 overflow-x-auto">
+          <nav className="lg:hidden flex gap-1 p-3 md:p-4 bg-white border-b border-stone-200 overflow-x-auto snap-x snap-mandatory">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all whitespace-nowrap text-sm ${
+                className={`flex items-center gap-1 px-3 py-2 md:px-4 md:py-2 rounded-lg font-medium transition-all whitespace-nowrap text-xs md:text-sm flex-shrink-0 snap-start ${
                   activeTab === item.id
                     ? 'bg-stone-900 text-white'
                     : 'text-stone-600 hover:bg-stone-100'
                 }`}
               >
                 {item.icon}
-                {item.label}
+                <span className="hidden sm:inline">{item.label}</span>
               </button>
             ))}
           </nav>
 
-          <div className="p-6">
+          <div className="p-3 md:p-6">
+            {/* Alerts */}
+            <ToastContainer
+              position="top-right"
+              autoClose={4000}
+              hideProgressBar={false}
+              newestOnTop={true}
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="light"
+            />
             {/* Alerts */}
             <ToastContainer
               position="top-right"
@@ -1022,26 +1036,26 @@ export default function AdminPage() {
             />
             {/* Dashboard Tab */}
             {activeTab === 'dashboard' && (
-              <div className="space-y-6 flex flex-col">
+              <div className="space-y-4 md:space-y-6 flex flex-col">
                 <div>
-                  <h2 className="text-2xl font-bold text-stone-900 mb-2">
+                  <h2 className="text-xl md:text-2xl font-bold text-stone-900 mb-2">
                     Dashboard Overview
                   </h2>
-                  <p className="text-stone-600">
+                  <p className="text-sm md:text-base text-stone-600">
                     Welcome back! Here&apos;s what&apos;s happening with your
                     events.
                   </p>
                 </div>
 
                 {/* Quick Actions */}
-                <div className="w-full bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-4 text-white flex items-center gap-4">
+                <div className="w-full bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-3 md:p-4 text-white flex flex-col md:flex-row md:items-center gap-3">
                   <div>
                     <p className="text-sm font-semibold">Quick Actions</p>
                     <p className="text-xs text-amber-100">Validate tickets</p>
                   </div>
                   <button
                     onClick={() => setActiveTab('scanner')}
-                    className="bg-white text-amber-600 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-50 transition flex items-center gap-2 whitespace-nowrap"
+                    className="bg-white text-amber-600 px-3 py-2 md:px-4 md:py-2 rounded-lg font-semibold text-sm hover:bg-amber-50 transition flex items-center gap-2 whitespace-nowrap justify-center md:justify-start"
                   >
                     <svg
                       className="w-4 h-4"
@@ -1063,7 +1077,7 @@ export default function AdminPage() {
                       fetchEvents();
                       fetchAllTickets();
                     }}
-                    className="bg-white/20 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-white/30 transition flex items-center gap-2 whitespace-nowrap ml-auto"
+                    className="bg-white/20 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg font-semibold text-sm hover:bg-white/30 transition flex items-center gap-2 whitespace-nowrap md:ml-auto justify-center md:justify-start"
                     title="Refresh dashboard data"
                   >
                     <svg
@@ -1079,7 +1093,7 @@ export default function AdminPage() {
                         d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                       />
                     </svg>
-                    Refresh
+                    <span className="hidden sm:inline">Refresh</span>
                   </button>
                 </div>
 
@@ -1554,16 +1568,16 @@ export default function AdminPage() {
             )}
             {/* Events Tab */}
             {activeTab === 'events' && (
-              <div className="space-y-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-4 md:space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-stone-900">
+                    <h2 className="text-xl md:text-2xl font-bold text-stone-900">
                       Events
                     </h2>
-                    <p className="text-stone-600">Manage all your events</p>
+                    <p className="text-sm md:text-base text-stone-600">Manage all your events</p>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                     <button
                       onClick={() => fetchEvents()}
                       className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-medium text-sm whitespace-nowrap"
@@ -1931,18 +1945,18 @@ export default function AdminPage() {
             )}
             {/* Tickets Tab */}
             {activeTab === 'tickets' && (
-              <div className="space-y-6">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-4 md:space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-stone-900">
+                    <h2 className="text-xl md:text-2xl font-bold text-stone-900">
                       Tickets
                     </h2>
-                    <p className="text-stone-600">
+                    <p className="text-sm md:text-base text-stone-600">
                       View all sold tickets and their status
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                     <button
                       onClick={() => fetchAllTickets()}
                       className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-medium text-sm whitespace-nowrap"
@@ -2111,12 +2125,12 @@ export default function AdminPage() {
             {/* QR Scanner Tab */}
             {activeTab === 'scanner' && (
               <div className="max-w-2xl mx-auto">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-stone-900">
+                <div className="mb-4 md:mb-6">
+                  <h2 className="text-xl md:text-2xl font-bold text-stone-900">
                     QR Code Scanner
                   </h2>
-                  <p className="text-stone-600">
-                    Upload a ticket QR code image to validate entry
+                  <p className="text-sm md:text-base text-stone-600">
+                    Scan tickets for real-time entry validation
                   </p>
                 </div>
 
@@ -2358,18 +2372,18 @@ export default function AdminPage() {
             {/* Create Event Tab */}
             {activeTab === 'create' && (
               <div className="max-w-2xl mx-auto">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-stone-900">
+                <div className="mb-4 md:mb-6">
+                  <h2 className="text-xl md:text-2xl font-bold text-stone-900">
                     {editingEventId ? 'Edit Event' : 'Create New Event'}
                   </h2>
-                  <p className="text-stone-600">
+                  <p className="text-sm md:text-base text-stone-600">
                     {editingEventId
                       ? 'Update event details (seating configuration is locked)'
                       : 'Fill in the details to create a new event'}
                   </p>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-stone-200 p-8">
+                <div className="bg-white rounded-2xl border border-stone-200 p-4 md:p-8">
                   <form onSubmit={handleCreateEvent} className="space-y-6">
                     <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
@@ -3183,7 +3197,7 @@ export default function AdminPage() {
                             });
                             setActiveTab('events');
                           }}
-                          className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 py-4 rounded-xl font-semibold transition"
+                          className="flex-1 bg-stone-100 hover:bg-stone-200 text-stone-700 py-3 md:py-4 rounded-xl font-semibold transition text-sm md:text-base"
                         >
                           Cancel
                         </button>
@@ -3191,7 +3205,7 @@ export default function AdminPage() {
                       <button
                         type="submit"
                         disabled={loading || creatingEvent}
-                        className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white py-3 md:py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center justify-center gap-2 text-sm md:text-base"
                       >
                         {loading || creatingEvent ? (
                           <>
