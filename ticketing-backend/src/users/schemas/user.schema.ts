@@ -22,15 +22,38 @@ export class User {
   emailVerified: boolean;
 
   @Prop({ type: Date })
-  lastLoginAt: Date;
+  lastLoginAt?: Date;
 
-  @Prop({ type: String, select: false }) // Hashed refresh token
+  @Prop({ type: String, select: false })
   refreshTokenHash?: string;
 
-  timestamps: true;
+  id?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// Indexes for performance
+UserSchema.virtual('id').get(function (this: UserDocument) {
+  return this._id.toHexString();
+});
+
+UserSchema.set('toJSON', {
+  virtuals: true,
+  transform: function (doc, ret) {
+    delete ret.password;
+    delete ret.refreshTokenHash;
+    delete ret.__v;
+    return ret;
+  },
+});
+
+UserSchema.set('toObject', {
+  virtuals: true,
+  transform: function (doc, ret) {
+    delete ret.password;
+    delete ret.refreshTokenHash;
+    delete ret.__v;
+    return ret;
+  },
+});
+
 UserSchema.index({ email: 1 });

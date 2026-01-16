@@ -4,7 +4,10 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { LoginAttemptsService } from './login-attempts.service';
 import { User, UserSchema } from './schemas/user.schema';
-import { LoginAttempt, LoginAttemptSchema } from './schemas/login-attempt.schema';
+import {
+  LoginAttempt,
+  LoginAttemptSchema,
+} from './schemas/login-attempt.schema';
 
 @Module({
   imports: [

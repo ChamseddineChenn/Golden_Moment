@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
-import { LoginAttempt, LoginAttemptDocument } from './schemas/login-attempt.schema';
+import {
+  LoginAttempt,
+  LoginAttemptDocument,
+} from './schemas/login-attempt.schema';
 
 @Injectable()
 export class LoginAttemptsService {
@@ -10,11 +13,16 @@ export class LoginAttemptsService {
   private readonly lockoutDuration: number;
 
   constructor(
-    @InjectModel(LoginAttempt.name) private loginAttemptModel: Model<LoginAttemptDocument>,
+    @InjectModel(LoginAttempt.name)
+    private loginAttemptModel: Model<LoginAttemptDocument>,
     private configService: ConfigService,
   ) {
-    this.maxLoginAttempts = this.configService.get<number>('security.maxLoginAttempts');
-    this.lockoutDuration = this.configService.get<number>('security.lockoutDuration');
+    this.maxLoginAttempts = this.configService.get<number>(
+      'security.maxLoginAttempts',
+    );
+    this.lockoutDuration = this.configService.get<number>(
+      'security.lockoutDuration',
+    );
   }
 
   async trackAttempt(
@@ -36,7 +44,7 @@ export class LoginAttemptsService {
 
   async getRecentFailedAttempts(email: string): Promise<number> {
     const cutoffTime = new Date(Date.now() - this.lockoutDuration);
-    
+
     return this.loginAttemptModel.countDocuments({
       email: email.toLowerCase(),
       successful: false,
