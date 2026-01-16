@@ -1,6 +1,26 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+// Dynamic API URL that works on both localhost and mobile via local network
+const getAPIBaseURL = () => {
+  if (typeof window === 'undefined') {
+    // Server-side rendering
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+  }
+  
+  // Client-side: replace localhost with the actual host
+  let baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+  
+  if (baseURL.includes('localhost') || baseURL.includes('127.0.0.1')) {
+    // Replace localhost/127.0.0.1 with actual hostname for mobile compatibility
+    const hostname = window.location.hostname;
+    const port = 3002; // Backend port
+    baseURL = `http://${hostname}:${port}`;
+  }
+  
+  return baseURL;
+};
+
+const API_BASE_URL = getAPIBaseURL();
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
