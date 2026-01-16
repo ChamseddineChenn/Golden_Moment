@@ -262,7 +262,7 @@ export default function AdminPage() {
 
       const categoryTickets = tickets.filter((t) => {
         const eventId =
-          typeof t.eventId === 'object' ? t.eventId._id : t.eventId;
+          typeof t.eventId === 'object' && t.eventId !== null ? t.eventId._id : t.eventId;
         return categoryEvents.some((e) => e._id === eventId);
       });
       ticketsByCategory[cat] = categoryTickets.length;
@@ -1653,7 +1653,7 @@ export default function AdminPage() {
                           // Calculate per-event stats
                           const eventTickets = tickets.filter((t) => {
                             const eventId =
-                              typeof t.eventId === 'object'
+                              typeof t.eventId === 'object' && t.eventId !== null
                                 ? t.eventId._id
                                 : t.eventId;
                             return eventId === event._id;
