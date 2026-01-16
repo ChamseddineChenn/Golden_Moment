@@ -262,7 +262,9 @@ export default function AdminPage() {
 
       const categoryTickets = tickets.filter((t) => {
         const eventId =
-          typeof t.eventId === 'object' && t.eventId !== null ? t.eventId._id : t.eventId;
+          typeof t.eventId === 'object' && t.eventId !== null
+            ? t.eventId._id
+            : t.eventId;
         return categoryEvents.some((e) => e._id === eventId);
       });
       ticketsByCategory[cat] = categoryTickets.length;
@@ -543,12 +545,11 @@ export default function AdminPage() {
 
         // Initialize seats if seating is enabled
         if (newEvent.seatingEnabled && newEvent.sections.length > 0) {
-          await fetch(
-            `http://localhost:3002/seats/event/${response.data._id}/initialize`,
-            {
-              method: 'POST',
-            }
-          );
+          const apiUrl =
+            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+          await fetch(`${apiUrl}/seats/event/${response.data._id}/initialize`, {
+            method: 'POST',
+          });
         }
 
         toast.success('Event created successfully!');
@@ -678,41 +679,46 @@ export default function AdminPage() {
     );
 
     qrScannerRef.current = scanner;
+    let scanProcessing = false;
 
     scanner.render(
       async (encryptedToken: string) => {
+        // Prevent multiple rapid scans
+        if (scanProcessing) return;
+        scanProcessing = true;
+
         // Scanner found a QR code
         console.log('QR Code scanned:', encryptedToken);
         setScanning(true);
 
         try {
           // Validate the ticket via API using encrypted token
-          const response = await fetch(
-            'http://localhost:3002/tickets/validate-qr',
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ encryptedToken }),
-            }
-          );
+          const apiUrl =
+            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+          const response = await fetch(`${apiUrl}/tickets/validate-qr`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ encryptedToken }),
+          });
           const data = await response.json();
           setScanResult(data);
 
           // Refresh tickets list
           fetchAllTickets();
 
-          // Clear scanner for next scan
-          if (qrScannerRef.current) {
-            qrScannerRef.current.clear();
-          }
+          // Close scanner after successful scan
+          setTimeout(() => {
+            closeCameraScanner();
+            setScanning(false);
+          }, 1000);
         } catch (apiErr: unknown) {
           console.error('API validation error:', apiErr);
           setScanResult({
             success: false,
             message: 'Failed to validate ticket. Server error.',
           });
-        } finally {
           setScanning(false);
+          scanProcessing = false;
         }
       },
       (error: string) => {
@@ -761,7 +767,7 @@ export default function AdminPage() {
     }
   };
 
-  const filteredEvents = events.filter(
+  const filteredEvents = (Array.isArray(events) ? events : []).filter(
     (event) =>
       event.name.toLowerCase().includes(eventSearch.toLowerCase()) ||
       event.venue.toLowerCase().includes(eventSearch.toLowerCase())
@@ -1574,7 +1580,9 @@ export default function AdminPage() {
                     <h2 className="text-xl md:text-2xl font-bold text-stone-900">
                       Events
                     </h2>
-                    <p className="text-sm md:text-base text-stone-600">Manage all your events</p>
+                    <p className="text-sm md:text-base text-stone-600">
+                      Manage all your events
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2 md:gap-3 flex-wrap">
@@ -1653,7 +1661,8 @@ export default function AdminPage() {
                           // Calculate per-event stats
                           const eventTickets = tickets.filter((t) => {
                             const eventId =
-                              typeof t.eventId === 'object' && t.eventId !== null
+                              typeof t.eventId === 'object' &&
+                              t.eventId !== null
                                 ? t.eventId._id
                                 : t.eventId;
                             return eventId === event._id;
@@ -2202,10 +2211,7 @@ export default function AdminPage() {
                           </button>
                         </div>
                         <div className="p-6">
-                          <div
-                            id="qr-reader"
-                            style={{ width: '100%' }}
-                          ></div>
+                          <div id="qr-reader" style={{ width: '100%' }}></div>
                           <p className="text-sm text-stone-500 mt-4 text-center">
                             Position the QR code in front of your camera
                           </p>
@@ -2329,7 +2335,8 @@ export default function AdminPage() {
                           1
                         </span>
                         <span>
-                          Click &quot;Open Camera Scanner&quot; to activate your camera
+                          Click &quot;Open Camera Scanner&quot; to activate your
+                          camera
                         </span>
                       </li>
                       <li className="flex items-start gap-2">
@@ -2345,7 +2352,8 @@ export default function AdminPage() {
                           3
                         </span>
                         <span>
-                          Point the camera at the attendee&apos;s QR code (phone or printed)
+                          Point the camera at the attendee&apos;s QR code (phone
+                          or printed)
                         </span>
                       </li>
                       <li className="flex items-start gap-2">
@@ -2353,7 +2361,8 @@ export default function AdminPage() {
                           4
                         </span>
                         <span>
-                          The scanner automatically detects and validates the ticket instantly
+                          The scanner automatically detects and validates the
+                          ticket instantly
                         </span>
                       </li>
                       <li className="flex items-start gap-2">
@@ -2361,7 +2370,8 @@ export default function AdminPage() {
                           5
                         </span>
                         <span>
-                          If valid, the ticket is marked as &quot;Used&quot; and entry is granted
+                          If valid, the ticket is marked as &quot;Used&quot; and
+                          entry is granted
                         </span>
                       </li>
                     </ol>

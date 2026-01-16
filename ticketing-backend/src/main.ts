@@ -12,11 +12,17 @@ async function bootstrap() {
       // - 192.168.x.x:* (private network)
       // - 10.x.x.x:* (private network)
       // - 172.16.x.x to 172.31.x.x:* (private network)
+      // - ngrok.io and ngrok-free.dev (tunneling for testing)
       if (
         !origin ||
         origin.startsWith('http://localhost:') ||
+        origin.startsWith('https://localhost:') ||
         origin.startsWith('http://127.0.0.1:') ||
-        /^http:\/\/(192\.168|10|172\.(?:1[6-9]|2[0-9]|3[01]))\.(\d{1,3})\.(\d{1,3}):\d+$/.test(origin)
+        origin.startsWith('https://127.0.0.1:') ||
+        /^http:\/\/(192\.168|10|172\.(?:1[6-9]|2[0-9]|3[01]))\.(\d{1,3})\.(\d{1,3}):\d+$/.test(
+          origin,
+        ) ||
+        /^https:\/\/.*\.ngrok(?:-free)?\.dev$/.test(origin)
       ) {
         callback(null, true);
       } else {
