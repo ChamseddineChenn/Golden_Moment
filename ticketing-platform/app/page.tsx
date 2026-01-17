@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { eventsAPI } from '@/lib/api';
 import Link from 'next/link';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 interface Event {
   _id: string;
@@ -355,6 +356,7 @@ export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user, logout } = useAuth();
 
   // Filter out expired events (events where the date has passed)
   const upcomingEvents = events.filter((e) => {
@@ -426,6 +428,39 @@ export default function HomePage() {
               >
                 Contact
               </Link>
+
+              {/* Auth Links */}
+              {user ? (
+                <div className="flex items-center gap-4">
+                  <Link
+                    href="/dashboard"
+                    className="text-stone-600 hover:text-amber-600 transition"
+                  >
+                    Dashboard
+                  </Link>
+                  <button
+                    onClick={logout}
+                    className="bg-stone-900 text-white px-4 py-2 rounded-lg hover:bg-stone-800 transition text-sm font-medium"
+                  >
+                    Logout
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <Link
+                    href="/auth/login"
+                    className="text-stone-600 hover:text-amber-600 transition"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/auth/signup"
+                    className="bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition text-sm font-medium"
+                  >
+                    Sign Up
+                  </Link>
+                </div>
+              )}
             </nav>
 
             {/* Mobile Menu Button */}
@@ -734,7 +769,7 @@ export default function HomePage() {
                 <p>
                   Browse through our event listings, select your preferred
                   event, choose your seats, and complete the checkout process.
-                  You'll receive your e-ticket instantly via email.
+                  You&apos;ll receive your e-ticket instantly via email.
                 </p>
               </div>
             </details>
