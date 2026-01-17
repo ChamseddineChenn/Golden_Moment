@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { Button } from '../ui/Button';
+import { Button } from '../UI/Button';
 
 export function SignupForm() {
   const [email, setEmail] = useState('');
@@ -40,8 +40,8 @@ export function SignupForm() {
 
     try {
       await signup(email, password);
-    } catch (err: any) {
-      setError(err.message || 'Signup failed. Please try again.');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Signup failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
