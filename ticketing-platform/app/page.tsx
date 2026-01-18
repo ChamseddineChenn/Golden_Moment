@@ -428,8 +428,6 @@ export default function HomePage() {
               >
                 Contact
               </Link>
-
-{/* Auth Links */}
               {authLoading ? (
                 <div className="w-20 h-8 bg-stone-200 animate-pulse rounded"></div>
               ) : user ? (
