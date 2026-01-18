@@ -22,7 +22,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
       ]),
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('jwt.refreshSecret'),
-      passReqToCallback: true, // Pass request to validate method
+      passReqToCallback: true,
     });
   }
 
@@ -33,7 +33,6 @@ export class JwtRefreshStrategy extends PassportStrategy(
       throw new UnauthorizedException('Refresh token not found');
     }
 
-    // Verify the refresh token matches what's stored
     const isValid = await this.usersService.validateRefreshToken(
       payload.sub,
       refreshToken,

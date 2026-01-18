@@ -27,6 +27,20 @@ export class User {
   @Prop({ type: String, select: false })
   refreshTokenHash?: string;
 
+  // Email verification
+  @Prop({ type: String, select: false })
+  emailVerificationToken?: string;
+
+  @Prop({ type: Date })
+  emailVerificationExpires?: Date;
+
+  // Password reset
+  @Prop({ type: String, select: false })
+  passwordResetToken?: string;
+
+  @Prop({ type: Date })
+  passwordResetExpires?: Date;
+
   id?: string;
 }
 
@@ -41,6 +55,8 @@ UserSchema.set('toJSON', {
   transform: function (doc, ret) {
     delete ret.password;
     delete ret.refreshTokenHash;
+    delete ret.emailVerificationToken;
+    delete ret.passwordResetToken;
     delete ret.__v;
     return ret;
   },
@@ -51,9 +67,13 @@ UserSchema.set('toObject', {
   transform: function (doc, ret) {
     delete ret.password;
     delete ret.refreshTokenHash;
+    delete ret.emailVerificationToken;
+    delete ret.passwordResetToken;
     delete ret.__v;
     return ret;
   },
 });
 
 UserSchema.index({ email: 1 });
+UserSchema.index({ emailVerificationToken: 1 });
+UserSchema.index({ passwordResetToken: 1 });

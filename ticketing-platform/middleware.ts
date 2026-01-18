@@ -10,24 +10,25 @@ export function middleware(request: NextRequest) {
   
   const isAuthenticated = !!(accessToken || refreshToken);
 
-  // Protected routes
-  const protectedRoutes = ['/dashboard', '/admin'];
+  // Auth routes (login, signup)
+  const authRoutes = ['/auth/login', '/auth/signup'];
+  const isAuthRoute = authRoutes.includes(pathname);
+
+  // Protected routes (require authentication)
+  const protectedRoutes = ['/admin'];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
-  // Auth routes (login, signup)
-  const authRoutes = ['/login', '/signup'];
-  const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));
-
-  // Redirect authenticated users away from auth pages
+  // Redirect authenticated users away from auth pages to homepage
   if (isAuthenticated && isAuthRoute) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
-  // Redirect unauthenticated users to login
+  // Redirect unauthenticated users from protected routes to login
   if (!isAuthenticated && isProtectedRoute) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/auth/login', request.url));
   }
 
+  // Allow all other routes (including homepage)
   return NextResponse.next();
 }
 
@@ -35,7 +36,7 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/admin/:path*',
-    '/login',
-    '/signup',
+    '/auth/login',
+    '/auth/signup',
   ],
 };

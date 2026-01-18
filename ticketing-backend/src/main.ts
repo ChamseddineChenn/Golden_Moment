@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -8,7 +8,6 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
-  const logger = new Logger('Bootstrap');
 
   app.use(
     helmet({
@@ -31,10 +30,11 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: configService.get<string>('cors.origin') || 'http://localhost:3000',
+    origin: configService.get<string>('cors.origin'),
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Set-Cookie'],
   });
 
   app.useGlobalPipes(
@@ -48,13 +48,8 @@ async function bootstrap() {
     }),
   );
 
-  app.setGlobalPrefix('api');
-
-  const port = configService.get<number>('port') || 4000;
+  const port = configService.get<number>('port');
   await app.listen(port);
-
-  logger.log(`Application is running on: http://localhost:${port}`);
-  logger.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 }
 
 bootstrap();

@@ -13,6 +13,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { MailModule } from './mail/mail.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -41,8 +42,8 @@ import configuration from './config/configuration';
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => [
         {
-          ttl: configService.get<number>('throttle.ttl') || 60000, // 1 minute
-          limit: configService.get<number>('throttle.limit') || 10, // 10 requests per minute
+          ttl: configService.get<number>('throttle.ttl'), // 1 minute
+          limit: configService.get<number>('throttle.limit'), // 10 requests per minute
         },
       ],
       inject: [ConfigService],
@@ -54,6 +55,7 @@ import configuration from './config/configuration';
     UploadModule,
     AuthModule,
     UsersModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [

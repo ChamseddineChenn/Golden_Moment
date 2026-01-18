@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -19,9 +18,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
+      // Always try to fetch user - let the server tell us if we're authenticated
+      // The httpOnly cookies will be sent automatically
       const currentUser = await authApi.getCurrentUser();
       setUser(currentUser);
-    } catch (error) {
+    } catch (error: any) {
+      // If we get 401, user is not authenticated - this is normal
       setUser(null);
     } finally {
       setLoading(false);
@@ -32,7 +34,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authApi.login(email, password);
       setUser(response.user);
-      router.push('/dashboard');
+      router.push('/');
+      router.refresh(); // Refresh to update UI
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Login failed');
     }
@@ -42,7 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authApi.signup(email, password);
       setUser(response.user);
-      router.push('/dashboard');
+      router.push('/');
+      router.refresh(); // Refresh to update UI
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Signup failed');
     }
@@ -51,10 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await authApi.logout();
-      setUser(null);
-      router.push('/login');
     } catch (error) {
       console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      router.push('/');
+      router.refresh(); // Refresh to update UI
     }
   };
 

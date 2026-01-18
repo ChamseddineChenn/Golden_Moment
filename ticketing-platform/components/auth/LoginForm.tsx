@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
-import { Button } from '../ui/Button';
+import { Button } from '../UI/Button';
+import Link from 'next/link';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
@@ -29,7 +30,7 @@ export function LoginForm() {
     <div className="w-full max-w-md mx-auto p-6">
       <div className="bg-white rounded-lg shadow-lg p-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Sign In</h2>
-        
+
         {error && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
             {error}
@@ -53,9 +54,17 @@ export function LoginForm() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <Link
+                href="/auth/forgot-password"
+                className="text-sm text-amber-600 hover:text-amber-700 font-medium"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <input
               id="password"
               type="password"
@@ -79,7 +88,7 @@ export function LoginForm() {
 
         <p className="mt-4 text-center text-sm text-gray-600">
           Don&apos;t have an account?{' '}
-          <a href="/signup" className="text-blue-600 hover:text-blue-700 font-medium">
+          <a href="/auth/signup" className="text-blue-600 hover:text-blue-700 font-medium">
             Sign up
           </a>
         </p>
