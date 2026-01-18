@@ -18,7 +18,7 @@ interface Ticket {
         venue: string;
       }
     | string;
-  seatNumber: string;
+  seats: Array<{ sectionId?: string; seatId: string }>;
   buyerName: string;
   buyerEmail: string;
   purchaseDate: string;
@@ -152,7 +152,7 @@ export default function ReceiptPage() {
       pdf.setFontSize(12);
       pdf.setTextColor(41, 37, 36);
       pdf.setFont('helvetica', 'bold');
-      pdf.text(ticket.seatNumber, 110, 135);
+      pdf.text(ticket.seats.map((s) => s.seatId).join(', '), 110, 135);
 
       // Attendee box
       pdf.setFillColor(255, 255, 255);
@@ -513,11 +513,15 @@ export default function ReceiptPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl p-6 border border-amber-200">
                 <p className="text-sm text-amber-700 font-medium mb-2">
-                  SEAT NUMBER
+                  SEATS ({ticket.seats.length})
                 </p>
-                <p className="text-3xl font-bold text-amber-900">
-                  {ticket.seatNumber}
-                </p>
+                <div className="space-y-2">
+                  {ticket.seats.map((seat, idx) => (
+                    <p key={idx} className="text-lg font-bold text-amber-900">
+                      {seat.seatId}
+                    </p>
+                  ))}
+                </div>
               </div>
 
               <div className="md:col-span-2 bg-stone-50 rounded-2xl p-6">

@@ -4,7 +4,32 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: (origin, callback) => {
+      // Allow:
+      // - No origin (same-origin requests)
+      // - localhost:* (development)
+      // - 127.0.0.1:* (development loopback)
+      // - 192.168.x.x:* (private network)
+      // - 10.x.x.x:* (private network)
+      // - 172.16.x.x to 172.31.x.x:* (private network)
+      // - ngrok.io and ngrok-free.dev (tunneling for testing)
+      if (
+        !origin ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('https://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        origin.startsWith('https://127.0.0.1:') ||
+        /^http:\/\/(192\.168|10|172\.(?:1[6-9]|2[0-9]|3[01]))\.(\d{1,3})\.(\d{1,3}):\d+$/.test(
+          origin,
+        ) ||
+        /^https:\/\/.*\.ngrok(?:-free)?\.dev$/.test(origin)
+      ) {
+        callback(null, true);
+      } else {
+        console.log(`[CORS] Rejected origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   });
   const port = process.env.PORT ?? 3002;

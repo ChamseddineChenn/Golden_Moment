@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { eventsAPI } from '@/lib/api';
+import { datetimeLocalToISO } from '@/lib/dateUtils';
 
 interface EventFormProps {
   onSuccess: () => void;
@@ -32,29 +33,6 @@ export default function EventForm({ onSuccess }: EventFormProps) {
     }));
   };
 
-  // Helper function to parse datetime-local input correctly
-  const parseDatetimeLocal = (dateTimeString: string): string => {
-    if (!dateTimeString) return new Date().toISOString();
-    
-    // Split into date and time parts: "2026-01-13T14:30" -> ["2026-01-13", "14:30"]
-    const [datePart, timePart] = dateTimeString.split('T');
-    const [year, month, day] = datePart.split('-');
-    const [hours, minutes] = timePart.split(':');
-    
-    // Create date in local timezone
-    const date = new Date(
-      parseInt(year),
-      parseInt(month) - 1,
-      parseInt(day),
-      parseInt(hours),
-      parseInt(minutes),
-      0,
-      0
-    );
-    
-    return date.toISOString();
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -64,7 +42,7 @@ export default function EventForm({ onSuccess }: EventFormProps) {
       const eventData = {
         ...formData,
         totalSeats: parseInt(formData.totalSeats, 10),
-        date: parseDatetimeLocal(formData.date),
+        date: datetimeLocalToISO(formData.date),
       };
 
       await eventsAPI.create(eventData);
