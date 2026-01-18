@@ -9,13 +9,17 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { Response, Request } from 'express';
+import type { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { Public } from './decorators/public.decorator';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { GetCurrentUser } from './decorators/get-current-user.decorator';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -70,5 +74,35 @@ export class AuthController {
   @Get('me')
   async getCurrentUser(@GetCurrentUser('userId') userId: string) {
     return this.authService.getCurrentUser(userId);
+  }
+
+  @Public()
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
+    return this.authService.verifyEmail(verifyEmailDto);
+  }
+
+  @Public()
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(
+    @Body() resendVerificationDto: ResendVerificationDto,
+  ) {
+    return this.authService.resendVerification(resendVerificationDto);
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 }

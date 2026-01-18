@@ -356,7 +356,7 @@ export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
 
   // Filter out expired events (events where the date has passed)
   const upcomingEvents = events.filter((e) => {
@@ -429,11 +429,13 @@ export default function HomePage() {
                 Contact
               </Link>
 
-              {/* Auth Links */}
-              {user ? (
+{/* Auth Links */}
+              {authLoading ? (
+                <div className="w-20 h-8 bg-stone-200 animate-pulse rounded"></div>
+              ) : user ? (
                 <div className="flex items-center gap-4">
                   <Link
-                    href="/dashboard"
+                    href="/"
                     className="text-stone-600 hover:text-amber-600 transition"
                   >
                     Dashboard
@@ -454,7 +456,7 @@ export default function HomePage() {
                     Login
                   </Link>
                   <Link
-                    href="/auth/signup"
+                    href="/signup"
                     className="bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition text-sm font-medium"
                   >
                     Sign Up

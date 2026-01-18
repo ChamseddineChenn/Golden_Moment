@@ -8,6 +8,11 @@ import { LoginAttemptsService } from '../users/login-attempts.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
 import { Role } from '../users/enums/role.enum';
+import { MailService } from '../mail/mail.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 
 @Injectable()
 export class AuthService {
@@ -18,6 +23,7 @@ export class AuthService {
     private loginAttemptsService: LoginAttemptsService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private mailService: MailService,
   ) {}
 
   async signup(signupDto: SignupDto, res: Response) {
@@ -25,6 +31,10 @@ export class AuthService {
       email: signupDto.email,
       password: signupDto.password,
     });
+
+    // Send verification email
+    const verificationToken = (user as any).plainVerificationToken;
+    await this.mailService.sendVerificationEmail(user.email, verificationToken);
 
     const { accessToken, refreshToken } = await this.generateTokens(
       user.id,
@@ -38,12 +48,9 @@ export class AuthService {
 
     return {
       success: true,
-      message: 'User registered successfully',
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
+      message:
+        'User registered successfully. Please check your email to verify your account.',
+      user: user,
     };
   }
 
@@ -227,6 +234,67 @@ export class AuthService {
         email: user.email,
         role: user.role,
       },
+    };
+  }
+  async verifyEmail(verifyEmailDto: VerifyEmailDto) {
+    const user = await this.usersService.verifyEmail(verifyEmailDto.token);
+
+    return {
+      success: true,
+      message: 'Email verified successfully',
+      user: user,
+    };
+  }
+
+  async resendVerification(resendVerificationDto: ResendVerificationDto) {
+    const token = await this.usersService.resendVerificationEmail(
+      resendVerificationDto.email,
+    );
+    await this.mailService.sendVerificationEmail(
+      resendVerificationDto.email,
+      token,
+    );
+
+    return {
+      success: true,
+      message: 'Verification email sent. Please check your inbox.',
+    };
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+    try {
+      const token = await this.usersService.createPasswordResetToken(
+        forgotPasswordDto.email,
+      );
+      await this.mailService.sendPasswordResetEmail(
+        forgotPasswordDto.email,
+        token,
+      );
+
+      return {
+        success: true,
+        message: 'Password reset instructions sent to your email',
+      };
+    } catch (error) {
+      return {
+        success: true,
+        message: error.message,
+      };
+    }
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    const user = await this.usersService.resetPassword(
+      resetPasswordDto.token,
+      resetPasswordDto.newPassword,
+    );
+
+    await this.mailService.sendPasswordResetConfirmation(user.email);
+
+    return {
+      success: true,
+      message:
+        'Password reset successfully. You can now log in with your new password.',
     };
   }
 }
