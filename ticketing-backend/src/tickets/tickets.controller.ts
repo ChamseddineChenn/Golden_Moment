@@ -1,4 +1,14 @@
-import { Controller, Post, Get, Body, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Body,
+  Param,
+  Query,
+  Delete,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 
@@ -8,7 +18,28 @@ export class TicketsController {
 
   @Post()
   async create(@Body() createTicketDto: CreateTicketDto) {
-    return this.ticketsService.create(createTicketDto);
+    try {
+      return await this.ticketsService.create(createTicketDto);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to create ticket';
+
+      // Return 409 for capacity/conflict errors, 400 for validation errors
+      if (
+        message.includes('sold out') ||
+        message.includes('capacity') ||
+        message.includes('Not enough')
+      ) {
+        throw new ConflictException(message);
+      }
+
+      throw new BadRequestException(message);
+    }
+  }
+
+  @Post('validate-qr')
+  async validateQR(@Body() body: { encryptedToken: string }) {
+    return this.ticketsService.validateByQRToken(body.encryptedToken);
   }
 
   @Post('validate')
@@ -44,5 +75,10 @@ export class TicketsController {
   @Post(':id/mark-used')
   async markAsUsed(@Param('id') id: string) {
     return this.ticketsService.markAsUsed(id);
+  }
+
+  @Delete(':id')
+  async delete(@Param('id') id: string) {
+    return this.ticketsService.delete(id);
   }
 }

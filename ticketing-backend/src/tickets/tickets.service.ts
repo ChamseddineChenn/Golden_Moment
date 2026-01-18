@@ -1,66 +1,365 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as QRCode from 'qrcode';
+import * as crypto from 'crypto';
 import { Ticket, TicketStatus } from './ticket.schema';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { EventsService } from '../events/events.service';
+import { SeatsService } from '../events/seats.service';
 
 @Injectable()
 export class TicketsService {
+  private readonly encryptionKey =
+    process.env.QR_ENCRYPTION_KEY ||
+    'default-insecure-key-change-in-production';
+  private readonly algorithm = 'aes-256-gcm';
+
   constructor(
     @InjectModel(Ticket.name) private ticketModel: Model<Ticket>,
     private readonly eventsService: EventsService,
+    private readonly seatsService: SeatsService,
   ) {}
 
-  // Generate unique ticket number
-  private async generateTicketNumber(eventId: string): Promise<string> {
-    const count = await this.ticketModel.countDocuments({ eventId });
-    // Format: EVT-{eventId}-{number}, e.g., TK-000001
-    return `TK${String(count + 1).padStart(6, '0')}`;
+  // Generate a secure encrypted QR token
+  private generateQrToken(): { token: string; encryptedToken: string } {
+    const token = crypto.randomBytes(32).toString('hex');
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(
+      this.algorithm,
+      Buffer.from(this.encryptionKey.padEnd(32, '0').slice(0, 32)),
+      iv,
+    );
+    let encrypted = cipher.update(token, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag();
+    const encryptedToken = `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+    return { token, encryptedToken };
+  }
+
+  // Decrypt an encrypted QR token
+  private decryptQrToken(encryptedToken: string): string | null {
+    try {
+      const parts = encryptedToken.split(':');
+      if (parts.length !== 3) {
+        console.error('[TicketsService] Invalid encrypted token format');
+        return null;
+      }
+
+      const iv = Buffer.from(parts[0], 'hex');
+      const authTag = Buffer.from(parts[1], 'hex');
+      const encrypted = parts[2];
+
+      const decipher = crypto.createDecipheriv(
+        this.algorithm,
+        Buffer.from(this.encryptionKey.padEnd(32, '0').slice(0, 32)),
+        iv,
+      );
+      decipher.setAuthTag(authTag);
+
+      let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+
+      return decrypted;
+    } catch (error) {
+      console.error('[TicketsService] Decryption error:', error);
+      return null;
+    }
+  }
+
+  // Generate unique ticket number using MongoDB counter pattern
+  private async generateTicketNumber(): Promise<string> {
+    let ticketNumber = '';
+    let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (!isUnique && attempts < maxAttempts) {
+      const count = await this.ticketModel.countDocuments();
+      ticketNumber = `TK${String(count + attempts + 1).padStart(6, '0')}`;
+
+      try {
+        // Try to find if this number exists
+        const existing = await this.ticketModel.findOne({ ticketNumber });
+        if (!existing) {
+          isUnique = true;
+        }
+      } catch (err) {
+        // Continue trying
+      }
+      attempts++;
+    }
+
+    if (!isUnique) {
+      throw new ConflictException('Failed to generate unique ticket number');
+    }
+
+    return ticketNumber;
   }
 
   async create(createTicketDto: CreateTicketDto): Promise<Ticket> {
-    // Auto-generate ticket number
-    const ticketNumber = await this.generateTicketNumber(
-      createTicketDto.eventId.toString(),
+    console.log('[TicketsService] ========== TICKET CREATION START ==========');
+    console.log('[TicketsService] EventID:', createTicketDto.eventId);
+    console.log('[TicketsService] Seats requested:', createTicketDto.seats);
+    console.log(
+      '[TicketsService] Buyer:',
+      createTicketDto.buyerName,
+      '<',
+      createTicketDto.buyerEmail,
+      '>',
     );
 
-    // Get event details to calculate expiration time (15 minutes after event start)
+    // Get event details
     const event = await this.eventsService.findById(
       createTicketDto.eventId.toString(),
     );
-    const expiresAt = event
-      ? new Date(new Date(event.date).getTime() + 15 * 60 * 1000)
-      : undefined;
 
-    // Generate QR code data (contains ticket info)
-    const qrData = {
-      ticketNumber,
+    if (!event) {
+      console.error('[TicketsService] ERROR: Event not found');
+      throw new Error('Event not found');
+    }
+
+    // Check if event date has passed
+    const now = new Date();
+    const eventDate = new Date(event.date);
+    if (eventDate < now) {
+      throw new Error('Cannot purchase tickets for past events');
+    }
+
+    // VALIDATE TICKET TYPE AVAILABILITY BEFORE LOCKING SEATS
+    const ticketType = createTicketDto.ticketType || 'Free';
+    if (!event.ticketTypes?.[ticketType]?.enabled) {
+      throw new Error(
+        `Ticket type '${ticketType}' is not available for this event`,
+      );
+    }
+
+    // Check Early Bird limit BEFORE locking seats
+    if (ticketType === 'EarlyBird') {
+      const earlyBirdLimit = event.ticketTypes.EarlyBird.limit;
+      if (
+        earlyBirdLimit &&
+        earlyBirdLimit > 0 &&
+        event.earlyBirdCount >= earlyBirdLimit
+      ) {
+        throw new Error(
+          'Early Bird tickets have reached their limit for this event',
+        );
+      }
+    }
+
+    // VALIDATE TOTAL CAPACITY: Ensure purchase won't exceed total seats
+    if (event.totalSeats && event.totalSeats > 0) {
+      const seatsToAdd =
+        (createTicketDto.seats && createTicketDto.seats.length) || 1;
+
+      // For events with seating layout (sections): verify available seats in sections
+      if (
+        event.seatingLayout?.enabled &&
+        event.seatingLayout.sections?.length > 0
+      ) {
+        // Count total available seats across all sections
+        let totalAvailable = 0;
+        for (const section of event.seatingLayout.sections) {
+          if (section.seats && Array.isArray(section.seats)) {
+            const availableInSection = section.seats.filter(
+              (s) => s.status === 'available',
+            ).length;
+            totalAvailable += availableInSection;
+          }
+        }
+
+        if (totalAvailable < seatsToAdd) {
+          throw new Error(
+            `Not enough seats available. Requested: ${seatsToAdd}, Available: ${totalAvailable}`,
+          );
+        }
+      } else {
+        // For standing room events (no seating layout): compare against totalSeats vs soldTickets
+        const remainingCapacity = event.totalSeats - (event.soldTickets || 0);
+        if (remainingCapacity < seatsToAdd) {
+          throw new Error(
+            `Event is sold out or insufficient capacity. Remaining: ${Math.max(0, remainingCapacity)}, Requested: ${seatsToAdd}`,
+          );
+        }
+      }
+    }
+
+    // Validate max 10 seat purchase limit
+    if (createTicketDto.seats && createTicketDto.seats.length > 10) {
+      throw new Error(
+        'Maximum 10 seats per purchase allowed. Please select fewer seats.',
+      );
+    }
+
+    // Auto-assign seats if not provided
+    if (!createTicketDto.seats || createTicketDto.seats.length === 0) {
+      console.log('[TicketsService] No seats provided, auto-assigning...');
+      const ticketCountForEvent = await this.ticketModel.countDocuments({
+        eventId: createTicketDto.eventId,
+      });
+      createTicketDto.seats = [
+        {
+          seatId: `SEAT-${String(ticketCountForEvent + 1).padStart(4, '0')}`,
+        },
+      ];
+    }
+
+    // CRITICAL: Atomically lock seats BEFORE creating ticket
+    // This prevents double-booking by ensuring only one customer can buy each seat
+    const seatsWithSection = createTicketDto.seats.filter((s) => s.sectionId);
+
+    if (seatsWithSection.length > 0) {
+      console.log(
+        '[TicketsService] CRITICAL: Locking seats before ticket creation',
+      );
+      console.log(
+        '[TicketsService] Seats with sectionId:',
+        seatsWithSection.length,
+      );
+
+      // Call finalizePurchase - this will throw ConflictException if seat already sold
+      // If this throws, the ticket will NEVER be created
+      await this.seatsService.finalizePurchase(
+        createTicketDto.eventId.toString(),
+        seatsWithSection as { sectionId: string; seatId: string }[],
+      );
+      console.log('[TicketsService] ✅ Seats atomically locked successfully');
+    } else {
+      console.log(
+        '[TicketsService] No seats with sectionId (auto-assigned case)',
+      );
+    }
+
+    // NOW create the ticket (after seats are locked)
+    const ticketNumber = await this.generateTicketNumber();
+    const expiresAt = new Date(eventDate.getTime() + 15 * 60 * 1000);
+
+    // Generate secure QR token
+    const { token, encryptedToken } = this.generateQrToken();
+
+    // QR code only contains the encrypted token (not sensitive data)
+    const qrCode = await QRCode.toDataURL(encryptedToken);
+
+    // Calculate total price based on ticket type
+    let totalPrice = 0;
+    // (ticketType already validated above before seat locking)
+
+    // Determine base price from ticket type
+    const basePrice = event.ticketTypes[ticketType]?.price || 0;
+
+    // Calculate total price with seat modifiers
+    if (
+      createTicketDto.seats &&
+      createTicketDto.seats.length > 0 &&
+      event.seatingLayout?.enabled
+    ) {
+      for (const seat of createTicketDto.seats) {
+        const section = event.seatingLayout.sections.find(
+          (s) => s.id === seat.sectionId,
+        );
+        if (section) {
+          totalPrice += basePrice + (section.priceModifier || 0);
+        } else {
+          totalPrice += basePrice;
+        }
+      }
+    } else {
+      totalPrice = basePrice;
+    }
+
+    console.log('[TicketsService] Creating ticket document...');
+    const ticketData = {
       eventId: createTicketDto.eventId,
-      seatNumber: createTicketDto.seatNumber,
-      timestamp: new Date().toISOString(),
+      seats: createTicketDto.seats,
+      buyerEmail: createTicketDto.buyerEmail,
+      buyerName: createTicketDto.buyerName,
+      ticketNumber,
+      qrCode,
+      qrToken: token,
+      expiresAt,
+      totalPrice,
+      ticketType,
+      metadata: createTicketDto.metadata || {},
     };
-
-    // Generate QR code as data URL
-    const qrCode = await QRCode.toDataURL(JSON.stringify(qrData));
-    const ticketData = { ...createTicketDto, ticketNumber, qrCode, expiresAt };
 
     const createdTicket = new this.ticketModel(ticketData);
     const savedTicket = await createdTicket.save();
+    console.log('[TicketsService] ✅ Ticket saved:', savedTicket._id);
+
+    // Update event's Early Bird count if applicable
+    const updateData: any = {};
+    if (ticketType === 'EarlyBird') {
+      updateData.earlyBirdCount = (event.earlyBirdCount || 0) + 1;
+    }
 
     // Update event's sold tickets count
-    await this.eventsService.update(createTicketDto.eventId.toString(), {
-      soldTickets: (await this.ticketModel.countDocuments({
+    if (event.seatingLayout?.enabled) {
+      // IMPORTANT: Fetch the event AGAIN to get the updated seat statuses after locking
+      const updatedEvent = await this.eventsService.findById(
+        createTicketDto.eventId.toString(),
+      );
+      if (updatedEvent?.seatingLayout) {
+        let unavailableSeatsCount = 0;
+        for (const section of updatedEvent.seatingLayout.sections) {
+          unavailableSeatsCount += section.seats.filter(
+            (s) => s.status === 'unavailable',
+          ).length;
+        }
+        updateData.soldTickets = unavailableSeatsCount;
+      }
+    } else {
+      const ticketCountForEvent = await this.ticketModel.countDocuments({
         eventId: createTicketDto.eventId,
-      })) as any,
-    });
+      });
+      updateData.soldTickets = ticketCountForEvent;
+    }
 
+    if (Object.keys(updateData).length > 0) {
+      await this.eventsService.update(
+        createTicketDto.eventId.toString(),
+        updateData,
+      );
+      console.log('[TicketsService] Updated event:', updateData);
+    }
+
+    console.log(
+      '[TicketsService] ========== TICKET CREATION SUCCESS ==========',
+    );
     return savedTicket;
   }
 
+  // Helper method to update expired tickets based on event date
+  private async updateExpiredTickets(): Promise<void> {
+    const now = new Date();
+
+    // Find all tickets that are still "valid" and belong to events that have passed
+    const validTickets = await this.ticketModel
+      .find({ status: TicketStatus.VALID })
+      .populate('eventId')
+      .exec();
+
+    for (const ticket of validTickets) {
+      // Check if eventId is populated (is an object with date property)
+      if (
+        ticket.eventId &&
+        typeof ticket.eventId === 'object' &&
+        'date' in ticket.eventId
+      ) {
+        const eventDate = new Date((ticket.eventId as any).date);
+        // If event date has passed, mark ticket as expired
+        if (eventDate < now) {
+          await this.ticketModel.findByIdAndUpdate(ticket._id, {
+            status: TicketStatus.EXPIRED,
+          });
+        }
+      }
+    }
+  }
+
   async findByEventId(eventId: string): Promise<Ticket[]> {
-    return this.ticketModel.find({ eventId }).exec();
+    await this.updateExpiredTickets();
+    return this.ticketModel.find({ eventId }).populate('eventId').exec();
   }
 
   async findById(ticketId: string): Promise<Ticket | null> {
@@ -68,6 +367,7 @@ export class TicketsService {
   }
 
   async findAll(): Promise<Ticket[]> {
+    await this.updateExpiredTickets();
     return this.ticketModel.find().populate('eventId').exec();
   }
 
@@ -96,6 +396,87 @@ export class TicketsService {
         { new: true },
       )
       .exec();
+  }
+
+  async validateByQRToken(encryptedToken: string): Promise<{
+    success: boolean;
+    message: string;
+    ticket?: Ticket;
+  }> {
+    // Decrypt the token
+    const plainToken = this.decryptQrToken(encryptedToken);
+    if (!plainToken) {
+      return {
+        success: false,
+        message: 'Invalid QR code format. Could not decrypt token.',
+      };
+    }
+
+    // Find ticket by qrToken
+    const ticket = await this.ticketModel
+      .findOne({ qrToken: plainToken })
+      .populate('eventId')
+      .exec();
+
+    if (!ticket) {
+      return {
+        success: false,
+        message: 'Ticket not found. This QR code is invalid.',
+      };
+    }
+
+    // Check if ticket is expired (15 minutes after event start)
+    const now = new Date();
+    if (ticket.expiresAt && now > new Date(ticket.expiresAt)) {
+      // Update status to expired if not already
+      if (ticket.status !== TicketStatus.EXPIRED) {
+        await this.ticketModel.findByIdAndUpdate(ticket._id, {
+          status: TicketStatus.EXPIRED,
+        });
+        ticket.status = TicketStatus.EXPIRED;
+      }
+      return {
+        success: false,
+        message:
+          'This ticket has expired. The 15-minute entry window has closed.',
+        ticket,
+      };
+    }
+
+    if (ticket.status === TicketStatus.USED) {
+      return {
+        success: false,
+        message: `This ticket has already been used on ${ticket.usedAt?.toLocaleString() || 'a previous date'}.`,
+        ticket,
+      };
+    }
+
+    if (ticket.status === TicketStatus.EXPIRED) {
+      return {
+        success: false,
+        message: 'This ticket has expired.',
+        ticket,
+      };
+    }
+
+    // Mark as used
+    const updatedTicket = await this.ticketModel
+      .findByIdAndUpdate(
+        ticket._id,
+        {
+          status: TicketStatus.USED,
+          usedAt: new Date(),
+        },
+        { new: true },
+      )
+      .populate('eventId')
+      .exec();
+
+    return {
+      success: true,
+      message: 'Ticket validated successfully! Entry granted.',
+      ticket: updatedTicket || ticket,
+    };
   }
 
   async validateTicketByNumber(ticketNumber: string): Promise<{
@@ -174,5 +555,118 @@ export class TicketsService {
       .findOne({ ticketNumber })
       .populate('eventId')
       .exec();
+  }
+
+  async delete(id: string): Promise<{ success: boolean; message: string }> {
+    console.log('[TicketsService] ========== TICKET DELETION START ==========');
+    console.log('[TicketsService] Deleting ticket:', id);
+
+    // Find the ticket to get event info and seat info BEFORE deleting
+    const ticket = await this.ticketModel.findById(id).exec();
+    if (!ticket) {
+      throw new Error('Ticket not found');
+    }
+
+    const eventId = ticket.eventId.toString();
+    console.log('[TicketsService] Ticket EventID:', eventId);
+    console.log('[TicketsService] Ticket Type:', ticket.ticketType);
+    console.log('[TicketsService] Ticket Seats:', ticket.seats);
+
+    // Get the event to check seating status BEFORE deleting
+    const event = await this.eventsService.findById(eventId);
+    if (!event) {
+      throw new Error('Event not found');
+    }
+
+    // STEP 1: Unreserve seats if this is a seated event
+    if (
+      event.seatingLayout?.enabled &&
+      ticket.seats &&
+      ticket.seats.length > 0
+    ) {
+      console.log('[TicketsService] Unreserving seats from seating layout...');
+
+      // Mark all seats as available again
+      for (const seat of ticket.seats) {
+        if (seat.sectionId && seat.seatId) {
+          console.log(
+            `[TicketsService] Marking seat available: ${seat.sectionId}/${seat.seatId}`,
+          );
+
+          // Atomically mark the seat as available
+          await this.seatsService.markSeatAvailable(
+            eventId,
+            seat.sectionId,
+            seat.seatId,
+          );
+        }
+      }
+    }
+
+    // STEP 2: Delete the ticket
+    await this.ticketModel.findByIdAndDelete(id).exec();
+    console.log('[TicketsService] ✅ Ticket deleted:', id);
+
+    // STEP 3: Recalculate event counts
+    const updateData: any = {};
+
+    // Recalculate soldTickets
+    if (event.seatingLayout?.enabled) {
+      // For seated events, count unavailable seats
+      let unavailableSeatsCount = 0;
+      const updatedEvent = await this.eventsService.findById(eventId);
+      if (updatedEvent?.seatingLayout) {
+        for (const section of updatedEvent.seatingLayout.sections) {
+          unavailableSeatsCount += section.seats.filter(
+            (s) => s.status === 'unavailable',
+          ).length;
+        }
+      }
+      updateData.soldTickets = unavailableSeatsCount;
+      console.log(
+        '[TicketsService] Recalculated soldTickets (seated):',
+        unavailableSeatsCount,
+      );
+    } else {
+      // For non-seated events, count remaining tickets
+      const ticketCountForEvent = await this.ticketModel.countDocuments({
+        eventId: eventId,
+      });
+      updateData.soldTickets = ticketCountForEvent;
+      console.log(
+        '[TicketsService] Recalculated soldTickets (non-seated):',
+        ticketCountForEvent,
+      );
+    }
+
+    // Recalculate earlyBirdCount
+    if (ticket.ticketType === 'EarlyBird') {
+      const earlyBirdCountForEvent = await this.ticketModel.countDocuments({
+        eventId: eventId,
+        ticketType: 'EarlyBird',
+      });
+      updateData.earlyBirdCount = earlyBirdCountForEvent;
+      console.log(
+        '[TicketsService] Recalculated earlyBirdCount:',
+        earlyBirdCountForEvent,
+      );
+    }
+
+    // STEP 4: Update the event
+    if (Object.keys(updateData).length > 0) {
+      await this.eventsService.update(eventId, updateData);
+      console.log(
+        '[TicketsService] ✅ Updated event after ticket deletion:',
+        updateData,
+      );
+    }
+
+    console.log(
+      '[TicketsService] ========== TICKET DELETION SUCCESS ==========',
+    );
+    return {
+      success: true,
+      message: 'Ticket deleted successfully and availability counts updated',
+    };
   }
 }

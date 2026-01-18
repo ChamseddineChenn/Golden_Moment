@@ -13,14 +13,18 @@ interface Event {
   venue: string;
   totalSeats: number;
   soldTickets: number;
+  ticketPrice?: number;
   category?: string;
 }
 
 function EventCard({ event }: { event: Event }) {
-  const ticketsAvailable = event.totalSeats - event.soldTickets;
-  const soldPercentage = (event.soldTickets / event.totalSeats) * 100;
+  const totalSeats = event.totalSeats || 0;
+  const ticketsAvailable = totalSeats - event.soldTickets;
+  const soldPercentage =
+    totalSeats > 0 ? (event.soldTickets / totalSeats) * 100 : 0;
   const eventDate = new Date(event.date);
   const isAlmostSoldOut = soldPercentage >= 80;
+  const isExpired = eventDate < new Date();
 
   return (
     <Link
@@ -42,19 +46,31 @@ function EventCard({ event }: { event: Event }) {
         </div>
 
         {/* Status Badge */}
-        {isAlmostSoldOut && ticketsAvailable > 0 && (
+        {isExpired && (
+          <div className="absolute top-4 right-4 bg-stone-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+            Expired
+          </div>
+        )}
+        {!isExpired && isAlmostSoldOut && ticketsAvailable > 0 && (
           <div className="absolute top-4 right-4 bg-red-500 text-white text-xs font-bold px-3 py-1.5 rounded-full">
             Almost Sold Out
           </div>
         )}
-        {ticketsAvailable === 0 && (
+        {!isExpired && ticketsAvailable === 0 && (
           <div className="absolute top-4 right-4 bg-stone-800 text-white text-xs font-bold px-3 py-1.5 rounded-full">
             Sold Out
           </div>
         )}
 
+        {/* Price Badge */}
+        {event.ticketPrice && (
+          <div className="absolute bottom-4 right-4 bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
+            ${event.ticketPrice.toFixed(2)}
+          </div>
+        )}
+
         {/* Event Title */}
-        <div className="absolute bottom-4 left-4 right-4">
+        <div className="absolute bottom-4 left-4 right-4 pr-20">
           <h3 className="text-xl font-bold text-white group-hover:text-amber-300 transition">
             {event.name}
           </h3>
@@ -119,7 +135,9 @@ function EventCard({ event }: { event: Event }) {
             <span className="text-sm text-stone-500">Availability</span>
             <span
               className={`text-sm font-semibold ${
-                ticketsAvailable === 0
+                isExpired
+                  ? 'text-stone-400'
+                  : ticketsAvailable === 0
                   ? 'text-stone-400'
                   : ticketsAvailable < 20
                   ? 'text-red-600'
@@ -146,13 +164,17 @@ function EventCard({ event }: { event: Event }) {
         {/* CTA */}
         <button
           className={`w-full mt-6 py-3 rounded-xl font-semibold transition ${
-            ticketsAvailable === 0
+            isExpired || ticketsAvailable === 0
               ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
               : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20'
           }`}
-          disabled={ticketsAvailable === 0}
+          disabled={isExpired || ticketsAvailable === 0}
         >
-          {ticketsAvailable === 0 ? 'Sold Out' : 'Get Tickets →'}
+          {isExpired
+            ? 'Event Expired'
+            : ticketsAvailable === 0
+            ? 'Sold Out'
+            : 'Get Tickets →'}
         </button>
       </div>
     </Link>
@@ -172,6 +194,12 @@ export default function CategoryPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Filter out expired events
+  const upcomingEvents = events.filter((e) => {
+    const eventDate = new Date(e.date);
+    return eventDate > new Date();
+  });
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -310,7 +338,7 @@ export default function CategoryPage() {
               {error}
             </div>
           </div>
-        ) : events.length === 0 ? (
+        ) : upcomingEvents.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-stone-200">
             <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
@@ -328,7 +356,7 @@ export default function CategoryPage() {
               </svg>
             </div>
             <p className="text-xl font-semibold text-stone-900">
-              No events in this category
+              No upcoming events in this category
             </p>
             <p className="text-stone-500 mt-2">
               Check back soon for events in {displayCategory}
@@ -344,11 +372,12 @@ export default function CategoryPage() {
           <div>
             <div className="mb-8">
               <p className="text-stone-600 text-lg">
-                Showing {events.length} event{events.length !== 1 ? 's' : ''}
+                Showing {upcomingEvents.length} event
+                {upcomingEvents.length !== 1 ? 's' : ''}
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {events.map((event) => (
+              {upcomingEvents.map((event) => (
                 <EventCard key={event._id} event={event} />
               ))}
             </div>

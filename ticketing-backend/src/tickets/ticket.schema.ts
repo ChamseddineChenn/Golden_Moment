@@ -7,16 +7,21 @@ export enum TicketStatus {
   EXPIRED = 'expired',
 }
 
+interface Seat {
+  sectionId?: string;
+  seatId: string;
+}
+
 @Schema({ timestamps: true })
 export class Ticket extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Event', required: true })
   eventId: Types.ObjectId;
 
-  @Prop({ required: true })
+  @Prop({ required: true, unique: true })
   ticketNumber: string;
 
-  @Prop({ required: true })
-  seatNumber: string;
+  @Prop({ type: [Object], required: true })
+  seats: Seat[];
 
   @Prop()
   buyerEmail: string;
@@ -27,6 +32,9 @@ export class Ticket extends Document {
   @Prop({ required: true })
   qrCode: string;
 
+  @Prop({ required: true, unique: true })
+  qrToken: string;
+
   @Prop({ default: TicketStatus.VALID, enum: TicketStatus })
   status: TicketStatus;
 
@@ -35,6 +43,12 @@ export class Ticket extends Document {
 
   @Prop()
   expiresAt?: Date;
+
+  @Prop({ type: Number, default: 0 })
+  totalPrice: number;
+
+  @Prop({ enum: ['Free', 'Standard', 'EarlyBird', 'VIP'], default: 'Free' })
+  ticketType: string;
 
   @Prop({ type: Object, default: {} })
   metadata: Record<string, any>;

@@ -1,20 +1,138 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+// Dynamic API URL that works on both localhost and mobile via local network
+const getAPIBaseURL = () => {
+  if (typeof window === 'undefined') {
+    // Server-side rendering
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+  }
+
+  // Client-side: replace localhost with the actual host
+  let baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+
+  if (baseURL.includes('localhost') || baseURL.includes('127.0.0.1')) {
+    // Replace localhost/127.0.0.1 with actual hostname for mobile compatibility
+    const hostname = window.location.hostname;
+    const port = 3002; // Backend port
+    baseURL = `http://${hostname}:${port}`;
+  }
+
+  return baseURL;
+};
+
+const API_BASE_URL = getAPIBaseURL();
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  // Disable caching for all requests
+  params: {
+    // Add a timestamp to all requests to prevent caching
+  },
+});
+
+// Add error interceptor to log errors
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('[API] Error response:', {
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message,
+    });
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor to log seat data requests
+apiClient.interceptors.response.use((response) => {
+  if (response.config.url?.includes('/seats/')) {
+    const unavailableCount =
+      response.data?.seatingLayout?.sections?.reduce(
+        (count: number, section: any) =>
+          count +
+          section.seats.filter((s: any) => s.status === 'unavailable').length,
+        0
+      ) || 0;
+    const reservingCount =
+      response.data?.seatingLayout?.sections?.reduce(
+        (count: number, section: any) =>
+          count +
+          section.seats.filter((s: any) => s.status === 'reserving').length,
+        0
+      ) || 0;
+    console.log(
+      `[API] getSeatMap response: ${unavailableCount} unavailable, ${reservingCount} reserving`
+    );
+  }
+  return response;
 });
 
 // Events API
 export const eventsAPI = {
-  create: (eventData: any) => apiClient.post('/events', eventData),
-  getAll: () => apiClient.get('/events'),
+  create: (eventData: any) => {
+    console.log(
+      '[API] POST /events with data:',
+      JSON.stringify(eventData, null, 2)
+    );
+    return apiClient.post('/events', eventData);
+  },
+  getAll: () => {
+    const response = apiClient.get('/events');
+    response
+      .then((res) => {
+        console.log(
+          '[API] GET /events response:',
+          JSON.stringify(res.data.slice(0, 1), null, 2)
+        );
+      })
+      .catch(() => {});
+    return response;
+  }, // Public - published only
+  getAllAdmin: () => {
+    const response = apiClient.get('/events/admin/all');
+    response
+      .then((res) => {
+        console.log(
+          '[API] GET /events/admin/all response:',
+          JSON.stringify(res.data.slice(0, 1), null, 2)
+        );
+      })
+      .catch(() => {});
+    return response;
+  }, // Admin - all events including drafts
   getById: (id: string) => apiClient.get(`/events/${id}`),
+  update: (id: string, eventData: any) => {
+    console.log(
+      '[API] PUT /events/:id with data:',
+      JSON.stringify(eventData, null, 2)
+    );
+    return apiClient.put(`/events/${id}`, eventData);
+  },
   delete: (id: string) => apiClient.delete(`/events/${id}`),
+  deleteImage: (publicId: string) =>
+    apiClient.post(`/upload/delete-image`, { publicId }),
+};
+
+// Upload API - uses backend for secure Cloudinary uploads
+export const uploadImage = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // Upload to backend endpoint (backend handles Cloudinary API key/secret securely)
+  const response = await apiClient.post('/upload/image', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return {
+    secure_url: response.data.secure_url,
+    public_id: response.data.public_id,
+  };
 };
 
 // Tickets API
@@ -30,6 +148,53 @@ export const ticketsAPI = {
     apiClient.post(`/tickets/${ticketId}/mark-used`),
   validate: (ticketNumber: string) =>
     apiClient.post('/tickets/validate', { ticketNumber }),
+  delete: (ticketId: string) => apiClient.delete(`/tickets/${ticketId}`),
+};
+
+// Seats API
+export const seatsAPI = {
+  getSeatMap: (eventId: string) =>
+    apiClient.get(`/seats/event/${eventId}`, {
+      params: { _t: Date.now() }, // Cache busting
+    }),
+  // Live reservation is now DEPRECATED - seats are only locked at payment
+  reserveSeats: (data: {
+    eventId: string;
+    seats: { sectionId: string; seatId: string }[];
+  }) => {
+    console.log(
+      '[seatsAPI] reserveSeats called - DEPRECATED (live reservation disabled)',
+      data
+    );
+    return apiClient.post('/seats/reserve', data);
+  },
+  unreserveSeats: (data: {
+    eventId: string;
+    seats: { sectionId: string; seatId: string }[];
+  }) => {
+    console.log(
+      '[seatsAPI] unreserveSeats called - DEPRECATED (live reservation disabled)',
+      data
+    );
+    return apiClient.post('/seats/unreserve', data);
+  },
+  // NEW: Atomic payment-based seat locking with race condition detection
+  finalizePurchase: (data: {
+    eventId: string;
+    seats: { sectionId: string; seatId: string }[];
+    buyerName: string;
+    buyerEmail: string;
+    ticketType?: string;
+  }) => {
+    console.log('[seatsAPI] finalizePurchase called with:', {
+      eventId: data.eventId,
+      seats: data.seats,
+      buyerName: data.buyerName,
+      buyerEmail: data.buyerEmail,
+      ticketType: data.ticketType,
+    });
+    return apiClient.post('/seats/finalize-purchase', data);
+  },
 };
 
 export default apiClient;
