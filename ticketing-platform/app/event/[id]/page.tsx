@@ -17,10 +17,15 @@ interface Event {
   soldTickets: number;
   totalSeats?: number;
   ticketTypes?: {
-    Free: { enabled: boolean; price?: number };
-    Standard: { enabled: boolean; price?: number };
-    EarlyBird: { enabled: boolean; price?: number; limit?: number };
-    VIP: { enabled: boolean; price?: number };
+    Free: { enabled: boolean; price?: number; description?: string };
+    Standard: { enabled: boolean; price?: number; description?: string };
+    EarlyBird: {
+      enabled: boolean;
+      price?: number;
+      limit?: number;
+      description?: string;
+    };
+    VIP: { enabled: boolean; price?: number; description?: string };
   };
   earlyBirdCount?: number;
   category?: string;
@@ -58,6 +63,7 @@ export default function EventDetailPage() {
   const [formData, setFormData] = useState({
     buyerName: '',
     buyerEmail: '',
+    buyerPhoneNumber: '',
     selectedTicketType: 'Free',
   });
 
@@ -72,6 +78,7 @@ export default function EventDetailPage() {
       enabled: boolean;
       price: number;
       limit?: number;
+      description?: string;
     }> = [];
     for (const [type, config] of Object.entries(event.ticketTypes)) {
       if (config.enabled) {
@@ -80,6 +87,7 @@ export default function EventDetailPage() {
           enabled: true,
           price: config.price || 0,
           limit: type === 'EarlyBird' ? (config as any).limit : undefined,
+          description: (config as any).description,
         });
       }
     }
@@ -104,7 +112,11 @@ export default function EventDetailPage() {
     const fetchEvent = async () => {
       try {
         const response = await eventsAPI.getById(eventId);
-        setEvent(response.data);
+
+        // Extract data from standardized response format { success, statusCode, data, timestamp }
+        const eventData = response.data.data || response.data;
+
+        setEvent(eventData);
       } catch (err) {
         setError('Failed to load event details');
         console.error(err);
@@ -121,8 +133,8 @@ export default function EventDetailPage() {
     // Users can navigate away without unreserving - seats remain available for others
   }, [eventId]);
 
-  // Update selected ticket type when event loads to use first available type
   useEffect(() => {
+    // Update selected ticket type when event loads to use first available type
     if (event) {
       const availableTypes = getAvailableTicketTypes();
       if (availableTypes.length > 0) {
@@ -160,7 +172,7 @@ export default function EventDetailPage() {
       const availableTypes = getAvailableTicketTypes();
       if (!availableTypes.find((t) => t.type === formData.selectedTicketType)) {
         setError(
-          `Ticket type "${formData.selectedTicketType}" is not available for this event`
+          `Ticket type "${formData.selectedTicketType}" is not available for this event`,
         );
         setSubmitting(false);
         return;
@@ -177,7 +189,7 @@ export default function EventDetailPage() {
       if (event.seatingLayout?.enabled && selectedSeats.length > 0) {
         console.log(
           '[EventDetail] Finalizing purchase for seats:',
-          selectedSeats.map((s) => s.seatId)
+          selectedSeats.map((s) => s.seatId),
         );
 
         // Call the atomic finalizePurchase endpoint
@@ -190,15 +202,16 @@ export default function EventDetailPage() {
           })),
           buyerName: formData.buyerName,
           buyerEmail: formData.buyerEmail,
+          buyerPhoneNumber: formData.buyerPhoneNumber,
           ticketType: formData.selectedTicketType,
         };
 
         const response = await seatsAPI.finalizePurchase(purchaseData);
-        const ticket: Ticket = response.data;
+        const ticket: Ticket = response.data.data || response.data;
 
         console.log(
           '[EventDetail] Purchase finalized successfully:',
-          ticket._id
+          ticket._id,
         );
         router.push(`/receipt/${ticket._id}`);
       } else {
@@ -208,11 +221,12 @@ export default function EventDetailPage() {
           seats: [],
           buyerName: formData.buyerName,
           buyerEmail: formData.buyerEmail,
+          buyerPhoneNumber: formData.buyerPhoneNumber,
           ticketType: formData.selectedTicketType,
         };
 
         const response = await ticketsAPI.create(ticketData);
-        const ticket: Ticket = response.data;
+        const ticket: Ticket = response.data.data || response.data;
 
         router.push(`/receipt/${ticket._id}`);
       }
@@ -233,7 +247,7 @@ export default function EventDetailPage() {
       // Handle specific error cases
       if (err.response?.status === 409 || errorMessage.includes('just sold')) {
         setError(
-          'One or more seats were just purchased by another user. Please select different seats and try again.'
+          'One or more seats were just purchased by another user. Please select different seats and try again.',
         );
         // Reload the seat map to show current availability
         window.location.reload();
@@ -686,6 +700,98 @@ export default function EventDetailPage() {
                 {/* Visual Seat Selection */}
                 {event.seatingLayout?.enabled ? (
                   <div className="space-y-6">
+                    {/* Ticket Type Selection - BEFORE Seat Map */}
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                        Select Ticket Type
+                      </label>
+                      {getAvailableTicketTypes().length > 1 ? (
+                        <div className="space-y-3">
+                          {getAvailableTicketTypes().map((ticketType) => {
+                            const isEarlyBirdAndSoldOut =
+                              ticketType.type === 'EarlyBird' &&
+                              isEarlyBirdSoldOut();
+                            return (
+                              <label
+                                key={ticketType.type}
+                                className={`flex items-center gap-3 p-3 border rounded-xl transition ${
+                                  isEarlyBirdAndSoldOut
+                                    ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
+                                    : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="ticketType"
+                                  value={ticketType.type}
+                                  checked={
+                                    formData.selectedTicketType ===
+                                    ticketType.type
+                                  }
+                                  onChange={(e) =>
+                                    setFormData({
+                                      ...formData,
+                                      selectedTicketType: e.target.value,
+                                    })
+                                  }
+                                  disabled={isEarlyBirdAndSoldOut}
+                                  className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
+                                />
+                                <div className="flex-1">
+                                  <p className="font-semibold text-stone-900">
+                                    {ticketType.type}
+                                  </p>
+                                  <p className="text-sm text-stone-600">
+                                    {ticketType.price === 0
+                                      ? 'Free'
+                                      : `$${ticketType.price.toFixed(2)}`}
+                                  </p>
+                                  {ticketType.description && (
+                                    <p className="text-xs text-stone-500 mt-1">
+                                      {ticketType.description}
+                                    </p>
+                                  )}
+                                  {ticketType.type === 'EarlyBird' &&
+                                    ticketType.limit && (
+                                      <p
+                                        className={`text-xs ${
+                                          isEarlyBirdAndSoldOut
+                                            ? 'text-red-700'
+                                            : 'text-amber-700'
+                                        }`}
+                                      >
+                                        {event?.earlyBirdCount || 0}/
+                                        {ticketType.limit}{' '}
+                                        {isEarlyBirdAndSoldOut
+                                          ? 'sold out'
+                                          : 'sold'}
+                                      </p>
+                                    )}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
+                          <p className="font-semibold text-stone-900">
+                            {getAvailableTicketTypes()[0]?.type}
+                          </p>
+                          <p className="text-sm text-stone-600">
+                            {getTicketTypePrice() === 0
+                              ? 'Free'
+                              : `$${getTicketTypePrice().toFixed(2)}`}
+                          </p>
+                          {getAvailableTicketTypes()[0]?.description && (
+                            <p className="text-xs text-stone-500 mt-1">
+                              {getAvailableTicketTypes()[0].description}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Seat Map */}
                     <SeatMap
                       eventId={eventId}
                       selectedTicketType={formData.selectedTicketType}
@@ -702,86 +808,6 @@ export default function EventDetailPage() {
                           Complete Your Booking
                         </h3>
                         <form onSubmit={handleBuyTicket} className="space-y-6">
-                          <div>
-                            <label className="block text-sm font-semibold text-stone-700 mb-2">
-                              Ticket Type
-                            </label>
-                            {getAvailableTicketTypes().length > 1 ? (
-                              <div className="space-y-3">
-                                {getAvailableTicketTypes().map((ticketType) => {
-                                  const isEarlyBirdAndSoldOut =
-                                    ticketType.type === 'EarlyBird' &&
-                                    isEarlyBirdSoldOut();
-                                  return (
-                                    <label
-                                      key={ticketType.type}
-                                      className={`flex items-center gap-3 p-3 border rounded-xl transition ${
-                                        isEarlyBirdAndSoldOut
-                                          ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
-                                          : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
-                                      }`}
-                                    >
-                                      <input
-                                        type="radio"
-                                        name="ticketType"
-                                        value={ticketType.type}
-                                        checked={
-                                          formData.selectedTicketType ===
-                                          ticketType.type
-                                        }
-                                        onChange={(e) =>
-                                          setFormData({
-                                            ...formData,
-                                            selectedTicketType: e.target.value,
-                                          })
-                                        }
-                                        disabled={isEarlyBirdAndSoldOut}
-                                        className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer cursor-pointer"
-                                      />
-                                      <div className="flex-1">
-                                        <p className="font-semibold text-stone-900">
-                                          {ticketType.type}
-                                        </p>
-                                        <p className="text-sm text-stone-600">
-                                          {ticketType.price === 0
-                                            ? 'Free'
-                                            : `$${ticketType.price.toFixed(2)}`}
-                                        </p>
-                                        {ticketType.type === 'EarlyBird' &&
-                                          ticketType.limit && (
-                                            <p
-                                              className={`text-xs ${
-                                                isEarlyBirdAndSoldOut
-                                                  ? 'text-red-700'
-                                                  : 'text-amber-700'
-                                              }`}
-                                            >
-                                              {event?.earlyBirdCount || 0}/
-                                              {ticketType.limit}{' '}
-                                              {isEarlyBirdAndSoldOut
-                                                ? 'sold out'
-                                                : 'sold'}
-                                            </p>
-                                          )}
-                                      </div>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
-                                <p className="font-semibold text-stone-900">
-                                  {getAvailableTicketTypes()[0]?.type}
-                                </p>
-                                <p className="text-sm text-stone-600">
-                                  {getTicketTypePrice() === 0
-                                    ? 'Free'
-                                    : `$${getTicketTypePrice().toFixed(2)}`}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
                           <div>
                             <label className="block text-sm font-semibold text-stone-700 mb-2">
                               Full Name
@@ -820,6 +846,28 @@ export default function EventDetailPage() {
                             />
                             <p className="text-xs text-stone-500 mt-2">
                               Your e-ticket will be sent to this address
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-stone-700 mb-2">
+                              Phone Number
+                            </label>
+                            <input
+                              type="tel"
+                              placeholder="+1 (555) 123-4567"
+                              value={formData.buyerPhoneNumber}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  buyerPhoneNumber: e.target.value,
+                                })
+                              }
+                              className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                              required
+                            />
+                            <p className="text-xs text-stone-500 mt-2">
+                              Required for event entry and communication
                             </p>
                           </div>
 
@@ -934,6 +982,11 @@ export default function EventDetailPage() {
                                   <p className="text-sm text-stone-600">
                                     ${ticketType.price.toFixed(2)}
                                   </p>
+                                  {ticketType.description && (
+                                    <p className="text-xs text-stone-500 mt-1">
+                                      {ticketType.description}
+                                    </p>
+                                  )}
                                   {ticketType.type === 'EarlyBird' &&
                                     ticketType.limit && (
                                       <p
@@ -1005,6 +1058,28 @@ export default function EventDetailPage() {
                       />
                       <p className="text-xs text-stone-500 mt-2">
                         Your e-ticket will be sent to this address
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="+1 (555) 123-4567"
+                        value={formData.buyerPhoneNumber}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            buyerPhoneNumber: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        required
+                      />
+                      <p className="text-xs text-stone-500 mt-2">
+                        Required for event entry and communication
                       </p>
                     </div>
 

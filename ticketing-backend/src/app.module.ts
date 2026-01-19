@@ -6,18 +6,24 @@ import { APP_GUARD } from '@nestjs/core';
 import configuration from './config/configuration';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { EventsModule } from './events/events.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { UserTypeGuard } from './auth/guards/user-type.guard';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { TicketsModule } from './tickets/tickets.module';
+import { UploadModule } from './upload/upload.module';
+import { databaseConfig, cloudinaryConfig, appConfig } from './config';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [configuration],
+      load: [appConfig, databaseConfig, cloudinaryConfig, configuration],
     }),
-
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -40,6 +46,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     AuthModule,
     UsersModule,
     EventsModule,
+    TicketsModule,
+    UploadModule,
   ],
   providers: [
     {
@@ -49,6 +57,18 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     {
       provide: APP_GUARD,
       useClass: UserTypeGuard,
+    },
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ResponseInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
     },
   ],
 })

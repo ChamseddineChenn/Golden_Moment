@@ -44,72 +44,29 @@ apiClient.interceptors.response.use(
       message: error.message,
     });
     return Promise.reject(error);
-  }
+  },
 );
 
 // Add response interceptor to log seat data requests
 apiClient.interceptors.response.use((response) => {
-  if (response.config.url?.includes('/seats/')) {
-    const unavailableCount =
-      response.data?.seatingLayout?.sections?.reduce(
-        (count: number, section: any) =>
-          count +
-          section.seats.filter((s: any) => s.status === 'unavailable').length,
-        0
-      ) || 0;
-    const reservingCount =
-      response.data?.seatingLayout?.sections?.reduce(
-        (count: number, section: any) =>
-          count +
-          section.seats.filter((s: any) => s.status === 'reserving').length,
-        0
-      ) || 0;
-    console.log(
-      `[API] getSeatMap response: ${unavailableCount} unavailable, ${reservingCount} reserving`
-    );
-  }
   return response;
 });
 
 // Events API
 export const eventsAPI = {
   create: (eventData: any) => {
-    console.log(
-      '[API] POST /events with data:',
-      JSON.stringify(eventData, null, 2)
-    );
     return apiClient.post('/events', eventData);
   },
   getAll: () => {
-    const response = apiClient.get('/events');
-    response
-      .then((res) => {
-        console.log(
-          '[API] GET /events response:',
-          JSON.stringify(res.data.slice(0, 1), null, 2)
-        );
-      })
-      .catch(() => {});
-    return response;
+    return apiClient.get('/events');
   }, // Public - published only
   getAllAdmin: () => {
-    const response = apiClient.get('/events/admin/all');
-    response
-      .then((res) => {
-        console.log(
-          '[API] GET /events/admin/all response:',
-          JSON.stringify(res.data.slice(0, 1), null, 2)
-        );
-      })
-      .catch(() => {});
-    return response;
+    return apiClient.get('/events/admin/all');
   }, // Admin - all events including drafts
-  getById: (id: string) => apiClient.get(`/events/${id}`),
+  getById: (id: string) => {
+    return apiClient.get(`/events/${id}`);
+  },
   update: (id: string, eventData: any) => {
-    console.log(
-      '[API] PUT /events/:id with data:',
-      JSON.stringify(eventData, null, 2)
-    );
     return apiClient.put(`/events/${id}`, eventData);
   },
   delete: (id: string) => apiClient.delete(`/events/${id}`),
@@ -129,9 +86,12 @@ export const uploadImage = async (file: File) => {
     },
   });
 
+  // Extract data from standardized response format { success, statusCode, data, timestamp }
+  const uploadData = response.data.data || response.data;
+
   return {
-    secure_url: response.data.secure_url,
-    public_id: response.data.public_id,
+    secure_url: uploadData.secure_url,
+    public_id: uploadData.public_id,
   };
 };
 
@@ -162,20 +122,12 @@ export const seatsAPI = {
     eventId: string;
     seats: { sectionId: string; seatId: string }[];
   }) => {
-    console.log(
-      '[seatsAPI] reserveSeats called - DEPRECATED (live reservation disabled)',
-      data
-    );
     return apiClient.post('/seats/reserve', data);
   },
   unreserveSeats: (data: {
     eventId: string;
     seats: { sectionId: string; seatId: string }[];
   }) => {
-    console.log(
-      '[seatsAPI] unreserveSeats called - DEPRECATED (live reservation disabled)',
-      data
-    );
     return apiClient.post('/seats/unreserve', data);
   },
   // NEW: Atomic payment-based seat locking with race condition detection
@@ -184,15 +136,9 @@ export const seatsAPI = {
     seats: { sectionId: string; seatId: string }[];
     buyerName: string;
     buyerEmail: string;
+    buyerPhoneNumber: string;
     ticketType?: string;
   }) => {
-    console.log('[seatsAPI] finalizePurchase called with:', {
-      eventId: data.eventId,
-      seats: data.seats,
-      buyerName: data.buyerName,
-      buyerEmail: data.buyerEmail,
-      ticketType: data.ticketType,
-    });
     return apiClient.post('/seats/finalize-purchase', data);
   },
 };
