@@ -1,19 +1,19 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
-import { Role } from '../enums/role.enum';
 
 export type UserDocument = User & Document;
 
-@Schema({ timestamps: true })
+@Schema({
+  timestamps: true,
+  discriminatorKey: 'userType',
+  collection: 'users',
+})
 export class User {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string;
 
   @Prop({ required: true, select: false })
   password: string;
-
-  @Prop({ type: String, enum: Role, default: Role.USER })
-  role: Role;
 
   @Prop({ default: true })
   isActive: boolean;
@@ -27,19 +27,19 @@ export class User {
   @Prop({ type: String, select: false })
   refreshTokenHash?: string;
 
-  // Email verification
   @Prop({ type: String, select: false })
   emailVerificationToken?: string;
 
   @Prop({ type: Date })
   emailVerificationExpires?: Date;
 
-  // Password reset
   @Prop({ type: String, select: false })
   passwordResetToken?: string;
 
   @Prop({ type: Date })
   passwordResetExpires?: Date;
+
+  userType?: string;
 
   id?: string;
 }
@@ -77,3 +77,4 @@ UserSchema.set('toObject', {
 UserSchema.index({ email: 1 });
 UserSchema.index({ emailVerificationToken: 1 });
 UserSchema.index({ passwordResetToken: 1 });
+UserSchema.index({ userType: 1 });

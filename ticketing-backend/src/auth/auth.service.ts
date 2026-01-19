@@ -5,14 +5,28 @@ import * as bcrypt from 'bcrypt';
 import type { Response } from 'express';
 import { UsersService } from '../users/users.service';
 import { LoginAttemptsService } from '../users/login-attempts.service';
-import { SignupDto } from './dto/signup.dto';
-import { LoginDto } from './dto/login.dto';
-import { Role } from '../users/enums/role.enum';
 import { MailService } from '../mail/mail.service';
+import { SignupDto } from './dto/signup.dto';
+import { SignupOrganizerDto } from './dto/signup-organizer.dto';
+import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { UserType } from '../users/enums/user-type.enum';
+import { UserDocument } from '../users/schemas/user.schema';
+
+interface UserResponse {
+  id: string;
+  email: string;
+  userType: string;
+  emailVerified: boolean;
+  organizationName?: string;
+  phone?: string;
+  isVerifiedOrganizer?: boolean;
+  adminLevel?: string;
+  permissions?: string[];
+}
 
 @Injectable()
 export class AuthService {
@@ -30,6 +44,7 @@ export class AuthService {
     const user = await this.usersService.create({
       email: signupDto.email,
       password: signupDto.password,
+      userType: signupDto.userType || UserType.USER,
     });
 
     // Send verification email
@@ -39,7 +54,7 @@ export class AuthService {
     const { accessToken, refreshToken } = await this.generateTokens(
       user.id,
       user.email,
-      user.role,
+      user.userType || UserType.USER,
     );
 
     await this.usersService.updateRefreshToken(user.id, refreshToken);
@@ -50,7 +65,43 @@ export class AuthService {
       success: true,
       message:
         'User registered successfully. Please check your email to verify your account.',
-      user: user,
+      user: this.formatUserResponse(user),
+    };
+  }
+
+  async signupOrganizer(signupOrganizerDto: SignupOrganizerDto, res: Response) {
+    const user = await this.usersService.createOrganizer({
+      email: signupOrganizerDto.email,
+      password: signupOrganizerDto.password,
+      organizationName: signupOrganizerDto.organizationName,
+      phone: signupOrganizerDto.phone,
+      address: signupOrganizerDto.address,
+      businessLicense: signupOrganizerDto.businessLicense,
+      website: signupOrganizerDto.website,
+      description: signupOrganizerDto.description,
+      organizationEstablishedDate:
+        signupOrganizerDto.organizationEstablishedDate,
+    });
+
+    // Send verification email
+    const verificationToken = (user as any).plainVerificationToken;
+    await this.mailService.sendVerificationEmail(user.email, verificationToken);
+
+    const { accessToken, refreshToken } = await this.generateTokens(
+      user.id,
+      user.email,
+      UserType.ORGANIZER,
+    );
+
+    await this.usersService.updateRefreshToken(user.id, refreshToken);
+
+    this.setAuthCookies(res, accessToken, refreshToken);
+
+    return {
+      success: true,
+      message:
+        'Organizer registered successfully. Please check your email to verify your account.',
+      user: this.formatUserResponse(user),
     };
   }
 
@@ -60,6 +111,7 @@ export class AuthService {
     userAgent: string,
     res: Response,
   ) {
+    // Check if account is locked
     const isLocked = await this.loginAttemptsService.isAccountLocked(
       loginDto.email,
     );
@@ -69,37 +121,46 @@ export class AuthService {
       );
     }
 
+    // Find user with password
     const user = await this.usersService.findByEmail(loginDto.email, true);
 
     if (!user) {
+      // Track failed attempt
       await this.loginAttemptsService.trackAttempt(
         loginDto.email,
         ipAddress,
         userAgent,
         false,
       );
+
+      // Generic error message to prevent user enumeration
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Verify password
     const isPasswordValid = await bcrypt.compare(
       loginDto.password,
       user.password,
     );
 
     if (!isPasswordValid) {
+      // Track failed attempt
       await this.loginAttemptsService.trackAttempt(
         loginDto.email,
         ipAddress,
         userAgent,
         false,
       );
+
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Check if user is active
     if (!user.isActive) {
       throw new UnauthorizedException('Account is deactivated');
     }
 
+    // Track successful attempt
     await this.loginAttemptsService.trackAttempt(
       loginDto.email,
       ipAddress,
@@ -107,18 +168,23 @@ export class AuthService {
       true,
     );
 
+    // Clear previous failed attempts
     await this.loginAttemptsService.clearAttempts(loginDto.email);
 
+    // Update last login
     await this.usersService.updateLastLogin(user.id);
 
+    // Generate tokens
     const { accessToken, refreshToken } = await this.generateTokens(
       user.id,
       user.email,
-      user.role,
+      user.userType || UserType.USER,
     );
 
+    // Store refresh token hash
     await this.usersService.updateRefreshToken(user.id, refreshToken);
 
+    // Set cookies
     this.setAuthCookies(res, accessToken, refreshToken);
 
     this.logger.log(`User ${user.email} logged in successfully`);
@@ -126,30 +192,37 @@ export class AuthService {
     return {
       success: true,
       message: 'Login successful',
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
+      user: this.formatUserResponse(user),
     };
   }
 
   async refreshTokens(
     userId: string,
     email: string,
-    role: string,
+    userType: string,
     res: Response,
   ) {
-    const roleEnum = role === 'admin' ? Role.ADMIN : Role.USER;
+    // Convert string to UserType enum
+    let userTypeEnum: UserType;
+    if (userType === UserType.ADMIN) {
+      userTypeEnum = UserType.ADMIN;
+    } else if (userType === UserType.ORGANIZER) {
+      userTypeEnum = UserType.ORGANIZER;
+    } else {
+      userTypeEnum = UserType.USER;
+    }
 
+    // Generate new tokens
     const { accessToken, refreshToken } = await this.generateTokens(
       userId,
       email,
-      roleEnum,
+      userTypeEnum,
     );
 
+    // Update stored refresh token
     await this.usersService.updateRefreshToken(userId, refreshToken);
 
+    // Set new cookies
     this.setAuthCookies(res, accessToken, refreshToken);
 
     return {
@@ -159,8 +232,10 @@ export class AuthService {
   }
 
   async logout(userId: string, res: Response) {
+    // Clear refresh token from database
     await this.usersService.updateRefreshToken(userId, null);
 
+    // Clear cookies
     this.clearAuthCookies(res);
 
     return {
@@ -169,80 +244,13 @@ export class AuthService {
     };
   }
 
-  private async generateTokens(userId: string, email: string, role: Role) {
-    const payload = {
-      sub: userId,
-      email,
-      role: role.toString(),
-    };
-
-    const accessSecret =
-      this.configService.get<string>('jwt.accessSecret') || 'access-secret';
-    const refreshSecret =
-      this.configService.get<string>('jwt.refreshSecret') || 'refresh-secret';
-
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.sign(payload, {
-        secret: accessSecret,
-        expiresIn: '15m',
-      }),
-      this.jwtService.sign(payload, {
-        secret: refreshSecret,
-        expiresIn: '7d',
-      }),
-    ]);
-
-    return { accessToken, refreshToken };
-  }
-
-  private setAuthCookies(
-    res: Response,
-    accessToken: string,
-    refreshToken: string,
-  ) {
-    const isProduction =
-      this.configService.get<string>('NODE_ENV') === 'production';
-
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
-      maxAge: 15 * 60 * 1000,
-      path: '/',
-    });
-
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-    });
-  }
-
-  private clearAuthCookies(res: Response) {
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
-  }
-
-  async getCurrentUser(userId: string) {
-    const user = await this.usersService.findById(userId);
-    return {
-      success: true,
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      },
-    };
-  }
   async verifyEmail(verifyEmailDto: VerifyEmailDto) {
     const user = await this.usersService.verifyEmail(verifyEmailDto.token);
 
     return {
       success: true,
       message: 'Email verified successfully',
-      user: user,
+      user: this.formatUserResponse(user),
     };
   }
 
@@ -276,9 +284,11 @@ export class AuthService {
         message: 'Password reset instructions sent to your email',
       };
     } catch (error) {
+      // Return success even if user not found (security best practice)
       return {
         success: true,
-        message: error.message,
+        message:
+          'If an account exists with this email, password reset instructions have been sent',
       };
     }
   }
@@ -296,5 +306,103 @@ export class AuthService {
       message:
         'Password reset successfully. You can now log in with your new password.',
     };
+  }
+
+  async getCurrentUser(userId: string) {
+    const user = await this.usersService.findById(userId);
+    return {
+      success: true,
+      user: this.formatUserResponse(user),
+    };
+  }
+
+  private async generateTokens(
+    userId: string,
+    email: string,
+    userType: UserType | string,
+  ) {
+    const payload = {
+      sub: userId,
+      email,
+      userType: userType.toString(),
+    };
+
+    const accessSecret =
+      this.configService.get<string>('jwt.accessSecret') || 'access-secret';
+    const refreshSecret =
+      this.configService.get<string>('jwt.refreshSecret') || 'refresh-secret';
+
+    const accessToken = this.jwtService.sign(payload, {
+      secret: accessSecret,
+      expiresIn: '15m',
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: refreshSecret,
+      expiresIn: '7d',
+    });
+
+    return { accessToken, refreshToken };
+  }
+
+  private setAuthCookies(
+    res: Response,
+    accessToken: string,
+    refreshToken: string,
+  ) {
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
+
+    // Access token cookie (15 minutes)
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: false, // Set to isProduction in production
+      sameSite: 'lax', // Use 'lax' for development, 'strict' for production
+      maxAge: 15 * 60 * 1000,
+      path: '/',
+    });
+
+    // Refresh token cookie (7 days)
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: false, // Set to isProduction in production
+      sameSite: 'lax', // Use 'lax' for development, 'strict' for production
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+  }
+
+  private clearAuthCookies(res: Response) {
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+  }
+
+  private formatUserResponse(user: UserDocument): UserResponse {
+    const baseResponse: any = {
+      id: user.id,
+      email: user.email,
+      userType: user.userType || UserType.USER,
+      emailVerified: user.emailVerified,
+    };
+
+    // Add type-specific fields based on userType
+    if (user.userType === UserType.ORGANIZER) {
+      const organizer = user as any;
+      baseResponse.organizationName = organizer.organizationName;
+      baseResponse.phone = organizer.phone;
+      baseResponse.address = organizer.address;
+      baseResponse.website = organizer.website;
+      baseResponse.description = organizer.description;
+      baseResponse.isVerifiedOrganizer = organizer.isVerifiedOrganizer;
+      baseResponse.totalEventsCreated = organizer.totalEventsCreated;
+      baseResponse.totalTicketsSold = organizer.totalTicketsSold;
+    } else if (user.userType === UserType.ADMIN) {
+      const admin = user as any;
+      baseResponse.adminLevel = admin.adminLevel;
+      baseResponse.permissions = admin.permissions;
+      baseResponse.department = admin.department;
+    }
+
+    return baseResponse;
   }
 }

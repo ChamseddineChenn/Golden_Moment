@@ -20,6 +20,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { SignupOrganizerDto } from './dto/signup-organizer.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -33,6 +34,16 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.authService.signup(signupDto, res);
+  }
+
+  @Public()
+  @Post('signup/organizer')
+  @HttpCode(HttpStatus.CREATED)
+  async signupOrganizer(
+    @Body() signupOrganizerDto: SignupOrganizerDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authService.signupOrganizer(signupOrganizerDto, res);
   }
 
   @Public()

@@ -1,5 +1,5 @@
 import apiClient from './axios';
-import { AuthResponse, User } from '../types/auth.types';
+import { AuthResponse, User, OrganizerSignupData } from '../types/auth.types';
 
 export const authApi = {
   signup: async (email: string, password: string): Promise<AuthResponse> => {
@@ -7,6 +7,11 @@ export const authApi = {
       email,
       password,
     });
+    return data;
+  },
+
+  signupOrganizer: async (organizerData: OrganizerSignupData): Promise<AuthResponse> => {
+    const { data } = await apiClient.post<AuthResponse>('/auth/signup/organizer', organizerData);
     return data;
   },
 
@@ -30,7 +35,8 @@ export const authApi = {
   refreshTokens: async (): Promise<void> => {
     await apiClient.post('/auth/refresh');
   },
-   verifyEmail: async (token: string): Promise<AuthResponse> => {
+
+  verifyEmail: async (token: string): Promise<AuthResponse> => {
     const { data } = await apiClient.post<AuthResponse>('/auth/verify-email', { token });
     return data;
   },
