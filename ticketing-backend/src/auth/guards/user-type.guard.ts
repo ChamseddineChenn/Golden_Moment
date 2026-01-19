@@ -5,9 +5,8 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { USER_TYPES_KEY } from '../decorators/user-types.decorator';
 import { UserType } from '../../users/enums/user-type.enum';
-
-export const USER_TYPES_KEY = 'userTypes';
 
 interface RequestUser {
   userId: string;
@@ -25,7 +24,8 @@ export class UserTypeGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    if (!requiredTypes) {
+    // If no types required, allow access
+    if (!requiredTypes || requiredTypes.length === 0) {
       return true;
     }
 
@@ -36,10 +36,19 @@ export class UserTypeGuard implements CanActivate {
       throw new ForbiddenException('User not authenticated');
     }
 
-    const hasType = requiredTypes.some((type) => user.userType === type);
+    // ADMINS CAN ACCESS EVERYTHING
+    if (user.userType === UserType.ADMIN.toString()) {
+      return true;
+    }
+
+    const hasType = requiredTypes.some(
+      (type) => user.userType === type.toString(),
+    );
 
     if (!hasType) {
-      throw new ForbiddenException('Insufficient permissions');
+      throw new ForbiddenException(
+        `Access denied. Required user type: ${requiredTypes.join(' or ')}`,
+      );
     }
 
     return true;

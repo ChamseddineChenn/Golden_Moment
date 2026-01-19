@@ -14,18 +14,24 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { UserType } from '../users/enums/user-type.enum';
-import { UserDocument } from '../users/schemas/user.schema';
 
-interface UserResponse {
+export interface UserResponse {
   id: string;
   email: string;
   userType: string;
   emailVerified: boolean;
-  organizationName?: string;
-  phone?: string;
-  isVerifiedOrganizer?: boolean;
-  adminLevel?: string;
-  permissions?: string[];
+  [key: string]: any;
+}
+
+export interface AuthResponse {
+  success: boolean;
+  message: string;
+  user: UserResponse;
+}
+
+export interface SimpleResponse {
+  success: boolean;
+  message: string;
 }
 
 @Injectable()
@@ -40,18 +46,17 @@ export class AuthService {
     private mailService: MailService,
   ) {}
 
-  async signup(signupDto: SignupDto, res: Response) {
+  async signup(signupDto: SignupDto, res: Response): Promise<AuthResponse> {
     const user = await this.usersService.create({
       email: signupDto.email,
       password: signupDto.password,
-      userType: signupDto.userType || UserType.USER,
+      userType: signupDto.userType,
     });
 
-    // Send verification email
     const verificationToken = (user as any).plainVerificationToken;
     await this.mailService.sendVerificationEmail(user.email, verificationToken);
 
-    const { accessToken, refreshToken } = await this.generateTokens(
+    const { accessToken, refreshToken } = this.generateTokens(
       user.id,
       user.email,
       user.userType || UserType.USER,
@@ -69,25 +74,16 @@ export class AuthService {
     };
   }
 
-  async signupOrganizer(signupOrganizerDto: SignupOrganizerDto, res: Response) {
-    const user = await this.usersService.createOrganizer({
-      email: signupOrganizerDto.email,
-      password: signupOrganizerDto.password,
-      organizationName: signupOrganizerDto.organizationName,
-      phone: signupOrganizerDto.phone,
-      address: signupOrganizerDto.address,
-      businessLicense: signupOrganizerDto.businessLicense,
-      website: signupOrganizerDto.website,
-      description: signupOrganizerDto.description,
-      organizationEstablishedDate:
-        signupOrganizerDto.organizationEstablishedDate,
-    });
+  async signupOrganizer(
+    signupOrganizerDto: SignupOrganizerDto,
+    res: Response,
+  ): Promise<AuthResponse> {
+    const user = await this.usersService.createOrganizer(signupOrganizerDto);
 
-    // Send verification email
     const verificationToken = (user as any).plainVerificationToken;
     await this.mailService.sendVerificationEmail(user.email, verificationToken);
 
-    const { accessToken, refreshToken } = await this.generateTokens(
+    const { accessToken, refreshToken } = this.generateTokens(
       user.id,
       user.email,
       UserType.ORGANIZER,
@@ -110,8 +106,7 @@ export class AuthService {
     ipAddress: string,
     userAgent: string,
     res: Response,
-  ) {
-    // Check if account is locked
+  ): Promise<AuthResponse> {
     const isLocked = await this.loginAttemptsService.isAccountLocked(
       loginDto.email,
     );
@@ -121,46 +116,37 @@ export class AuthService {
       );
     }
 
-    // Find user with password
     const user = await this.usersService.findByEmail(loginDto.email, true);
 
     if (!user) {
-      // Track failed attempt
       await this.loginAttemptsService.trackAttempt(
         loginDto.email,
         ipAddress,
         userAgent,
         false,
       );
-
-      // Generic error message to prevent user enumeration
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Verify password
     const isPasswordValid = await bcrypt.compare(
       loginDto.password,
       user.password,
     );
 
     if (!isPasswordValid) {
-      // Track failed attempt
       await this.loginAttemptsService.trackAttempt(
         loginDto.email,
         ipAddress,
         userAgent,
         false,
       );
-
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Check if user is active
     if (!user.isActive) {
       throw new UnauthorizedException('Account is deactivated');
     }
 
-    // Track successful attempt
     await this.loginAttemptsService.trackAttempt(
       loginDto.email,
       ipAddress,
@@ -168,23 +154,18 @@ export class AuthService {
       true,
     );
 
-    // Clear previous failed attempts
     await this.loginAttemptsService.clearAttempts(loginDto.email);
 
-    // Update last login
     await this.usersService.updateLastLogin(user.id);
 
-    // Generate tokens
-    const { accessToken, refreshToken } = await this.generateTokens(
+    const { accessToken, refreshToken } = this.generateTokens(
       user.id,
       user.email,
       user.userType || UserType.USER,
     );
 
-    // Store refresh token hash
     await this.usersService.updateRefreshToken(user.id, refreshToken);
 
-    // Set cookies
     this.setAuthCookies(res, accessToken, refreshToken);
 
     this.logger.log(`User ${user.email} logged in successfully`);
@@ -201,28 +182,15 @@ export class AuthService {
     email: string,
     userType: string,
     res: Response,
-  ) {
-    // Convert string to UserType enum
-    let userTypeEnum: UserType;
-    if (userType === UserType.ADMIN) {
-      userTypeEnum = UserType.ADMIN;
-    } else if (userType === UserType.ORGANIZER) {
-      userTypeEnum = UserType.ORGANIZER;
-    } else {
-      userTypeEnum = UserType.USER;
-    }
-
-    // Generate new tokens
-    const { accessToken, refreshToken } = await this.generateTokens(
+  ): Promise<SimpleResponse> {
+    const { accessToken, refreshToken } = this.generateTokens(
       userId,
       email,
-      userTypeEnum,
+      userType,
     );
 
-    // Update stored refresh token
     await this.usersService.updateRefreshToken(userId, refreshToken);
 
-    // Set new cookies
     this.setAuthCookies(res, accessToken, refreshToken);
 
     return {
@@ -231,11 +199,9 @@ export class AuthService {
     };
   }
 
-  async logout(userId: string, res: Response) {
-    // Clear refresh token from database
+  async logout(userId: string, res: Response): Promise<SimpleResponse> {
     await this.usersService.updateRefreshToken(userId, null);
 
-    // Clear cookies
     this.clearAuthCookies(res);
 
     return {
@@ -244,7 +210,7 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(verifyEmailDto: VerifyEmailDto) {
+  async verifyEmail(verifyEmailDto: VerifyEmailDto): Promise<AuthResponse> {
     const user = await this.usersService.verifyEmail(verifyEmailDto.token);
 
     return {
@@ -254,7 +220,9 @@ export class AuthService {
     };
   }
 
-  async resendVerification(resendVerificationDto: ResendVerificationDto) {
+  async resendVerification(
+    resendVerificationDto: ResendVerificationDto,
+  ): Promise<SimpleResponse> {
     const token = await this.usersService.resendVerificationEmail(
       resendVerificationDto.email,
     );
@@ -269,7 +237,9 @@ export class AuthService {
     };
   }
 
-  async forgotPassword(forgotPasswordDto: ForgotPasswordDto) {
+  async forgotPassword(
+    forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<SimpleResponse> {
     try {
       const token = await this.usersService.createPasswordResetToken(
         forgotPasswordDto.email,
@@ -283,8 +253,7 @@ export class AuthService {
         success: true,
         message: 'Password reset instructions sent to your email',
       };
-    } catch (error) {
-      // Return success even if user not found (security best practice)
+    } catch (_error) {
       return {
         success: true,
         message:
@@ -293,7 +262,9 @@ export class AuthService {
     }
   }
 
-  async resetPassword(resetPasswordDto: ResetPasswordDto) {
+  async resetPassword(
+    resetPasswordDto: ResetPasswordDto,
+  ): Promise<SimpleResponse> {
     const user = await this.usersService.resetPassword(
       resetPasswordDto.token,
       resetPasswordDto.newPassword,
@@ -308,23 +279,11 @@ export class AuthService {
     };
   }
 
-  async getCurrentUser(userId: string) {
-    const user = await this.usersService.findById(userId);
-    return {
-      success: true,
-      user: this.formatUserResponse(user),
-    };
-  }
-
-  private async generateTokens(
-    userId: string,
-    email: string,
-    userType: UserType | string,
-  ) {
+  private generateTokens(userId: string, email: string, userType: string) {
     const payload = {
       sub: userId,
       email,
-      userType: userType.toString(),
+      userType: userType || UserType.USER,
     };
 
     const accessSecret =
@@ -350,23 +309,18 @@ export class AuthService {
     accessToken: string,
     refreshToken: string,
   ) {
-    const isProduction =
-      this.configService.get<string>('NODE_ENV') === 'production';
-
-    // Access token cookie (15 minutes)
     res.cookie('access_token', accessToken, {
       httpOnly: true,
-      secure: false, // Set to isProduction in production
-      sameSite: 'lax', // Use 'lax' for development, 'strict' for production
+      secure: false,
+      sameSite: 'lax',
       maxAge: 15 * 60 * 1000,
       path: '/',
     });
 
-    // Refresh token cookie (7 days)
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: false, // Set to isProduction in production
-      sameSite: 'lax', // Use 'lax' for development, 'strict' for production
+      secure: false,
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
@@ -377,30 +331,33 @@ export class AuthService {
     res.clearCookie('refresh_token', { path: '/' });
   }
 
-  private formatUserResponse(user: UserDocument): UserResponse {
-    const baseResponse: any = {
+  async getCurrentUser(
+    userId: string,
+  ): Promise<{ success: boolean; user: UserResponse }> {
+    const user = await this.usersService.findById(userId);
+    return {
+      success: true,
+      user: this.formatUserResponse(user),
+    };
+  }
+
+  private formatUserResponse(user: any): UserResponse {
+    const baseResponse: UserResponse = {
       id: user.id,
       email: user.email,
       userType: user.userType || UserType.USER,
       emailVerified: user.emailVerified,
     };
 
-    // Add type-specific fields based on userType
-    if (user.userType === UserType.ORGANIZER) {
-      const organizer = user as any;
-      baseResponse.organizationName = organizer.organizationName;
-      baseResponse.phone = organizer.phone;
-      baseResponse.address = organizer.address;
-      baseResponse.website = organizer.website;
-      baseResponse.description = organizer.description;
-      baseResponse.isVerifiedOrganizer = organizer.isVerifiedOrganizer;
-      baseResponse.totalEventsCreated = organizer.totalEventsCreated;
-      baseResponse.totalTicketsSold = organizer.totalTicketsSold;
-    } else if (user.userType === UserType.ADMIN) {
-      const admin = user as any;
-      baseResponse.adminLevel = admin.adminLevel;
-      baseResponse.permissions = admin.permissions;
-      baseResponse.department = admin.department;
+    const userTypeValue = user.userType || UserType.USER;
+
+    if (userTypeValue === UserType.ORGANIZER) {
+      baseResponse.organizationName = user.organizationName;
+      baseResponse.phone = user.phone;
+      baseResponse.isVerifiedOrganizer = user.isVerifiedOrganizer;
+    } else if (userTypeValue === UserType.ADMIN) {
+      baseResponse.adminLevel = user.adminLevel;
+      baseResponse.permissions = user.permissions;
     }
 
     return baseResponse;

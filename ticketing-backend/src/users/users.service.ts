@@ -263,6 +263,64 @@ export class UsersService {
     return verificationToken;
   }
 
+  async verifyOrganizer(organizerId: string): Promise<any> {
+    const organizer = await this.userModel.findById(organizerId).exec();
+
+    if (!organizer || organizer.userType !== UserType.ORGANIZER) {
+      throw new BadRequestException('User is not an organizer');
+    }
+
+    (organizer as any).isVerifiedOrganizer = true;
+    await organizer.save();
+
+    return {
+      success: true,
+      message: 'Organizer verified successfully',
+    };
+  }
+
+  async deactivateUser(userId: string): Promise<any> {
+    const user = await this.userModel.findById(userId).exec();
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.isActive = false;
+    await user.save();
+
+    return {
+      success: true,
+      message: 'User deactivated successfully',
+    };
+  }
+
+  async deleteUser(userId: string): Promise<any> {
+    await this.userModel.findByIdAndDelete(userId).exec();
+
+    return {
+      success: true,
+      message: 'User deleted successfully',
+    };
+  }
+
+  async updateProfile(userId: string, updateData: any): Promise<any> {
+    delete updateData.password;
+    delete updateData.userType;
+    delete updateData.isActive;
+    delete updateData.emailVerified;
+
+    const user = await this.userModel
+      .findByIdAndUpdate(userId, updateData, { new: true })
+      .exec();
+
+    return {
+      success: true,
+      message: 'Profile updated successfully',
+      data: user,
+    };
+  }
+
   // Check if user is admin
   isAdmin(user: UserDocument): boolean {
     return user.userType === UserType.ADMIN;
