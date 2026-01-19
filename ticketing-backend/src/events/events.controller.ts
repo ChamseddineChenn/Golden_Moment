@@ -11,6 +11,7 @@ import {
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('events')
 export class EventsController {
@@ -41,6 +42,7 @@ export class EventsController {
     }
   }
 
+  @Public()
   @Get()
   async findAll() {
     // Public endpoint - only show published events
@@ -53,6 +55,7 @@ export class EventsController {
     return this.eventsService.findAllAdmin();
   }
 
+  @Public()
   @Get(':id')
   async findById(@Param('id') id: string) {
     return this.eventsService.findById(id);
