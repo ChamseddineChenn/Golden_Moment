@@ -4,11 +4,13 @@ import { TicketsService } from './tickets.service';
 import { TicketsController } from './tickets.controller';
 import { Ticket, TicketSchema } from './ticket.schema';
 import { EventsModule } from '../events/events.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Ticket.name, schema: TicketSchema }]),
     forwardRef(() => EventsModule),
+    EmailModule,
   ],
   controllers: [TicketsController],
   providers: [TicketsService],
