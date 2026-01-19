@@ -50,16 +50,19 @@ export class AuthService {
     const user = await this.usersService.create({
       email: signupDto.email,
       password: signupDto.password,
-      userType: signupDto.userType,
+      userType: signupDto.userType || UserType.USER,
     });
 
     const verificationToken = (user as any).plainVerificationToken;
     await this.mailService.sendVerificationEmail(user.email, verificationToken);
 
+    // Use the userType from DTO or default to USER
+    const userType = signupDto.userType || UserType.USER;
+
     const { accessToken, refreshToken } = this.generateTokens(
       user.id,
       user.email,
-      user.userType || UserType.USER,
+      userType.toString(), // Ensure it's a string
     );
 
     await this.usersService.updateRefreshToken(user.id, refreshToken);
@@ -86,7 +89,7 @@ export class AuthService {
     const { accessToken, refreshToken } = this.generateTokens(
       user.id,
       user.email,
-      UserType.ORGANIZER,
+      UserType.ORGANIZER.toString(), // Explicitly set to ORGANIZER
     );
 
     await this.usersService.updateRefreshToken(user.id, refreshToken);
@@ -100,7 +103,6 @@ export class AuthService {
       user: this.formatUserResponse(user),
     };
   }
-
   async login(
     loginDto: LoginDto,
     ipAddress: string,
