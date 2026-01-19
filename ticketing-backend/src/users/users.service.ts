@@ -10,8 +10,10 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { User, UserDocument } from './schemas/user.schema';
+import { Organizer, OrganizerDocument } from './schemas/organizer.schema';
+import { Admin, AdminDocument } from './schemas/admin.schema';
 import { CreateUserDto } from './dto/create-user.dto';
-import { Role } from './enums/role.enum';
+import { UserType } from './enums/user-type.enum';
 
 @Injectable()
 export class UsersService {
@@ -25,7 +27,9 @@ export class UsersService {
       this.configService.get<number>('security.bcryptRounds') || 12;
   }
 
-  async create(createUserDto: CreateUserDto): Promise<UserDocument> {
+  async create(
+    createUserDto: CreateUserDto & { userType?: UserType; [key: string]: any },
+  ): Promise<UserDocument> {
     const existingUser = await this.userModel.findOne({
       email: createUserDto.email,
     });
@@ -45,20 +49,52 @@ export class UsersService {
       .update(verificationToken)
       .digest('hex');
 
-    const user = new this.userModel({
+    const userData: any = {
       email: createUserDto.email,
       password: hashedPassword,
-      role: createUserDto.role || Role.USER,
       emailVerificationToken: hashedToken,
-      emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-    });
+      emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    };
 
+    // Add type-specific fields
+    const userType = createUserDto.userType || UserType.USER;
+
+    if (userType === UserType.ORGANIZER) {
+      userData.organizationName = createUserDto.organizationName;
+      userData.phone = createUserDto.phone;
+      userData.address = createUserDto.address;
+      userData.businessLicense = createUserDto.businessLicense;
+      userData.website = createUserDto.website;
+      userData.description = createUserDto.description;
+      userData.organizationEstablishedDate =
+        createUserDto.organizationEstablishedDate;
+    } else if (userType === UserType.ADMIN) {
+      userData.adminLevel = createUserDto.adminLevel;
+      userData.permissions = createUserDto.permissions || [];
+      userData.department = createUserDto.department;
+      userData.employeeId = createUserDto.employeeId;
+      userData.adminSince = new Date();
+    }
+
+    // Create with discriminator
+    const user = new this.userModel(userData);
     await user.save();
 
     // Return plain token (not hashed) to send in email
     (user as any).plainVerificationToken = verificationToken;
 
     return user;
+  }
+
+  async createOrganizer(organizerData: any): Promise<OrganizerDocument> {
+    return this.create({
+      ...organizerData,
+      userType: UserType.ORGANIZER,
+    }) as any;
+  }
+
+  async createAdmin(adminData: any): Promise<AdminDocument> {
+    return this.create({ ...adminData, userType: UserType.ADMIN }) as any;
   }
 
   async findByEmail(
@@ -123,6 +159,14 @@ export class UsersService {
     return this.userModel.find().exec();
   }
 
+  async findAllOrganizers(): Promise<OrganizerDocument[]> {
+    return this.userModel.find({ userType: UserType.ORGANIZER }).exec() as any;
+  }
+
+  async findAllAdmins(): Promise<AdminDocument[]> {
+    return this.userModel.find({ userType: UserType.ADMIN }).exec() as any;
+  }
+
   async verifyEmail(token: string): Promise<UserDocument> {
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
@@ -160,11 +204,11 @@ export class UsersService {
       .digest('hex');
 
     user.passwordResetToken = hashedToken;
-    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
 
     await user.save();
 
-    return resetToken; // Return plain token to send in email
+    return resetToken;
   }
 
   async resetPassword(
@@ -217,5 +261,20 @@ export class UsersService {
     await user.save();
 
     return verificationToken;
+  }
+
+  // Check if user is admin
+  isAdmin(user: UserDocument): boolean {
+    return user.userType === UserType.ADMIN;
+  }
+
+  // Check if user is organizer
+  isOrganizer(user: UserDocument): boolean {
+    return user.userType === UserType.ORGANIZER;
+  }
+
+  // Check if user is regular user
+  isRegularUser(user: UserDocument): boolean {
+    return user.userType === UserType.USER || !user.userType;
   }
 }

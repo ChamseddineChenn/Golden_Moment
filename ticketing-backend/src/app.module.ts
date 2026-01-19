@@ -1,79 +1,53 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { MongooseModule } from '@nestjs/mongoose';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { EventsModule } from './events/events.module';
-import { TicketsModule } from './tickets/tickets.module';
-import { UploadModule } from './upload/upload.module';
+import configuration from './config/configuration';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { EventsModule } from './events/events.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
-import { RolesGuard } from './auth/guards/roles.guard';
-import { MailModule } from './mail/mail.module';
-import configuration from './config/configuration';
+import { UserTypeGuard } from './auth/guards/roles.guard';
 
 @Module({
   imports: [
-    // Configuration - Load environment variables and custom config
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
-      load: [configuration], // Load the configuration file we created
+      load: [configuration],
     }),
 
-    // Database - MongoDB connection with ConfigService
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        uri:
-          configService.get<string>('database.uri') ||
-          process.env.MONGODB_URI ||
-          'mongodb://localhost:27017/ticketing-platform',
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<string>('database.uri'),
       }),
       inject: [ConfigService],
     }),
 
-    // Rate Limiting - Protect against brute force attacks
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => [
         {
-          ttl: configService.get<number>('throttle.ttl'), // 1 minute
-          limit: configService.get<number>('throttle.limit'), // 10 requests per minute
+          ttl: configService.get<number>('throttle.ttl'),
+          limit: configService.get<number>('throttle.limit'),
         },
       ],
       inject: [ConfigService],
     }),
 
-    // Feature Modules
-    EventsModule,
-    TicketsModule,
-    UploadModule,
     AuthModule,
     UsersModule,
-    MailModule,
+    EventsModule,
   ],
-  controllers: [AppController],
   providers: [
-    AppService,
-
-    // Global Guards - Apply authentication and authorization to all routes
-    // Routes must explicitly use @Public() decorator to bypass authentication
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard, // Protects all routes by default
+      useClass: JwtAuthGuard,
     },
     {
       provide: APP_GUARD,
-      useClass: RolesGuard, // Enforces role-based access control
-    },
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard, // Rate limiting on all endpoints
+      useClass: UserTypeGuard,
     },
   ],
 })

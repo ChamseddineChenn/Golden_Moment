@@ -1,12 +1,20 @@
-export enum Role {
-  USER = 'user',
-  ADMIN = 'admin',
+export enum UserType {
+  USER = 'User',
+  ORGANIZER = 'Organizer',
+  ADMIN = 'Admin',
 }
 
 export interface User {
   id: string;
   email: string;
-  role: Role;
+  userType: UserType;
+  emailVerified: boolean;
+  // Type-specific fields
+  organizationName?: string;
+  phone?: string;
+  isVerifiedOrganizer?: boolean;
+  adminLevel?: string;
+  permissions?: string[];
 }
 
 export interface AuthResponse {
@@ -19,7 +27,21 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, userType?: UserType) => Promise<void>;
+  signupOrganizer: (data: OrganizerSignupData) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
+  isAdmin: () => boolean;
+  isOrganizer: () => boolean;
+  isRegularUser: () => boolean;
+}
+
+export interface OrganizerSignupData {
+  email: string;
+  password: string;
+  organizationName: string;
+  phone: string;
+  address?: string;
+  website?: string;
+  description?: string;
 }

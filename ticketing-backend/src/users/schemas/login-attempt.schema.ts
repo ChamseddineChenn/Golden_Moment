@@ -23,8 +23,6 @@ export class LoginAttempt {
 
 export const LoginAttemptSchema = SchemaFactory.createForClass(LoginAttempt);
 
-// Indexes
 LoginAttemptSchema.index({ email: 1, attemptedAt: -1 });
 
-// TTL index - automatically delete documents after 1 hour
 LoginAttemptSchema.index({ attemptedAt: 1 }, { expireAfterSeconds: 3600 });

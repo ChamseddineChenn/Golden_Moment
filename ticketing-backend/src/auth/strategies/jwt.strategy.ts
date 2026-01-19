@@ -6,6 +6,7 @@ import { Request } from 'express';
 import { UsersService } from '../../users/users.service';
 
 export interface JwtPayload {
+  [x: string]: string;
   sub: string;
   email: string;
   role: string;
@@ -29,7 +30,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload) {
-    // Verify user still exists and is active
     const user = await this.usersService.findById(payload.sub);
 
     if (!user || !user.isActive) {
@@ -39,7 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     return {
       userId: payload.sub,
       email: payload.email,
-      role: payload.role,
+      userType: payload.userType || 'User',
     };
   }
 }

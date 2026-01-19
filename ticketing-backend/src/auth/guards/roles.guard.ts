@@ -5,32 +5,40 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../decorators/roles.decorator';
-import { Role } from '../../users/enums/role.enum';
+import { UserType } from '../../users/enums/user-type.enum';
+
+export const USER_TYPES_KEY = 'userTypes';
+
+interface RequestUser {
+  userId: string;
+  email: string;
+  userType: string;
+}
 
 @Injectable()
-export class RolesGuard implements CanActivate {
+export class UserTypeGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredTypes = this.reflector.getAllAndOverride<UserType[]>(
+      USER_TYPES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    if (!requiredRoles) {
+    if (!requiredTypes) {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
+    const user = request.user as RequestUser;
 
     if (!user) {
       throw new ForbiddenException('User not authenticated');
     }
 
-    const hasRole = requiredRoles.some((role) => user.role === role);
+    const hasType = requiredTypes.some((type) => user.userType === type);
 
-    if (!hasRole) {
+    if (!hasType) {
       throw new ForbiddenException('Insufficient permissions');
     }
 
