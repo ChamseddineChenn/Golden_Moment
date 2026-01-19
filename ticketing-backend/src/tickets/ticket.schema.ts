@@ -29,6 +29,9 @@ export class Ticket extends Document {
   @Prop()
   buyerName: string;
 
+  @Prop()
+  buyerPhoneNumber: string;
+
   @Prop({ required: true })
   qrCode: string;
 

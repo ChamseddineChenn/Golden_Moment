@@ -21,6 +21,7 @@ interface Ticket {
   seats: Array<{ sectionId?: string; seatId: string }>;
   buyerName: string;
   buyerEmail: string;
+  buyerPhoneNumber: string;
   purchaseDate: string;
   qrCode: string;
 }
@@ -38,7 +39,9 @@ export default function ReceiptPage() {
     const fetchTicket = async () => {
       try {
         const response = await ticketsAPI.getById(ticketId);
-        setTicket(response.data);
+        // Extract data from standardized response format { success, statusCode, data, timestamp }
+        const ticketData = response.data.data || response.data;
+        setTicket(ticketData);
       } catch (err) {
         setError('Failed to load ticket');
         console.error(err);
@@ -105,100 +108,199 @@ export default function ReceiptPage() {
       const eventName = eventInfo?.name || 'Event';
       pdf.text(eventName, 20, 80);
 
-      // Event details box
-      pdf.setFillColor(250, 250, 249);
-      pdf.roundedRect(20, 90, pageWidth - 40, 50, 3, 3, 'F');
+      // Main Section - Split vertically (1:3 ratio - seats : date/reserved)
+      const pageMargins = 20;
+      const availableWidth = pageWidth - pageMargins * 2 - 5; // 5mm gap
+      const seatSectionWidth = availableWidth / 4; // 1 part for seats
+      const dateReservedWidth = (availableWidth * 3) / 4; // 3 parts for date & reserved
+      const seatSectionStartX = pageMargins;
+      const dateReservedStartX = seatSectionStartX + seatSectionWidth + 5; // 5mm gap
+      const sectionHeight = 95;
+      const sectionMargin = 3;
+      const sectionY = 90;
 
-      // Date & Time
-      pdf.setFontSize(9);
-      pdf.setTextColor(120, 113, 108);
-      pdf.text('DATE & TIME', 30, 102);
-      pdf.setFontSize(12);
-      pdf.setTextColor(41, 37, 36);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(
-        eventDate.toLocaleDateString('en-US', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        }),
-        30,
-        112
-      );
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(
-        eventDate.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        30,
-        120
+      // LEFT SECTION - Seats (narrower)
+      pdf.setFillColor(254, 243, 224); // from-amber-50
+      pdf.roundedRect(
+        seatSectionStartX,
+        sectionY,
+        seatSectionWidth,
+        sectionHeight,
+        3,
+        3,
+        'F',
       );
 
-      // Venue
-      pdf.setFontSize(9);
-      pdf.setTextColor(120, 113, 108);
-      pdf.text('VENUE', 110, 102);
+      pdf.setFontSize(8);
+      pdf.setTextColor(180, 83, 9);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(
+        `SEATS (${ticket.seats.length})`,
+        seatSectionStartX + seatSectionWidth / 2,
+        sectionY + 8,
+        { align: 'center' },
+      );
+
+      // Format seat numbers - max 10, with wrapping
+      const seatIds = ticket.seats.map((s) => s.seatId);
+      const seatsPerLine = 2; // Max 2 seats per line for narrow width
       pdf.setFontSize(12);
+      pdf.setTextColor(120, 53, 15); // text-amber-900
+      pdf.setFont('helvetica', 'bold');
+
+      let seatY = sectionY + 20;
+      for (let i = 0; i < Math.min(seatIds.length, 10); i += seatsPerLine) {
+        const seatLine = seatIds.slice(i, i + seatsPerLine).join(', ');
+        pdf.text(seatLine, seatSectionStartX + seatSectionWidth / 2, seatY, {
+          align: 'center',
+        });
+        seatY += 9;
+      }
+
+      // RIGHT SECTION - Date & Time (Top) + Reserved By (Bottom) stacked
+      // Top: Date, Time, Venue
+      pdf.setFillColor(250, 250, 249); // stone-50
+      pdf.roundedRect(
+        dateReservedStartX,
+        sectionY,
+        dateReservedWidth,
+        (sectionHeight - sectionMargin) / 2,
+        3,
+        3,
+        'F',
+      );
+
+      pdf.setFontSize(7);
+      pdf.setTextColor(120, 113, 108);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('DATE & TIME', dateReservedStartX + 8, sectionY + 8);
+
+      pdf.setFontSize(9);
       pdf.setTextColor(41, 37, 36);
       pdf.setFont('helvetica', 'bold');
-      pdf.text(eventInfo?.venue || 'TBA', 110, 112);
+      const dateStr = eventDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      });
+      const timeStr = eventDate.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      pdf.text(dateStr, dateReservedStartX + 8, sectionY + 16);
+      pdf.text(timeStr, dateReservedStartX + 8, sectionY + 23);
 
-      // Seat
-      pdf.setFontSize(9);
+      pdf.setFontSize(7);
       pdf.setTextColor(120, 113, 108);
-      pdf.text('SEAT NUMBER', 110, 125);
-      pdf.setFontSize(12);
-      pdf.setTextColor(41, 37, 36);
       pdf.setFont('helvetica', 'bold');
-      pdf.text(ticket.seats.map((s) => s.seatId).join(', '), 110, 135);
-
-      // Attendee box
-      pdf.setFillColor(255, 255, 255);
-      pdf.setDrawColor(231, 229, 228);
-      pdf.roundedRect(20, 150, pageWidth - 40, 35, 3, 3, 'FD');
-
-      pdf.setFontSize(9);
-      pdf.setTextColor(120, 113, 108);
-      pdf.text('ATTENDEE NAME', 30, 162);
-      pdf.setFontSize(14);
+      pdf.text('VENUE', dateReservedStartX + 8, sectionY + 31);
+      pdf.setFontSize(8);
       pdf.setTextColor(41, 37, 36);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(ticket.buyerName, 30, 175);
-
-      pdf.setFontSize(9);
-      pdf.setTextColor(120, 113, 108);
       pdf.setFont('helvetica', 'normal');
-      pdf.text('EMAIL', 110, 162);
-      pdf.setFontSize(11);
-      pdf.setTextColor(41, 37, 36);
-      pdf.text(ticket.buyerEmail, 110, 175);
+      const venueLines = pdf.splitTextToSize(
+        eventInfo?.venue || 'TBA',
+        dateReservedWidth - 16,
+      );
+      pdf.text(venueLines, dateReservedStartX + 8, sectionY + 38);
 
-      // QR section
-      pdf.setFillColor(250, 250, 249);
-      pdf.roundedRect(20, 195, pageWidth - 40, 80, 3, 3, 'F');
+      // Bottom: Reserved by (Name, Email, Phone)
+      pdf.setFillColor(245, 245, 244); // stone-50
+      pdf.roundedRect(
+        dateReservedStartX,
+        sectionY + (sectionHeight - sectionMargin) / 2 + sectionMargin,
+        dateReservedWidth,
+        (sectionHeight - sectionMargin) / 2,
+        3,
+        3,
+        'F',
+      );
+
+      let bottomY =
+        sectionY + (sectionHeight - sectionMargin) / 2 + sectionMargin + 8;
+      pdf.setFontSize(7);
+      pdf.setTextColor(120, 113, 108);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('RESERVED BY', dateReservedStartX + 8, bottomY);
+
+      bottomY += 7;
+      pdf.setFontSize(9);
+      pdf.setTextColor(41, 37, 36);
+      pdf.setFont('helvetica', 'bold');
+      const nameLines = pdf.splitTextToSize(
+        ticket.buyerName,
+        dateReservedWidth - 16,
+      );
+      pdf.text(nameLines, dateReservedStartX + 8, bottomY);
+      bottomY += nameLines.length * 5 + 2;
+
+      pdf.setFontSize(7);
+      pdf.setTextColor(120, 113, 108);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('EMAIL', dateReservedStartX + 8, bottomY);
+      bottomY += 5;
+      pdf.setFontSize(7);
+      pdf.setTextColor(87, 83, 82);
+      pdf.setFont('helvetica', 'normal');
+      const emailLines = pdf.splitTextToSize(
+        ticket.buyerEmail,
+        dateReservedWidth - 16,
+      );
+      pdf.text(emailLines, dateReservedStartX + 8, bottomY);
+      bottomY += emailLines.length * 4 + 2;
+
+      pdf.setFontSize(7);
+      pdf.setTextColor(120, 113, 108);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('PHONE', dateReservedStartX + 8, bottomY);
+      bottomY += 5;
+      pdf.setFontSize(7);
+      pdf.setTextColor(87, 83, 82);
+      pdf.setFont('helvetica', 'normal');
+      const phoneLines = pdf.splitTextToSize(
+        ticket.buyerPhoneNumber,
+        dateReservedWidth - 16,
+      );
+      pdf.text(phoneLines, dateReservedStartX + 8, bottomY);
+
+      // QR Section (Dark Stone) - with margin from main section
+      const qrMargin = 5;
+      const qrY = sectionY + sectionHeight + qrMargin;
+      pdf.setFillColor(28, 25, 23); // from-stone-800
+      pdf.roundedRect(20, qrY, pageWidth - 40, 70, 3, 3, 'F');
 
       pdf.setFontSize(10);
-      pdf.setTextColor(120, 113, 108);
-      pdf.text('SCAN FOR ENTRY', pageWidth / 2, 208, { align: 'center' });
+      pdf.setTextColor(168, 162, 158); // text-stone-400
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('SCAN QR CODE FOR ENTRY', pageWidth / 2, qrY + 15, {
+        align: 'center',
+      });
 
       if (ticket.qrCode) {
         try {
-          const qrSize = 50;
+          const qrSize = 40;
           const qrX = (pageWidth - qrSize) / 2;
-          pdf.addImage(ticket.qrCode, 'PNG', qrX, 215, qrSize, qrSize);
+          // White background for QR
+          pdf.setFillColor(255, 255, 255);
+          pdf.rect(qrX - 2, qrY + 20 - 2, qrSize + 4, qrSize + 4, 'F');
+          pdf.addImage(ticket.qrCode, 'PNG', qrX, qrY + 20, qrSize, qrSize);
         } catch (qrError) {
           console.error('Error adding QR code:', qrError);
-          pdf.setFontSize(10);
-          pdf.text('QR Code', pageWidth / 2, 240, { align: 'center' });
         }
       }
+
+      pdf.setFontSize(8);
+      pdf.setTextColor(120, 113, 108);
+      pdf.text(
+        'Present this QR code at the venue entrance',
+        pageWidth / 2,
+        qrY + 65,
+        { align: 'center' },
+      );
 
       // Purchase date
       const purchaseDate = new Date(ticket.purchaseDate);
       pdf.setFontSize(8);
-      pdf.setTextColor(168, 162, 158);
+      pdf.setTextColor(120, 113, 108);
       pdf.text(
         `Purchased on ${purchaseDate.toLocaleDateString('en-US', {
           year: 'numeric',
@@ -208,12 +310,12 @@ export default function ReceiptPage() {
           minute: '2-digit',
         })}`,
         pageWidth / 2,
-        275,
-        { align: 'center' }
+        265,
+        { align: 'center' },
       );
 
-      // Footer
-      pdf.setFillColor(41, 37, 36);
+      // Footer (Dark Stone) - extends to bottom of page
+      pdf.setFillColor(28, 25, 23); // stone-900
       pdf.rect(0, 285, pageWidth, 12, 'F');
 
       pdf.setFontSize(8);
@@ -221,8 +323,8 @@ export default function ReceiptPage() {
       pdf.text(
         'Golden Moment Events • www.goldenmoment.tn • support@goldenmoment.tn',
         pageWidth / 2,
-        292,
-        { align: 'center' }
+        290.5,
+        { align: 'center' },
       );
 
       pdf.save(`ticket-${ticket.ticketNumber}.pdf`);
@@ -525,7 +627,7 @@ export default function ReceiptPage() {
               </div>
 
               <div className="md:col-span-2 bg-stone-50 rounded-2xl p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <p className="text-sm text-stone-500 font-medium mb-1">
                       ATTENDEE NAME
@@ -541,6 +643,12 @@ export default function ReceiptPage() {
                     <p className="text-stone-700 truncate">
                       {ticket.buyerEmail}
                     </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-stone-500 font-medium mb-1">
+                      PHONE
+                    </p>
+                    <p className="text-stone-700">{ticket.buyerPhoneNumber}</p>
                   </div>
                 </div>
               </div>

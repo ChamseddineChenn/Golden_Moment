@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { eventsAPI } from "@/lib/api";
-import Link from "next/link";
-import { Header } from "@/components/layout/Header";
+import { useState, useEffect } from 'react';
+import { eventsAPI } from '@/lib/api';
+import Link from 'next/link';
+import { Header } from '@/components/layout/Header';
 
 interface Event {
   _id: string;
@@ -40,7 +40,7 @@ function EventCard({ event }: { event: Event }) {
 
     // Check if Free ticket is available
     if (event.ticketTypes.Free?.enabled) {
-      return "Free";
+      return 'Free';
     }
 
     // Get minimum price from enabled paid ticket types
@@ -53,7 +53,7 @@ function EventCard({ event }: { event: Event }) {
     if (enabledPaidTypes.length === 0) return null;
 
     const minPrice = Math.min(...enabledPaidTypes.map((t) => t!.price || 0));
-    return minPrice === 0 ? "Free" : `Starting from $${minPrice.toFixed(2)}`;
+    return minPrice === 0 ? 'Free' : `Starting from $${minPrice.toFixed(2)}`;
   };
 
   const pricingText = getPricingText();
@@ -76,7 +76,7 @@ function EventCard({ event }: { event: Event }) {
           {/* Date Badge */}
           <div className="absolute top-4 left-4 bg-white rounded-xl p-3 text-center shadow-lg">
             <p className="text-xs font-bold text-amber-600 uppercase">
-              {eventDate.toLocaleString("en-US", { month: "short" })}
+              {eventDate.toLocaleString('en-US', { month: 'short' })}
             </p>
             <p className="text-2xl font-bold text-stone-900 -mt-1">
               {eventDate.getDate()}
@@ -159,9 +159,9 @@ function EventCard({ event }: { event: Event }) {
                 />
               </svg>
               <span>
-                {eventDate.toLocaleString("en-US", {
-                  hour: "2-digit",
-                  minute: "2-digit",
+                {eventDate.toLocaleString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
                 })}
               </span>
             </div>
@@ -209,7 +209,7 @@ function EventCard({ event }: { event: Event }) {
         {/* Date Badge */}
         <div className="absolute top-4 left-4 bg-white rounded-xl p-3 text-center shadow-lg">
           <p className="text-xs font-bold text-amber-600 uppercase">
-            {eventDate.toLocaleString("en-US", { month: "short" })}
+            {eventDate.toLocaleString('en-US', { month: 'short' })}
           </p>
           <p className="text-2xl font-bold text-stone-900 -mt-1">
             {eventDate.getDate()}
@@ -292,9 +292,9 @@ function EventCard({ event }: { event: Event }) {
               />
             </svg>
             <span>
-              {eventDate.toLocaleString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
+              {eventDate.toLocaleString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
               })}
             </span>
           </div>
@@ -307,12 +307,12 @@ function EventCard({ event }: { event: Event }) {
             <span
               className={`text-sm font-semibold ${
                 isExpired
-                  ? "text-stone-400"
+                  ? 'text-stone-400'
                   : ticketsAvailable === 0
-                    ? "text-stone-400"
+                    ? 'text-stone-400'
                     : ticketsAvailable < 20
-                      ? "text-red-600"
-                      : "text-green-600"
+                      ? 'text-red-600'
+                      : 'text-green-600'
               }`}
             >
               {ticketsAvailable} / {event.totalSeats} seats
@@ -322,10 +322,10 @@ function EventCard({ event }: { event: Event }) {
             <div
               className={`h-full transition-all duration-500 ${
                 soldPercentage < 50
-                  ? "bg-green-500"
+                  ? 'bg-green-500'
                   : soldPercentage < 80
-                    ? "bg-amber-500"
-                    : "bg-red-500"
+                    ? 'bg-amber-500'
+                    : 'bg-red-500'
               }`}
               style={{ width: `${soldPercentage}%` }}
             ></div>
@@ -336,16 +336,16 @@ function EventCard({ event }: { event: Event }) {
         <button
           className={`w-full mt-6 py-3 rounded-xl font-semibold transition ${
             isExpired || ticketsAvailable === 0
-              ? "bg-stone-100 text-stone-400 cursor-not-allowed"
-              : "bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20"
+              ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+              : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20'
           }`}
           disabled={isExpired || ticketsAvailable === 0}
         >
           {isExpired
-            ? "Event Expired"
+            ? 'Event Expired'
             : ticketsAvailable === 0
-              ? "Sold Out"
-              : "Get Tickets →"}
+              ? 'Sold Out'
+              : 'Get Tickets →'}
         </button>
       </div>
     </Link>
@@ -368,9 +368,11 @@ export default function HomePage() {
     const fetchEvents = async () => {
       try {
         const response = await eventsAPI.getAll();
-        setEvents(response.data);
+        // Extract data from standardized response format { success, statusCode, data, timestamp }
+        const eventsData = response.data.data || response.data;
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
       } catch (err) {
-        setError("Failed to load events");
+        setError('Failed to load events');
         console.error(err);
       } finally {
         setLoading(false);
@@ -403,7 +405,7 @@ export default function HomePage() {
             </div>
 
             <h2 className="text-4xl md:text-6xl font-bold text-white leading-tight mb-6">
-              Create Memories That Last a{" "}
+              Create Memories That Last a{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-500">
                 Lifetime
               </span>
@@ -542,7 +544,7 @@ export default function HomePage() {
               {events
                 .filter(
                   (e) =>
-                    e.category === "Movies" ||
+                    e.category === 'Movies' ||
                     (e.category === undefined &&
                       events.filter((x) => x.category).length === 0),
                 )
@@ -573,7 +575,7 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {events
-                .filter((e) => e.category === "Theatre")
+                .filter((e) => e.category === 'Theatre')
                 .slice(0, 3)
                 .map((event) => (
                   <EventCard key={event._id} event={event} />
@@ -601,7 +603,7 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {events
-                .filter((e) => e.category === "Concert")
+                .filter((e) => e.category === 'Concert')
                 .slice(0, 3)
                 .map((event) => (
                   <EventCard key={event._id} event={event} />
@@ -629,7 +631,7 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {events
-                .filter((e) => e.category === "Sahra")
+                .filter((e) => e.category === 'Sahra')
                 .slice(0, 3)
                 .map((event) => (
                   <EventCard key={event._id} event={event} />
