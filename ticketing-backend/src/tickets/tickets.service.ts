@@ -7,6 +7,7 @@ import { Ticket, TicketStatus } from './ticket.schema';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { EventsService } from '../events/events.service';
 import { SeatsService } from '../events/seats.service';
+import { EmailService } from '../email/email.service';
 import { AppLogger } from '../common/utils/logger';
 import {
   TicketNotFoundException,
@@ -28,6 +29,7 @@ export class TicketsService {
     @InjectModel(Ticket.name) private ticketModel: Model<Ticket>,
     private readonly eventsService: EventsService,
     private readonly seatsService: SeatsService,
+    private readonly emailService: EmailService,
   ) {}
 
   // Generate a secure encrypted QR token
@@ -348,6 +350,15 @@ export class TicketsService {
         );
       }
 
+      // Send receipt email asynchronously (don't block the response)
+      this.sendReceiptEmailAsync(savedTicket, event).catch((error) => {
+        this.logger.warn('Failed to send receipt email', TicketsService.name, {
+          ticketId: savedTicket._id.toString(),
+          error: error.message,
+        });
+        // Don't throw - email failure shouldn't fail the ticket creation
+      });
+
       // Convert to plain JSON object for response serialization
       return JSON.parse(JSON.stringify(savedTicket));
     } catch (error) {
@@ -408,6 +419,66 @@ export class TicketsService {
     }
 
     return ticket;
+  }
+
+  /**
+   * Send receipt email asynchronously
+   */
+  private async sendReceiptEmailAsync(ticket: any, event: any): Promise<void> {
+    try {
+      this.logger.log('Starting receipt email process', TicketsService.name, {
+        ticketId: ticket._id.toString(),
+        email: ticket.buyerEmail,
+        ticketNumber: ticket.ticketNumber,
+        eventName: event.name,
+      });
+
+      // Use the already-generated QR code from the ticket (don't regenerate)
+      const qrCode = ticket.qrCode;
+
+      this.logger.log('Calling emailService.sendTicketReceipt', TicketsService.name, {
+        email: ticket.buyerEmail,
+        ticketNumber: ticket.ticketNumber,
+        eventName: event.name,
+        totalAmount: ticket.totalPrice,
+        attachPdf: true,
+        hasQrCode: !!qrCode,
+      });
+
+      await this.emailService.sendTicketReceipt(
+        {
+          email: ticket.buyerEmail,
+          ticketNumber: ticket.ticketNumber,
+          eventName: event.name,
+          purchaseDate: new Date(ticket.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          }),
+          totalAmount: ticket.totalPrice,
+          customerName: ticket.buyerName,
+          eventDate: new Date(event.date),
+          eventLocation: event.venue,
+          qrCode, // Include the QR code data URL
+        },
+        {
+          attachPdf: true, // Enable PDF attachment with receipt
+        },
+      );
+
+      this.logger.log('Receipt email queued successfully', TicketsService.name, {
+        ticketId: ticket._id.toString(),
+        email: ticket.buyerEmail,
+      });
+    } catch (error) {
+      this.logger.error(
+        'Error queuing receipt email',
+        TicketsService.name,
+        error,
+      );
+      // Re-throw to be caught by the caller
+      throw error;
+    }
   }
 
   async findAll(): Promise<Ticket[]> {

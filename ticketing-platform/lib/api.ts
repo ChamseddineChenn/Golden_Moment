@@ -4,11 +4,11 @@ import axios from 'axios';
 const getAPIBaseURL = () => {
   if (typeof window === 'undefined') {
     // Server-side rendering
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
   }
 
   // Client-side: replace localhost with the actual host
-  let baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+  let baseURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
 
   if (baseURL.includes('localhost') || baseURL.includes('127.0.0.1')) {
     // Replace localhost/127.0.0.1 with actual hostname for mobile compatibility
