@@ -138,10 +138,10 @@ function EventCard({ event }: { event: Event }) {
                 isExpired
                   ? 'text-stone-400'
                   : ticketsAvailable === 0
-                  ? 'text-stone-400'
-                  : ticketsAvailable < 20
-                  ? 'text-red-600'
-                  : 'text-green-600'
+                    ? 'text-stone-400'
+                    : ticketsAvailable < 20
+                      ? 'text-red-600'
+                      : 'text-green-600'
               }`}
             >
               {ticketsAvailable} / {event.totalSeats} seats
@@ -153,8 +153,8 @@ function EventCard({ event }: { event: Event }) {
                 soldPercentage < 50
                   ? 'bg-green-500'
                   : soldPercentage < 80
-                  ? 'bg-amber-500'
-                  : 'bg-red-500'
+                    ? 'bg-amber-500'
+                    : 'bg-red-500'
               }`}
               style={{ width: `${soldPercentage}%` }}
             ></div>
@@ -173,8 +173,8 @@ function EventCard({ event }: { event: Event }) {
           {isExpired
             ? 'Event Expired'
             : ticketsAvailable === 0
-            ? 'Sold Out'
-            : 'Get Tickets →'}
+              ? 'Sold Out'
+              : 'Get Tickets →'}
         </button>
       </div>
     </Link>
@@ -205,8 +205,10 @@ export default function CategoryPage() {
     const fetchEvents = async () => {
       try {
         const response = await eventsAPI.getAll();
-        const filtered = response.data.filter(
-          (event: Event) => event.category === category
+        // Extract data from standardized response format { success, statusCode, data, timestamp }
+        const eventsData = response.data.data || response.data;
+        const filtered = (Array.isArray(eventsData) ? eventsData : []).filter(
+          (event: Event) => event.category === category,
         );
         setEvents(filtered);
       } catch (err) {

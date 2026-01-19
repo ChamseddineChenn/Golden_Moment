@@ -12,6 +12,9 @@ export interface Seat {
 export interface SeatSection {
   id: string;
   name: string;
+  columns?: number; // Store dimensions for frontend reconstruction
+  rows?: number;
+  orientation?: 'horizontal' | 'vertical'; // Store orientation for frontend
   priceModifier?: number; // Multiplier or fixed amount
   accessibility?: boolean;
   seats: Seat[]; // Matrix of seats with statuses
@@ -25,6 +28,7 @@ export interface SeatingConfiguration {
 export interface TicketType {
   enabled: boolean;
   price?: number; // Only for non-Free types
+  description?: string; // Description of what's included with this ticket type
 }
 
 export interface EarlyBirdTicketType extends TicketType {
@@ -73,10 +77,27 @@ export class Event extends Document {
   @Prop({
     type: Object,
     default: {
-      Free: { enabled: true, price: 0 },
-      Standard: { enabled: false, price: 0 },
-      EarlyBird: { enabled: false, price: 0, limit: 0 },
-      VIP: { enabled: false, price: 0 },
+      Free: {
+        enabled: true,
+        price: 0,
+        description: 'Standing spot, paid food',
+      },
+      Standard: {
+        enabled: false,
+        price: 0,
+        description: 'Seating provided, paid food',
+      },
+      EarlyBird: {
+        enabled: false,
+        price: 0,
+        limit: 0,
+        description: 'Early booking discount',
+      },
+      VIP: {
+        enabled: false,
+        price: 0,
+        description: 'VIP seating, food provided, backstage access',
+      },
     },
   })
   ticketTypes: TicketTypes;
