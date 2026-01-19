@@ -620,7 +620,7 @@ export default function AdminPage() {
         // Initialize seats if seating is enabled
         if (newEvent.seatingEnabled && newEvent.sections.length > 0) {
           const apiUrl =
-            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+            process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
           const createdEventId = response.data.data?._id || response.data._id;
           console.log(
             '[AdminPage] Initializing seats for event:',
@@ -796,7 +796,7 @@ export default function AdminPage() {
         try {
           // Validate the ticket via API using encrypted token
           const apiUrl =
-            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+            process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
           const response = await fetch(`${apiUrl}/tickets/validate-qr`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -869,7 +869,7 @@ export default function AdminPage() {
 
           // Validate the ticket
           const apiUrl =
-            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+            process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
           const response = await fetch(`${apiUrl}/tickets/validate-qr`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
