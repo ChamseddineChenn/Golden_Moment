@@ -4,8 +4,8 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { LoginAttemptsService } from './login-attempts.service';
 import { User, UserSchema } from './schemas/user.schema';
-import { Organizer, OrganizerSchema } from './schemas/organizer.schema';
-import { Admin, AdminSchema } from './schemas/admin.schema';
+import { OrganizerSchema } from './schemas/organizer.schema';
+import { AdminSchema } from './schemas/admin.schema';
 import {
   LoginAttempt,
   LoginAttemptSchema,
@@ -27,6 +27,8 @@ import { UserType } from './enums/user-type.enum';
           return schema;
         },
       },
+    ]),
+    MongooseModule.forFeature([
       { name: LoginAttempt.name, schema: LoginAttemptSchema },
     ]),
   ],

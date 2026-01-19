@@ -8,7 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { EventsModule } from './events/events.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
-import { UserTypeGuard } from './auth/guards/roles.guard';
+import { UserTypeGuard } from './auth/guards/user-type.guard';
 
 @Module({
   imports: [

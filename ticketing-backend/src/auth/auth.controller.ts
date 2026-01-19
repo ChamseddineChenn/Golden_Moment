@@ -10,17 +10,17 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import type { Response, Request } from 'express';
-import { AuthService } from './auth.service';
+import { AuthService, AuthResponse, SimpleResponse } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
+import { SignupOrganizerDto } from './dto/signup-organizer.dto';
 import { LoginDto } from './dto/login.dto';
-import { Public } from './decorators/public.decorator';
-import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
-import { GetCurrentUser } from './decorators/get-current-user.decorator';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
-import { SignupOrganizerDto } from './dto/signup-organizer.dto';
+import { Public } from './decorators/public.decorator';
+import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { GetCurrentUser } from './decorators/get-current-user.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -32,7 +32,7 @@ export class AuthController {
   async signup(
     @Body() signupDto: SignupDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<AuthResponse> {
     return this.authService.signup(signupDto, res);
   }
 
@@ -42,7 +42,7 @@ export class AuthController {
   async signupOrganizer(
     @Body() signupOrganizerDto: SignupOrganizerDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<AuthResponse> {
     return this.authService.signupOrganizer(signupOrganizerDto, res);
   }
 
@@ -53,7 +53,7 @@ export class AuthController {
     @Body() loginDto: LoginDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<AuthResponse> {
     const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
     const userAgent = req.headers['user-agent'] || 'unknown';
 
@@ -67,10 +67,10 @@ export class AuthController {
   async refreshTokens(
     @GetCurrentUser('userId') userId: string,
     @GetCurrentUser('email') email: string,
-    @GetCurrentUser('role') role: string,
+    @GetCurrentUser('userType') userType: string,
     @Res({ passthrough: true }) res: Response,
-  ) {
-    return this.authService.refreshTokens(userId, email, role, res);
+  ): Promise<SimpleResponse> {
+    return this.authService.refreshTokens(userId, email, userType, res);
   }
 
   @Post('logout')
@@ -78,7 +78,7 @@ export class AuthController {
   async logout(
     @GetCurrentUser('userId') userId: string,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<SimpleResponse> {
     return this.authService.logout(userId, res);
   }
 
@@ -90,7 +90,9 @@ export class AuthController {
   @Public()
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
-  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
+  async verifyEmail(
+    @Body() verifyEmailDto: VerifyEmailDto,
+  ): Promise<AuthResponse> {
     return this.authService.verifyEmail(verifyEmailDto);
   }
 
@@ -99,21 +101,25 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resendVerification(
     @Body() resendVerificationDto: ResendVerificationDto,
-  ) {
+  ): Promise<SimpleResponse> {
     return this.authService.resendVerification(resendVerificationDto);
   }
 
   @Public()
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+  async forgotPassword(
+    @Body() forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<SimpleResponse> {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
   @Public()
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto,
+  ): Promise<SimpleResponse> {
     return this.authService.resetPassword(resetPasswordDto);
   }
 }
