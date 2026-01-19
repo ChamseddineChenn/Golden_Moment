@@ -1,28 +1,54 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ConfigModule } from '@nestjs/config';
-import { ScheduleModule } from '@nestjs/schedule';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import configuration from './config/configuration';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
 import { EventsModule } from './events/events.module';
-import { TicketsModule } from './tickets/tickets.module';
-import { UploadModule } from './upload/upload.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { UserTypeGuard } from './auth/guards/user-type.guard';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      load: [configuration],
     }),
-    ScheduleModule.forRoot(),
-    MongooseModule.forRoot(
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/ticketing-platform',
-    ),
+
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<string>('database.uri'),
+      }),
+      inject: [ConfigService],
+    }),
+
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => [
+        {
+          ttl: configService.get<number>('throttle.ttl'),
+          limit: configService.get<number>('throttle.limit'),
+        },
+      ],
+      inject: [ConfigService],
+    }),
+
+    AuthModule,
+    UsersModule,
     EventsModule,
-    TicketsModule,
-    UploadModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: UserTypeGuard,
+    },
+  ],
 })
 export class AppModule {}

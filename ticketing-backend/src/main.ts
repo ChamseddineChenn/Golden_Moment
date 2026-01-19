@@ -1,39 +1,55 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
+      },
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+    }),
+  );
+
+  app.use(cookieParser());
+
   app.enableCors({
-    origin: (origin, callback) => {
-      // Allow:
-      // - No origin (same-origin requests)
-      // - localhost:* (development)
-      // - 127.0.0.1:* (development loopback)
-      // - 192.168.x.x:* (private network)
-      // - 10.x.x.x:* (private network)
-      // - 172.16.x.x to 172.31.x.x:* (private network)
-      // - ngrok.io and ngrok-free.dev (tunneling for testing)
-      if (
-        !origin ||
-        origin.startsWith('http://localhost:') ||
-        origin.startsWith('https://localhost:') ||
-        origin.startsWith('http://127.0.0.1:') ||
-        origin.startsWith('https://127.0.0.1:') ||
-        /^http:\/\/(192\.168|10|172\.(?:1[6-9]|2[0-9]|3[01]))\.(\d{1,3})\.(\d{1,3}):\d+$/.test(
-          origin,
-        ) ||
-        /^https:\/\/.*\.ngrok(?:-free)?\.dev$/.test(origin)
-      ) {
-        callback(null, true);
-      } else {
-        console.log(`[CORS] Rejected origin: ${origin}`);
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: configService.get<string>('cors.origin'),
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: ['Set-Cookie'],
   });
-  const port = process.env.PORT ?? 3002;
-  await app.listen(port, '0.0.0.0');
-  console.log(`Backend server running on port ${port}`);
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
+
+  const port = configService.get<number>('port');
+  await app.listen(port);
 }
+
 bootstrap();
