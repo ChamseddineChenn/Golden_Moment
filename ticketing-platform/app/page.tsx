@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { eventsAPI } from '@/lib/api';
+import { applyFilters, getAvailableTicketTypes } from '@/lib/eventFilters';
+import { EventFilters, FilterState } from '@/components/EventFilters';
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 
@@ -33,6 +35,50 @@ function EventCard({ event }: { event: Event }) {
   const isAlmostSoldOut = soldPercentage >= 80;
   const isExpired = eventDate < new Date();
   const isSoldOut = ticketsAvailable <= 0 && totalSeats > 0;
+
+  // Get all available ticket types with prices
+  const getTicketTypesWithPrices = () => {
+    if (!event.ticketTypes) return [];
+
+    const types: Array<{
+      name: string;
+      price: number | string;
+      enabled: boolean;
+    }> = [];
+
+    if (event.ticketTypes.Free?.enabled) {
+      types.push({ name: 'Free', price: 'Free', enabled: true });
+    }
+    if (event.ticketTypes.EarlyBird?.enabled) {
+      types.push({
+        name: 'EarlyBird',
+        price: event.ticketTypes.EarlyBird.price ?? 0,
+        enabled: true,
+      });
+    }
+    if (event.ticketTypes.Standard?.enabled) {
+      types.push({
+        name: 'Standard',
+        price: event.ticketTypes.Standard.price ?? 0,
+        enabled: true,
+      });
+    }
+    if (event.ticketTypes.VIP?.enabled) {
+      types.push({
+        name: 'VIP',
+        price: event.ticketTypes.VIP.price ?? 0,
+        enabled: true,
+      });
+    }
+
+    return types.sort((a, b) => {
+      const aPrice = typeof a.price === 'string' ? 0 : a.price;
+      const bPrice = typeof b.price === 'string' ? 0 : b.price;
+      return aPrice - bPrice;
+    });
+  };
+
+  const allTicketTypes = getTicketTypesWithPrices();
 
   // Get the pricing display text
   const getPricingText = () => {
@@ -100,10 +146,24 @@ function EventCard({ event }: { event: Event }) {
             </div>
           )}
 
-          {/* Price Badge */}
+          {/* Price Badge - Main Price with All Options */}
           {pricingText && (
-            <div className="absolute bottom-4 right-4 bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
-              {pricingText}
+            <div className="absolute bottom-4 right-4 flex flex-col-reverse items-end gap-1">
+              <div className="bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
+                {pricingText}
+              </div>
+              {allTicketTypes.length > 1 && (
+                <div className="text-xs text-white font-medium space-y-0.5">
+                  {allTicketTypes.slice(1).map((type) => (
+                    <div key={type.name} className="text-right opacity-90">
+                      {type.name}:{' '}
+                      {typeof type.price === 'string'
+                        ? type.price
+                        : `$${type.price.toFixed(2)}`}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -233,10 +293,24 @@ function EventCard({ event }: { event: Event }) {
           </div>
         )}
 
-        {/* Price Badge */}
+        {/* Price Badge - Main Price with All Options */}
         {pricingText && (
-          <div className="absolute bottom-4 right-4 bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
-            {pricingText}
+          <div className="absolute bottom-4 right-4 flex flex-col-reverse items-end gap-1">
+            <div className="bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
+              {pricingText}
+            </div>
+            {allTicketTypes.length > 1 && (
+              <div className="text-xs text-white font-medium space-y-0.5">
+                {allTicketTypes.slice(1).map((type) => (
+                  <div key={type.name} className="text-right opacity-90">
+                    {type.name}:{' '}
+                    {typeof type.price === 'string'
+                      ? type.price
+                      : `$${type.price.toFixed(2)}`}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -356,6 +430,15 @@ export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<FilterState>({
+    searchQuery: '',
+    selectedDate: '',
+    selectedTicketTypes: [],
+    priceFilterType: 'all',
+    minPrice: '',
+    maxPrice: '',
+  });
+  const { user, loading: authLoading, logout } = useAuth();
 
   // Filter out expired events (events where the date has passed)
   const upcomingEvents = events.filter((e) => {
@@ -363,6 +446,10 @@ export default function HomePage() {
     const now = new Date();
     return eventDate.getTime() > now.getTime();
   });
+
+  // Apply filters to upcoming events
+  const filteredUpcomingEvents = applyFilters(upcomingEvents, filters);
+  const availableTicketTypes = getAvailableTicketTypes(upcomingEvents);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -468,25 +555,20 @@ export default function HomePage() {
               Discover extraordinary experiences waiting for you
             </p>
           </div>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 bg-stone-900 text-white rounded-lg font-medium text-sm">
-              All Events
-            </button>
-            <button className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium text-sm hover:bg-stone-200 transition">
-              This Week
-            </button>
-            <button className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium text-sm hover:bg-stone-200 transition">
-              This Month
-            </button>
-          </div>
         </div>
+
+        {/* Event Filters */}
+        <EventFilters
+          onFilterChange={setFilters}
+          ticketTypesAvailable={availableTicketTypes}
+        />
 
         {loading ? (
           <div className="text-center py-20">
             <div className="inline-block w-12 h-12 border-4 border-stone-200 border-t-amber-500 rounded-full animate-spin"></div>
             <p className="text-stone-600 mt-4">Loading events...</p>
           </div>
-        ) : upcomingEvents.length === 0 ? (
+        ) : filteredUpcomingEvents.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-stone-200">
             <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
@@ -504,18 +586,28 @@ export default function HomePage() {
               </svg>
             </div>
             <p className="text-xl font-semibold text-stone-900">
-              No events available
+              {upcomingEvents.length === 0
+                ? 'No events available'
+                : 'No events match your filters'}
             </p>
             <p className="text-stone-500 mt-2">
-              Check back soon for exciting upcoming events!
+              {upcomingEvents.length === 0
+                ? 'Check back soon for exciting upcoming events!'
+                : 'Try adjusting your filters to see more events.'}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {upcomingEvents.map((event) => (
-              <EventCard key={event._id} event={event} />
-            ))}
-          </div>
+          <>
+            <div className="mb-4 text-sm text-stone-600">
+              Showing {filteredUpcomingEvents.length} of {upcomingEvents.length}{' '}
+              events
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {filteredUpcomingEvents.map((event) => (
+                <EventCard key={event._id} event={event} />
+              ))}
+            </div>
+          </>
         )}
       </section>
 
