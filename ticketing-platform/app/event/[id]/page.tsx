@@ -416,7 +416,93 @@ export default function EventDetailPage() {
     );
   }
 
+  // Check if event is expired
   const eventDate = new Date(event.date);
+  const isExpired = eventDate < new Date();
+
+  if (isExpired) {
+    return (
+      <div className="min-h-screen bg-stone-50">
+        <header className="bg-white border-b border-stone-200">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <Link
+              href="/"
+              className="text-amber-600 hover:text-amber-700 font-medium flex items-center gap-2"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Back to Events
+            </Link>
+          </div>
+        </header>
+        <div className="max-w-7xl mx-auto px-6 py-16">
+          <div className="max-w-lg mx-auto text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg
+                className="w-8 h-8 text-red-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-stone-900 mb-3">
+              Event Expired
+            </h1>
+            <p className="text-stone-600 mb-4 text-lg">
+              This event has already taken place.
+            </p>
+            <p className="text-stone-500 mb-8">
+              &quot;{event.name}&quot; was scheduled for{' '}
+              {eventDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}{' '}
+              and is no longer available for ticket purchases.
+            </p>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold transition"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Back to Browse Events
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-50">
