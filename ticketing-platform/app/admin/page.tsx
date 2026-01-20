@@ -853,6 +853,36 @@ export default function AdminPage() {
     try {
       setScanning(true);
 
+      // VALIDATION #1: Check file size (max 5MB)
+      const maxFileSize = 5 * 1024 * 1024; // 5MB
+      if (file.size > maxFileSize) {
+        setScanResult({
+          success: false,
+          message:
+            'Image file is too large. Please use an image smaller than 5MB.',
+        });
+        event.target.value = '';
+        setScanning(false);
+        return;
+      }
+
+      // VALIDATION #2: Check file type
+      const validImageTypes = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+      ];
+      if (!validImageTypes.includes(file.type)) {
+        setScanResult({
+          success: false,
+          message: 'Invalid image format. Please use JPG, PNG, WebP, or GIF.',
+        });
+        event.target.value = '';
+        setScanning(false);
+        return;
+      }
+
       // Use html5-qrcode for file-based QR code reading
       const { Html5Qrcode } = await import('html5-qrcode');
 
@@ -866,9 +896,34 @@ export default function AdminPage() {
 
         try {
           const qrcode = new Html5Qrcode(tempElementId);
-          const decodedText = await qrcode.scanFile(file, true);
 
-          console.log('QR Code from image:', decodedText);
+          // Suppress library internal error logging by temporarily overriding console.error
+          const originalConsoleError = console.error;
+          const suppressedErrors: string[] = [];
+          console.error = (...args: any[]) => {
+            const errorMessage = String(args[0] || '');
+            // Only suppress library-specific errors
+            if (
+              errorMessage.includes('MultiFormat') ||
+              errorMessage.includes('No readers') ||
+              errorMessage.includes('Failed to locate')
+            ) {
+              suppressedErrors.push(errorMessage);
+              return;
+            }
+            // Log other errors normally
+            originalConsoleError(...args);
+          };
+
+          let decodedText: string;
+          try {
+            decodedText = await qrcode.scanFile(file, true);
+          } finally {
+            // Restore original console.error
+            console.error = originalConsoleError;
+          }
+
+          console.log('[QR Scanner] Successfully decoded QR code from image');
 
           // Validate the ticket
           const apiUrl =
@@ -898,24 +953,54 @@ export default function AdminPage() {
           // Clean up temporary element
           document.body.removeChild(tempElement);
         }
-      } catch (decodeErr) {
-        console.error('Failed to decode QR code:', decodeErr);
+      } catch (decodeErr: any) {
+        // IMPROVED ERROR FEEDBACK
+        const errorMessage = String(decodeErr?.message || '');
+        let userMessage =
+          'Could not find QR code in the image. Please try another image.';
+
+        if (
+          errorMessage.includes('corrupted') ||
+          errorMessage.includes('invalid')
+        ) {
+          userMessage =
+            'The image appears to be corrupted or tampered with. Please use an authentic QR code image.';
+        } else if (errorMessage.includes('format')) {
+          userMessage =
+            'Image format not recognized. Please try a different image format.';
+        } else if (errorMessage.includes('timeout')) {
+          userMessage =
+            'Image processing took too long. Please try a smaller or simpler image.';
+        }
+
+        console.debug('[QR Scanner] Decode error (suppressed):', errorMessage);
         setScanResult({
           success: false,
-          message:
-            'Could not find QR code in the image. Please try another image.',
+          message: userMessage,
         });
         event.target.value = '';
+
+        // Close scanner after error (with slight delay to show message)
+        setTimeout(() => {
+          closeCameraScanner();
+        }, 1500);
       } finally {
         setScanning(false);
       }
-    } catch (err) {
-      console.error('Error reading file:', err);
+    } catch (err: any) {
+      const errorMessage = String(err?.message || 'Unknown error');
+      console.error('[QR Scanner] File reading error:', errorMessage);
       setScanResult({
         success: false,
-        message: 'Failed to read the image file.',
+        message: 'Failed to read the image file. Please try another file.',
       });
+      event.target.value = '';
       setScanning(false);
+
+      // Close scanner after error
+      setTimeout(() => {
+        closeCameraScanner();
+      }, 1500);
     }
   };
 
