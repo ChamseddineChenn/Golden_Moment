@@ -28,7 +28,10 @@ interface Event {
   category?: string;
   isDraft?: boolean;
   isPublished?: boolean;
-  seatingLayout?: Array<any>;
+  seatingLayout?: {
+    enabled: boolean;
+    sections: Array<any>;
+  };
 }
 
 interface Ticket {
