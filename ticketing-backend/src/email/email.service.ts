@@ -80,7 +80,9 @@ export class EmailService {
     ticketData: {
       email: string;
       ticketNumber: string;
-      eventName: string;      ticketType?: string;      purchaseDate: string;
+      eventName: string;
+      ticketType?: string;
+      purchaseDate: string;
       totalAmount: number;
       customerName: string;
       receiptHtml?: string;
