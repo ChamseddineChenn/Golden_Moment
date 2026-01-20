@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { eventsAPI, ticketsAPI } from '@/lib/api';
+import { eventsAPI, ticketsAPI, logsAPI } from '@/lib/api';
 import Link from 'next/link';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { toast, ToastContainer } from 'react-toastify';
@@ -57,13 +57,15 @@ interface Ticket {
   expiresAt?: string;
 }
 
-type ActiveTab = 'dashboard' | 'events' | 'tickets' | 'scanner' | 'create';
+type ActiveTab = 'dashboard' | 'events' | 'tickets' | 'scanner' | 'logs' | 'create';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [logsTotal, setLogsTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [creatingEvent, setCreatingEvent] = useState(false);
 
@@ -389,6 +391,26 @@ export default function AdminPage() {
       setTickets(Array.isArray(ticketsData) ? ticketsData : []);
     } catch (err) {
       console.error('Failed to fetch tickets:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const response = await logsAPI.getAll(100, 0);
+      // Extract data from standardized response format { success, statusCode, data, timestamp }
+      const logsData = response.data.data || response.data;
+      if (logsData && logsData.data) {
+        setLogs(Array.isArray(logsData.data) ? logsData.data : []);
+        setLogsTotal(logsData.total || 0);
+      } else {
+        setLogs(Array.isArray(logsData) ? logsData : []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch logs:', err);
+      setLogs([]);
     } finally {
       setLoading(false);
     }
@@ -1115,6 +1137,25 @@ export default function AdminPage() {
             strokeLinejoin="round"
             strokeWidth={2}
             d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+          />
+        </svg>
+      ),
+    },
+    {
+      id: 'logs' as const,
+      label: 'Logs',
+      icon: (
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z M13 3v5a2 2 0 002 2h5"
           />
         </svg>
       ),
@@ -2708,6 +2749,123 @@ export default function AdminPage() {
                     </ol>
                   </div>
                 </div>
+              </div>
+            )}
+            {/* Logs Tab */}
+            {activeTab === 'logs' && (
+              <div className="max-w-5xl mx-auto">
+                <div className="mb-4 md:mb-6 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-bold text-stone-900">
+                      Activity Logs
+                    </h2>
+                    <p className="text-sm md:text-base text-stone-600">
+                      Track all events created, updated, deleted, and tickets purchased
+                    </p>
+                  </div>
+                  <button
+                    onClick={fetchLogs}
+                    disabled={loading}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition disabled:opacity-50"
+                  >
+                    <svg
+                      className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                    {loading ? 'Loading...' : 'Refresh'}
+                  </button>
+                </div>
+
+                {logs.length > 0 ? (
+                  <div className="space-y-3">
+                    {logs.map((log, idx) => {
+                      const actionColors: Record<string, { bg: string; text: string; badge: string }> = {
+                        EVENT_CREATED: { bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700' },
+                        EVENT_UPDATED: { bg: 'bg-purple-50', text: 'text-purple-800', badge: 'bg-purple-100 text-purple-700' },
+                        EVENT_DELETED: { bg: 'bg-red-50', text: 'text-red-800', badge: 'bg-red-100 text-red-700' },
+                        TICKET_PURCHASED: { bg: 'bg-green-50', text: 'text-green-800', badge: 'bg-green-100 text-green-700' },
+                        TICKET_DELETED: { bg: 'bg-orange-50', text: 'text-orange-800', badge: 'bg-orange-100 text-orange-700' },
+                      };
+
+                      const colors = actionColors[log.action] || { bg: 'bg-stone-50', text: 'text-stone-800', badge: 'bg-stone-100 text-stone-700' };
+                      const actionLabel = log.action.replace(/_/g, ' ');
+                      const timestamp = new Date(log.createdAt || log.timestamp).toLocaleString();
+
+                      return (
+                        <div key={idx} className={`${colors.bg} border border-stone-200 rounded-xl p-4 hover:shadow-md transition`}>
+                          <div className="flex items-center justify-between gap-4 flex-wrap">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                <span className={`inline-block px-3 py-1 rounded-lg font-semibold text-xs ${colors.badge}`}>
+                                  {actionLabel}
+                                </span>
+                                <span className={`${colors.text} font-semibold text-sm`}>
+                                  {log.eventName || log.ticketName || 'Unknown'}
+                                </span>
+                              </div>
+                              <p className="text-xs md:text-sm text-stone-600">
+                                {timestamp}
+                              </p>
+                            </div>
+                            {log.metadata && (
+                              <div className="text-right">
+                                {log.metadata.totalPrice && (
+                                  <p className="text-sm font-semibold text-amber-600">
+                                    ${log.metadata.totalPrice.toFixed(2)}
+                                  </p>
+                                )}
+                                {log.metadata.buyerEmail && (
+                                  <p className="text-xs text-stone-500">
+                                    {log.metadata.buyerEmail}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-white rounded-2xl border border-stone-200">
+                    <svg
+                      className="w-12 h-12 text-stone-400 mx-auto mb-3"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <h3 className="text-lg font-semibold text-stone-900 mb-1">
+                      No logs yet
+                    </h3>
+                    <p className="text-stone-600">
+                      Logs will appear here when events are created, updated, or deleted
+                    </p>
+                  </div>
+                )}
+
+                {logsTotal > logs.length && (
+                  <div className="text-center mt-6">
+                    <p className="text-sm text-stone-600 mb-3">
+                      Showing {logs.length} of {logsTotal} logs
+                    </p>
+                  </div>
+                )}
               </div>
             )}
             {/* Create Event Tab */}
