@@ -33,16 +33,20 @@ const apiClient = axios.create({
   },
 });
 
-// Add error interceptor to log errors
+// Add error interceptor to log errors (but suppress expected client errors like 404)
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('[API] Error response:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message,
-    });
+    // Only log server errors (5xx) or unexpected errors
+    // Suppress 4xx errors as they're usually handled by the caller
+    if (error.response?.status >= 500) {
+      console.error('[API] Server Error:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+      });
+    }
     return Promise.reject(error);
   },
 );
