@@ -355,12 +355,16 @@ export function generateReceiptHTML(
                   <span class="event-detail-label">Time</span>
                   <span class="event-detail-value">${eventTime}</span>
                 </div>
-                ${eventData.location ? `
+                ${
+                  eventData.location
+                    ? `
                 <div class="event-detail-row">
                   <span class="event-detail-label">Location</span>
                   <span class="event-detail-value">${eventData.location}</span>
                 </div>
-                ` : ''}
+                `
+                    : ''
+                }
               </div>
             </div>
             
@@ -394,7 +398,9 @@ export function generateReceiptHTML(
             </div>
             
             <!-- QR Code Section -->
-            ${ticketData.qrCode && options?.includeQrCode ? `
+            ${
+              ticketData.qrCode && options?.includeQrCode
+                ? `
             <div class="section">
               <h2 class="section-title">QR Code</h2>
               <div class="qr-section">
@@ -402,7 +408,9 @@ export function generateReceiptHTML(
                 <img src="${ticketData.qrCode}" alt="QR Code" class="qr-code-img">
               </div>
             </div>
-            ` : ''}
+            `
+                : ''
+            }
             
             <!-- Important Notice -->
             <div class="important-notice">

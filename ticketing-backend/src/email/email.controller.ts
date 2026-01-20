@@ -28,9 +28,16 @@ export class EmailController {
     },
   ) {
     try {
-      return await this.emailService.sendTicketReceipt(body.ticketData, body.options);
+      return await this.emailService.sendTicketReceipt(
+        body.ticketData,
+        body.options,
+      );
     } catch (error) {
-      this.logger.error('Failed to send receipt via endpoint', EmailController.name, { error });
+      this.logger.error(
+        'Failed to send receipt via endpoint',
+        EmailController.name,
+        { error },
+      );
       throw error;
     }
   }
@@ -52,7 +59,9 @@ export class EmailController {
     try {
       return await this.emailService.sendBulkReceipts(body.tickets);
     } catch (error) {
-      this.logger.error('Failed to send bulk receipts', EmailController.name, { error });
+      this.logger.error('Failed to send bulk receipts', EmailController.name, {
+        error,
+      });
       throw error;
     }
   }
