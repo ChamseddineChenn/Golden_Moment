@@ -104,6 +104,103 @@ function EventCard({ event }: { event: Event }) {
 
   const pricingText = getPricingText();
 
+  // If expired, render as div instead of Link to prevent navigation
+  if (isExpired) {
+    return (
+      <div className="group bg-white rounded-2xl overflow-hidden border border-stone-200 opacity-60 cursor-not-allowed">
+        {/* Event Image */}
+        <div className="relative h-48 bg-gradient-to-br from-stone-800 to-stone-900 overflow-hidden">
+          {event.coverImage && (
+            <img
+              src={event.coverImage}
+              alt={event.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+
+          {/* Date Badge */}
+          <div className="absolute top-4 left-4 bg-white rounded-xl p-3 text-center shadow-lg">
+            <p className="text-xs font-bold text-amber-600 uppercase">
+              {eventDate.toLocaleString('en-US', { month: 'short' })}
+            </p>
+            <p className="text-2xl font-bold text-stone-900 -mt-1">
+              {eventDate.getDate()}
+            </p>
+          </div>
+
+          {/* Status Badge */}
+          <div className="absolute top-4 right-4 bg-stone-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+            Expired
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-4">
+          <h3 className="text-lg font-semibold text-stone-900 mb-2">
+            {event.name}
+          </h3>
+          <p className="text-sm text-stone-600 mb-4 line-clamp-2">
+            {event.description}
+          </p>
+
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center gap-3 text-sm text-stone-700">
+              <svg
+                className="w-4 h-4 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              <span className="truncate">{event.venue}</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-stone-700">
+              <svg
+                className="w-4 h-4 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span>
+                {eventDate.toLocaleString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Pricing Info */}
+          <div className="pt-4 border-t border-stone-100">
+            <p className="text-sm text-stone-500">
+              {pricingText ? `${pricingText}` : 'Price TBA'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // If sold out, render as div instead of Link to prevent navigation
   if (isSoldOut) {
     return (

@@ -41,10 +41,31 @@ export default function ReceiptPage() {
         const response = await ticketsAPI.getById(ticketId);
         // Extract data from standardized response format { success, statusCode, data, timestamp }
         const ticketData = response.data.data || response.data;
+
+        // Check if event has expired
+        if (ticketData.eventId && typeof ticketData.eventId === 'object') {
+          const eventDate = new Date(ticketData.eventId.date);
+          const now = new Date();
+          if (eventDate < now) {
+            setError('TICKET_EXPIRED');
+            setLoading(false);
+            return;
+          }
+        }
+
         setTicket(ticketData);
-      } catch (err) {
-        setError('Failed to load ticket');
-        console.error(err);
+      } catch (err: any) {
+        // Handle different error types
+        if (err.response?.status === 404) {
+          setError('Ticket not found');
+        } else if (err.response?.status === 500) {
+          setError('Server error. Please try again later.');
+        } else {
+          setError(
+            'Failed to load ticket. Please check the ticket ID and try again.',
+          );
+        }
+        console.error('[Receipt Page] Error fetching ticket:', err);
       } finally {
         setLoading(false);
       }
@@ -347,6 +368,57 @@ export default function ReceiptPage() {
     );
   }
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="w-12 h-12 border-3 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-stone-600">Loading ticket...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show ticket expired error
+  if (error === 'TICKET_EXPIRED') {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl p-8 text-center max-w-md shadow-lg border border-stone-200">
+          <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg
+              className="w-8 h-8 text-orange-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-stone-900 mb-2">
+            Ticket Expired
+          </h1>
+          <p className="text-stone-600 mb-6">
+            The event for this ticket has already passed. This ticket is no
+            longer valid.
+          </p>
+          <Link
+            href="/"
+            className="inline-block bg-stone-900 text-white px-6 py-3 rounded-xl font-semibold hover:bg-stone-800 transition"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Show other errors
   if (error || !ticket) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
@@ -388,17 +460,20 @@ export default function ReceiptPage() {
   const purchaseDate = new Date(ticket.purchaseDate);
 
   return (
-    <div className="min-h-screen bg-stone-100">
+    <div className="min-h-screen bg-gradient-to-br from-stone-50 via-stone-50 to-amber-50/30">
       {/* Header */}
-      <header className="bg-white border-b border-stone-200">
-        <div className="max-w-4xl mx-auto px-6 py-4">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-stone-200/50 shadow-sm">
+        <div className="max-w-5xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
+            <Link
+              href="/"
+              className="flex items-center gap-3 hover:opacity-80 transition"
+            >
+              <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-lg flex items-center justify-center shadow-lg shadow-amber-500/20">
                 <span className="text-white text-lg font-bold">G</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-stone-900">
+                <h1 className="text-lg font-bold text-stone-900">
                   Golden Moment
                 </h1>
                 <p className="text-xs text-stone-500 -mt-0.5">
@@ -409,7 +484,7 @@ export default function ReceiptPage() {
 
             <Link
               href="/"
-              className="text-stone-600 hover:text-stone-900 transition flex items-center gap-2"
+              className="text-stone-600 hover:text-stone-900 transition flex items-center gap-2 font-medium text-sm"
             >
               <svg
                 className="w-5 h-5"
@@ -430,11 +505,14 @@ export default function ReceiptPage() {
         </div>
       </header>
 
-      {/* Success Message */}
-      <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white">
-        <div className="max-w-4xl mx-auto px-6 py-6 text-center">
-          <div className="flex items-center justify-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+      {/* Success Banner */}
+      <div className="bg-gradient-to-r from-emerald-500 via-green-500 to-teal-500 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-white rounded-full -mr-48 -mt-48"></div>
+        </div>
+        <div className="max-w-5xl mx-auto px-6 py-8 relative z-10">
+          <div className="flex items-center gap-4">
+            <div className="flex-shrink-0 w-12 h-12 bg-white/20 backdrop-blur rounded-full flex items-center justify-center">
               <svg
                 className="w-6 h-6"
                 fill="none"
@@ -444,15 +522,16 @@ export default function ReceiptPage() {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                   d="M5 13l4 4L19 7"
                 />
               </svg>
             </div>
-            <div className="text-left">
-              <h2 className="text-xl font-bold">Booking Confirmed!</h2>
-              <p className="text-green-100 text-sm">
-                Your e-ticket has been sent to your email
+            <div>
+              <h2 className="text-2xl font-bold">Booking Confirmed!</h2>
+              <p className="text-green-100 text-sm mt-1">
+                Your e-ticket has been sent to your email • Ticket ID:{' '}
+                {ticket.ticketNumber}
               </p>
             </div>
           </div>
@@ -460,13 +539,13 @@ export default function ReceiptPage() {
       </div>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-6 py-8">
+      <main className="max-w-5xl mx-auto px-6 py-12">
         {/* Actions Bar */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row gap-4 mb-10">
           <button
             onClick={handleDownloadPDF}
             disabled={downloading}
-            className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white px-6 py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-3 disabled:opacity-50"
+            className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white px-8 py-4 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-3 disabled:opacity-50 group"
           >
             {downloading ? (
               <>
@@ -476,7 +555,7 @@ export default function ReceiptPage() {
             ) : (
               <>
                 <svg
-                  className="w-5 h-5"
+                  className="w-5 h-5 group-hover:scale-110 transition"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -493,9 +572,9 @@ export default function ReceiptPage() {
             )}
           </button>
 
-          <button className="flex-1 bg-white text-stone-700 px-6 py-4 rounded-xl font-semibold border border-stone-200 hover:bg-stone-50 transition flex items-center justify-center gap-3">
+          <button className="flex-1 bg-white text-stone-700 px-8 py-4 rounded-xl font-semibold border border-stone-200 hover:bg-stone-50 transition flex items-center justify-center gap-3 group">
             <svg
-              className="w-5 h-5"
+              className="w-5 h-5 group-hover:scale-110 transition"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -515,178 +594,196 @@ export default function ReceiptPage() {
         <div
           ref={receiptRef}
           id="receipt-content"
-          className="bg-white rounded-3xl overflow-hidden shadow-xl border border-stone-200"
+          className="bg-white rounded-3xl overflow-hidden shadow-2xl border border-stone-200/50"
         >
-          {/* Ticket Header */}
-          <div className="bg-gradient-to-r from-stone-900 to-stone-800 text-white p-8">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center">
-                  <span className="text-xl font-bold">G</span>
+          {/* Ticket Header with Gradient */}
+          <div className="bg-gradient-to-r from-stone-900 via-stone-800 to-stone-900 text-white p-8 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full -mr-32 -mt-32"></div>
+            <div className="relative z-10 flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/30">
+                  <span className="text-xl font-bold text-stone-900">G</span>
                 </div>
                 <div>
                   <p className="font-bold text-lg">Golden Moment Events</p>
-                  <p className="text-stone-400 text-sm">
-                    E-Ticket / Entry Pass
-                  </p>
+                  <p className="text-stone-300 text-sm">Premium E-Ticket</p>
                 </div>
               </div>
-              <div className="bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-bold">
+              <div className="bg-gradient-to-br from-amber-400 to-amber-500 text-stone-900 px-6 py-2 rounded-lg text-sm font-bold shadow-lg">
                 {ticket.ticketNumber}
               </div>
             </div>
           </div>
 
-          {/* Event Info */}
-          <div className="p-8">
-            <h2 className="text-3xl font-bold text-stone-900 mb-6">
+          {/* Event Title Section */}
+          <div className="px-8 py-6 bg-gradient-to-b from-stone-50 to-white border-b border-stone-200/50">
+            <h2 className="text-4xl font-bold text-stone-900 leading-tight">
               {eventInfo?.name || 'Event'}
             </h2>
+            <p className="text-stone-500 mt-2">
+              Event ticket for entry at {eventInfo?.venue || 'TBA'}
+            </p>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <div className="bg-stone-50 rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-                    <svg
-                      className="w-5 h-5 text-amber-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                      />
-                    </svg>
+          {/* Main Content - 2 Column Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-8">
+            {/* Left Column - Event Details */}
+            <div className="md:col-span-2 space-y-6">
+              {/* Date & Venue Row */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-gradient-to-br from-amber-50 to-amber-100/30 rounded-2xl p-6 border border-amber-200/50">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-5 h-5 text-amber-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                    </div>
+                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                      Date & Time
+                    </p>
                   </div>
-                  <p className="text-sm text-stone-500 font-medium">
-                    DATE & TIME
+                  <p className="text-lg font-bold text-stone-900 mb-2">
+                    {eventDate.toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </p>
+                  <p className="text-stone-600">
+                    {eventDate.toLocaleTimeString('en-US', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
                   </p>
                 </div>
-                <p className="text-lg font-bold text-stone-900">
-                  {eventDate.toLocaleDateString('en-US', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                  })}
-                </p>
-                <p className="text-stone-600">
-                  {eventDate.toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </p>
-              </div>
 
-              <div className="bg-stone-50 rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center">
-                    <svg
-                      className="w-5 h-5 text-amber-600"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-stone-500 font-medium">VENUE</p>
-                </div>
-                <p className="text-lg font-bold text-stone-900">
-                  {eventInfo?.venue || 'TBA'}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl p-6 border border-amber-200">
-                <p className="text-sm text-amber-700 font-medium mb-2">
-                  SEATS ({ticket.seats.length})
-                </p>
-                <div className="space-y-2">
-                  {ticket.seats.map((seat, idx) => (
-                    <p key={idx} className="text-lg font-bold text-amber-900">
-                      {seat.seatId}
+                <div className="bg-gradient-to-br from-stone-50 to-stone-100/30 rounded-2xl p-6 border border-stone-200/50">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-stone-100 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-5 h-5 text-stone-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                      </svg>
+                    </div>
+                    <p className="text-xs font-semibold text-stone-700 uppercase tracking-wider">
+                      Venue
                     </p>
-                  ))}
+                  </div>
+                  <p className="text-lg font-bold text-stone-900">
+                    {eventInfo?.venue || 'TBA'}
+                  </p>
                 </div>
               </div>
 
-              <div className="md:col-span-2 bg-stone-50 rounded-2xl p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-stone-500 font-medium mb-1">
-                      ATTENDEE NAME
-                    </p>
-                    <p className="text-lg font-bold text-stone-900">
-                      {ticket.buyerName}
-                    </p>
+              {/* Seats & Attendee Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="bg-gradient-to-br from-amber-50 to-amber-100/30 rounded-2xl p-6 border border-amber-200/50">
+                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-4">
+                    Seats ({ticket.seats.length})
+                  </p>
+                  <div className="space-y-2">
+                    {ticket.seats.map((seat, idx) => (
+                      <div
+                        key={idx}
+                        className="text-sm font-semibold text-amber-900 bg-white/50 rounded px-3 py-1 inline-block"
+                      >
+                        {seat.seatId}
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <p className="text-sm text-stone-500 font-medium mb-1">
-                      EMAIL
-                    </p>
-                    <p className="text-stone-700 truncate">
+                </div>
+
+                <div className="bg-gradient-to-br from-stone-50 to-stone-100/30 rounded-2xl p-6 border border-stone-200/50">
+                  <p className="text-xs font-semibold text-stone-700 uppercase tracking-wider mb-4">
+                    Attendee
+                  </p>
+                  <p className="text-base font-bold text-stone-900 mb-3">
+                    {ticket.buyerName}
+                  </p>
+                  <div className="space-y-1 text-sm">
+                    <p className="text-stone-600">
+                      <span className="text-xs font-semibold text-stone-500">
+                        Email:
+                      </span>{' '}
                       {ticket.buyerEmail}
                     </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-stone-500 font-medium mb-1">
-                      PHONE
+                    <p className="text-stone-600">
+                      <span className="text-xs font-semibold text-stone-500">
+                        Phone:
+                      </span>{' '}
+                      {ticket.buyerPhoneNumber}
                     </p>
-                    <p className="text-stone-700">{ticket.buyerPhoneNumber}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-stone-800 to-stone-900 rounded-2xl p-8 text-center">
-              <p className="text-stone-400 text-sm font-medium mb-4">
-                SCAN QR CODE FOR ENTRY
-              </p>
-              {ticket.qrCode && (
-                <div className="inline-block bg-white p-4 rounded-2xl shadow-xl">
-                  <img
-                    src={ticket.qrCode}
-                    alt="QR Code"
-                    className="w-48 h-48"
-                  />
-                </div>
-              )}
-              <p className="text-stone-500 text-xs mt-4">
-                Present this QR code at the venue entrance
-              </p>
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-stone-200 text-center">
-              <p className="text-stone-500 text-sm">
-                Purchased on{' '}
-                {purchaseDate.toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </p>
+            {/* Right Column - QR Code */}
+            <div className="md:col-span-1 flex flex-col items-center">
+              <div className="bg-gradient-to-b from-stone-50 to-stone-100/50 rounded-3xl p-6 border border-stone-200/50 w-full flex flex-col items-center">
+                <p className="text-xs font-semibold text-stone-600 uppercase tracking-wider mb-4">
+                  Entry QR Code
+                </p>
+                {ticket.qrCode && (
+                  <div className="bg-white p-4 rounded-2xl shadow-lg shadow-stone-200/50 w-full aspect-square flex items-center justify-center">
+                    <img
+                      src={ticket.qrCode}
+                      alt="QR Code"
+                      className="w-full h-full"
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-stone-600 text-center mt-4">
+                  Show this QR code at the venue entrance
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="bg-stone-900 text-center py-4">
+          {/* Purchase Info Footer */}
+          <div className="px-8 py-6 bg-gradient-to-r from-stone-50 to-stone-100/50 border-t border-stone-200/50">
+            <p className="text-center text-sm text-stone-600">
+              <span className="font-semibold">Purchased:</span>{' '}
+              {purchaseDate.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}{' '}
+              at{' '}
+              {purchaseDate.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </p>
+          </div>
+
+          {/* Bottom Branding */}
+          <div className="bg-stone-900 text-center py-6 border-t border-stone-800">
             <p className="text-stone-400 text-sm">
               Golden Moment Events • www.goldenmoment.tn •
               support@goldenmoment.tn
@@ -694,11 +791,29 @@ export default function ReceiptPage() {
           </div>
         </div>
 
-        <div className="mt-8 bg-white rounded-2xl p-6 border border-stone-200">
-          <h3 className="font-bold text-stone-900 mb-4">
-            Important Information
-          </h3>
-          <ul className="space-y-3 text-stone-600 text-sm">
+        {/* Important Information Section */}
+        <div className="mt-10 bg-white rounded-2xl p-8 border border-stone-200/50 shadow-lg">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+              <svg
+                className="w-5 h-5 text-amber-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-bold text-stone-900">
+              Important Information
+            </h3>
+          </div>
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-4 text-stone-600">
             <li className="flex items-start gap-3">
               <svg
                 className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5"
@@ -711,9 +826,7 @@ export default function ReceiptPage() {
                   clipRule="evenodd"
                 />
               </svg>
-              <span>
-                Please arrive at least 30 minutes before the event starts
-              </span>
+              <span>Arrive 30 minutes before the event starts</span>
             </li>
             <li className="flex items-start gap-3">
               <svg
@@ -727,7 +840,7 @@ export default function ReceiptPage() {
                   clipRule="evenodd"
                 />
               </svg>
-              <span>Have your QR code ready for scanning at the entrance</span>
+              <span>Have your QR code ready for scanning</span>
             </li>
             <li className="flex items-start gap-3">
               <svg
@@ -741,9 +854,7 @@ export default function ReceiptPage() {
                   clipRule="evenodd"
                 />
               </svg>
-              <span>
-                This ticket is non-transferable and valid for one entry only
-              </span>
+              <span>Ticket is non-transferable, valid for one entry only</span>
             </li>
             <li className="flex items-start gap-3">
               <svg
@@ -757,14 +868,15 @@ export default function ReceiptPage() {
                   clipRule="evenodd"
                 />
               </svg>
-              <span>For support, contact us at support@goldenmoment.tn</span>
+              <span>Contact support@goldenmoment.tn for assistance</span>
             </li>
           </ul>
         </div>
       </main>
 
+      {/* Footer */}
       <footer className="bg-stone-900 text-white mt-12">
-        <div className="max-w-4xl mx-auto px-6 py-8 text-center">
+        <div className="max-w-5xl mx-auto px-6 py-8 text-center">
           <p className="text-stone-400 text-sm">
             © 2026 Golden Moment Events. All rights reserved.
           </p>

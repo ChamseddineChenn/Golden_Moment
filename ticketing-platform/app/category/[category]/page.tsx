@@ -103,10 +103,136 @@ function EventCard({ event }: { event: Event }) {
 
   const pricingText = getPricingText();
 
+  // If expired, render as div instead of Link to prevent navigation
+  if (isExpired) {
+    return (
+      <div className="group bg-white rounded-2xl overflow-hidden border border-stone-200 opacity-60 cursor-not-allowed">
+        {/* Event Image Placeholder */}
+        <div className="relative h-48 bg-gradient-to-br from-stone-800 to-stone-900 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+
+          {/* Date Badge */}
+          <div className="absolute top-4 left-4 bg-white rounded-xl p-3 text-center shadow-lg">
+            <p className="text-xs font-bold text-amber-600 uppercase">
+              {eventDate.toLocaleString('en-US', { month: 'short' })}
+            </p>
+            <p className="text-2xl font-bold text-stone-900 -mt-1">
+              {eventDate.getDate()}
+            </p>
+          </div>
+
+          {/* Status Badge */}
+          <div className="absolute top-4 right-4 bg-stone-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+            Expired
+          </div>
+
+          {/* Price Badge - Main Price with All Options */}
+          {pricingText && (
+            <div className="absolute bottom-4 right-4 flex flex-col-reverse items-end gap-1">
+              <div className="bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
+                {pricingText}
+              </div>
+              {allTicketTypes.length > 1 && (
+                <div className="text-xs text-white font-medium space-y-0.5">
+                  {allTicketTypes.slice(1).map((type) => (
+                    <div key={type.name} className="text-right opacity-90">
+                      {type.name}:{' '}
+                      {typeof type.price === 'string'
+                        ? type.price
+                        : `$${type.price.toFixed(2)}`}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Event Title */}
+          <div className="absolute bottom-4 left-4 right-4 pr-20">
+            <h3 className="text-lg font-bold text-white group-hover:text-amber-300 transition">
+              {event.name}
+            </h3>
+          </div>
+        </div>
+
+        {/* Event Details */}
+        <div className="p-6">
+          <p className="text-stone-600 text-sm line-clamp-2 mb-4">
+            {event.description}
+          </p>
+
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center gap-3 text-sm text-stone-700">
+              <svg
+                className="w-4 h-4 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              <span className="truncate">{event.venue}</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-stone-700">
+              <svg
+                className="w-4 h-4 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span>
+                {eventDate.toLocaleString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Availability */}
+          <div className="pt-4 border-t border-stone-100">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm text-stone-500">Availability</span>
+              <span className="text-sm font-semibold text-stone-400">
+                {Math.max(0, ticketsAvailable)}/{totalSeats}
+              </span>
+            </div>
+            <div className="w-full bg-stone-200 rounded-full h-2">
+              <div
+                className="bg-stone-400 h-2 rounded-full transition-all"
+                style={{
+                  width: `${Math.min(100, soldPercentage)}%`,
+                }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Link
       href={`/event/${event._id}`}
-      className="group bg-white rounded-2xl overflow-hidden border border-stone-200 hover:border-amber-300 hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-300"
+      className="group bg-white rounded-2xl overflow-hidden border border-stone-200 hover:border-amber-300 hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-300 cursor-pointer"
     >
       {/* Event Image Placeholder */}
       <div className="relative h-48 bg-gradient-to-br from-stone-800 to-stone-900 overflow-hidden">
