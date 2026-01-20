@@ -35,9 +35,16 @@ export class EmailService {
     // Verify connection
     this.transporter.verify((error, success) => {
       if (error) {
-        this.logger.error('Email service initialization failed', EmailService.name, { error: error.message });
+        this.logger.error(
+          'Email service initialization failed',
+          EmailService.name,
+          { error: error.message },
+        );
       } else {
-        this.logger.log('Email service ready - SMTP connection verified', EmailService.name);
+        this.logger.log(
+          'Email service ready - SMTP connection verified',
+          EmailService.name,
+        );
       }
     });
   }
@@ -73,8 +80,7 @@ export class EmailService {
     ticketData: {
       email: string;
       ticketNumber: string;
-      eventName: string;
-      purchaseDate: string;
+      eventName: string;      ticketType?: string;      purchaseDate: string;
       totalAmount: number;
       customerName: string;
       receiptHtml?: string;
@@ -105,7 +111,7 @@ export class EmailService {
           customerName,
           customerEmail: email,
           price: ticketData.totalAmount,
-          ticketType: 'Standard',
+          ticketType: ticketData.ticketType || 'Standard',
           createdAt: new Date(),
           qrCode: ticketData.qrCode,
         },
@@ -124,7 +130,9 @@ export class EmailService {
       // Generate PDF if requested (WITH QR code for PDF)
       if (options?.attachPdf) {
         try {
-          this.logger.log('Generating PDF attachment', EmailService.name, { ticketNumber });
+          this.logger.log('Generating PDF attachment', EmailService.name, {
+            ticketNumber,
+          });
           // Generate PDF with QR code included
           const pdfHtml = generateReceiptHTML(
             {
@@ -132,7 +140,7 @@ export class EmailService {
               customerName,
               customerEmail: email,
               price: ticketData.totalAmount,
-              ticketType: 'Standard',
+              ticketType: ticketData.ticketType || 'Standard',
               createdAt: new Date(),
               qrCode: ticketData.qrCode,
             },
@@ -151,12 +159,19 @@ export class EmailService {
             content: pdfBuffer,
             contentType: 'application/pdf',
           });
-          this.logger.log('PDF generated successfully', EmailService.name, { ticketNumber });
-        } catch (pdfError) {
-          this.logger.warn('PDF generation failed, sending email without attachment', EmailService.name, {
+          this.logger.log('PDF generated successfully', EmailService.name, {
             ticketNumber,
-            error: pdfError instanceof Error ? pdfError.message : String(pdfError),
           });
+        } catch (pdfError) {
+          this.logger.warn(
+            'PDF generation failed, sending email without attachment',
+            EmailService.name,
+            {
+              ticketNumber,
+              error:
+                pdfError instanceof Error ? pdfError.message : String(pdfError),
+            },
+          );
         }
       }
 
@@ -189,9 +204,11 @@ export class EmailService {
         message: `Receipt sent to ${email}`,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : 'No stack trace';
-      
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace';
+
       this.logger.error('❌ Failed to send receipt email', EmailService.name, {
         ticketNumber: ticketData.ticketNumber,
         email: ticketData.email,

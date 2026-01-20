@@ -436,20 +436,25 @@ export class TicketsService {
       // Use the already-generated QR code from the ticket (don't regenerate)
       const qrCode = ticket.qrCode;
 
-      this.logger.log('Calling emailService.sendTicketReceipt', TicketsService.name, {
-        email: ticket.buyerEmail,
-        ticketNumber: ticket.ticketNumber,
-        eventName: event.name,
-        totalAmount: ticket.totalPrice,
-        attachPdf: true,
-        hasQrCode: !!qrCode,
-      });
+      this.logger.log(
+        'Calling emailService.sendTicketReceipt',
+        TicketsService.name,
+        {
+          email: ticket.buyerEmail,
+          ticketNumber: ticket.ticketNumber,
+          eventName: event.name,
+          totalAmount: ticket.totalPrice,
+          attachPdf: true,
+          hasQrCode: !!qrCode,
+        },
+      );
 
       await this.emailService.sendTicketReceipt(
         {
           email: ticket.buyerEmail,
           ticketNumber: ticket.ticketNumber,
           eventName: event.name,
+          ticketType: ticket.ticketType,
           purchaseDate: new Date(ticket.createdAt).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -466,10 +471,14 @@ export class TicketsService {
         },
       );
 
-      this.logger.log('Receipt email queued successfully', TicketsService.name, {
-        ticketId: ticket._id.toString(),
-        email: ticket.buyerEmail,
-      });
+      this.logger.log(
+        'Receipt email queued successfully',
+        TicketsService.name,
+        {
+          ticketId: ticket._id.toString(),
+          email: ticket.buyerEmail,
+        },
+      );
     } catch (error) {
       this.logger.error(
         'Error queuing receipt email',
