@@ -407,7 +407,7 @@ export default function AdminPage() {
     try {
       const response = await logsAPI.getAll(100, 0);
       const innerData = response.data?.data?.data;
-      
+
       if (innerData && Array.isArray(innerData.logs)) {
         setLogs(innerData.logs);
         setLogsTotal(innerData.total || 0);

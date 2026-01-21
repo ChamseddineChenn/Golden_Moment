@@ -878,14 +878,16 @@ export class TicketsService {
 
         // STEP 4: Update the event
         if (Object.keys(updateData).length > 0) {
-          await this.eventsService.update(eventId, updateData, true).catch(() => {
-            // Silently ignore if event update fails (event may have been deleted)
-            this.logger.warn(
-              'Could not update event counts',
-              TicketsService.name,
-              { eventId },
-            );
-          });
+          await this.eventsService
+            .update(eventId, updateData, true)
+            .catch(() => {
+              // Silently ignore if event update fails (event may have been deleted)
+              this.logger.warn(
+                'Could not update event counts',
+                TicketsService.name,
+                { eventId },
+              );
+            });
         }
       }
 
