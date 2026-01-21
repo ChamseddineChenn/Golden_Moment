@@ -12,12 +12,14 @@ import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { AppLogger } from '../common/utils/logger';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('tickets')
 export class TicketsController {
   private readonly logger = new AppLogger(TicketsController.name);
 
   constructor(private readonly ticketsService: TicketsService) {}
+
   @Public()
   @Post()
   async create(@Body() createTicketDto: CreateTicketDto) {
@@ -51,6 +53,7 @@ export class TicketsController {
       throw error;
     }
   }
+
   @Public()
   @Post('validate-qr')
   async validateQR(@Body() body: { encryptedToken: string }) {
@@ -63,6 +66,7 @@ export class TicketsController {
     });
     return result;
   }
+
   @Public()
   @Post('validate')
   async validateTicket(@Body() body: { ticketNumber: string }) {
@@ -77,12 +81,14 @@ export class TicketsController {
     });
     return result;
   }
+
   @Public()
   @Get('search')
   async search(@Query('q') query: string) {
     this.logger.log('GET /tickets/search', TicketsController.name, { query });
     return this.ticketsService.search(query);
   }
+
   @Public()
   @Get('by-number/:ticketNumber')
   async findByTicketNumber(@Param('ticketNumber') ticketNumber: string) {
@@ -95,6 +101,7 @@ export class TicketsController {
     );
     return this.ticketsService.findByTicketNumber(ticketNumber);
   }
+
   @Public()
   @Get('event/:eventId')
   async findByEventId(@Param('eventId') eventId: string) {
@@ -103,18 +110,21 @@ export class TicketsController {
     });
     return this.ticketsService.findByEventId(eventId);
   }
+
   @Public()
   @Get(':id')
   async findById(@Param('id') id: string) {
     this.logger.log('GET /tickets/:id', TicketsController.name, { id });
     return this.ticketsService.findById(id);
   }
+
   @Public()
   @Get()
   async findAll() {
     this.logger.log('GET /tickets', TicketsController.name);
     return this.ticketsService.findAll();
   }
+
   @Public()
   @Post(':id/mark-used')
   async markAsUsed(@Param('id') id: string) {
@@ -123,6 +133,7 @@ export class TicketsController {
     });
     return this.ticketsService.markAsUsed(id);
   }
+
   @Public()
   @Delete(':id')
   async delete(@Param('id') id: string) {

@@ -12,6 +12,7 @@ import {
 import { SeatsService } from './seats.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('seats')
 export class SeatsController {
@@ -20,12 +21,14 @@ export class SeatsController {
     @Inject(forwardRef(() => TicketsService))
     private readonly ticketsService: TicketsService,
   ) {}
+
   @Public()
   @Get('event/:eventId')
   async getSeatMap(@Param('eventId') eventId: string) {
     return this.seatsService.getSeatMap(eventId);
   }
 
+  @Public()
   @Post('event/:eventId/initialize')
   async initializeSeats(@Param('eventId') eventId: string) {
     return this.seatsService.initializeSeats(eventId);

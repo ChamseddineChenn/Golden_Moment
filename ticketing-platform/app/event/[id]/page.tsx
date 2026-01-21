@@ -213,6 +213,10 @@ export default function EventDetailPage() {
           '[EventDetail] Purchase finalized successfully:',
           ticket._id,
         );
+        // Store ticket data in both sessionStorage and localStorage to avoid redundant API call
+        const ticketJSON = JSON.stringify(ticket);
+        sessionStorage.setItem('purchasedTicket', ticketJSON);
+        localStorage.setItem('purchasedTicket', ticketJSON);
         router.push(`/receipt/${ticket._id}`);
       } else {
         // No visual seating or no seats selected - auto-assign seats
@@ -228,6 +232,10 @@ export default function EventDetailPage() {
         const response = await ticketsAPI.create(ticketData);
         const ticket: Ticket = response.data.data || response.data;
 
+        // Store ticket data in both sessionStorage and localStorage to avoid redundant API call
+        const ticketJSON = JSON.stringify(ticket);
+        sessionStorage.setItem('purchasedTicket', ticketJSON);
+        localStorage.setItem('purchasedTicket', ticketJSON);
         router.push(`/receipt/${ticket._id}`);
       }
     } catch (err: any) {

@@ -70,7 +70,7 @@ function hasAccess(pathname: string, userType: UserType | null): boolean {
       return allowedRoles.includes(userType);
     }
   }
-  
+
   // Route is not protected (public)
   return true;
 }
@@ -83,8 +83,8 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = authRoutes.includes(pathname);
 
   // Check if this is a protected route
-  const isProtectedRoute = Object.keys(ROUTE_ACCESS).some(route => 
-    pathname.startsWith(route)
+  const isProtectedRoute = Object.keys(ROUTE_ACCESS).some((route) =>
+    pathname.startsWith(route),
   );
 
   // If it's a protected route, verify authentication and authorization
@@ -102,7 +102,7 @@ export async function middleware(request: NextRequest) {
     if (!hasAccess(pathname, userType)) {
       // Option 1: Redirect to home page
       return NextResponse.redirect(new URL('/', request.url));
-      
+
       // Option 2: Redirect to a 403 forbidden page (uncomment if you have one)
       // return NextResponse.redirect(new URL('/403', request.url));
     }
@@ -114,7 +114,7 @@ export async function middleware(request: NextRequest) {
   // Optional: Redirect authenticated users away from auth pages
   if (isAuthRoute) {
     const userType = await getCurrentUser(request);
-    
+
     if (userType) {
       // Already logged in, redirect to appropriate dashboard
       if (userType === 'ADMIN') {

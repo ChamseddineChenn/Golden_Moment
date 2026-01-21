@@ -18,6 +18,7 @@ export class EventsController {
   private readonly logger = new AppLogger(EventsController.name);
 
   constructor(private readonly eventsService: EventsService) {}
+
   @Public()
   @Post()
   async create(@Body() createEventDto: CreateEventDto) {
@@ -39,6 +40,7 @@ export class EventsController {
     this.logger.log('GET /events (published)', EventsController.name);
     return this.eventsService.findAllPublished();
   }
+
   @Public()
   @Get('admin/all')
   async findAllAdmin() {
@@ -53,6 +55,7 @@ export class EventsController {
     this.logger.log('GET /events/:id', EventsController.name, { id });
     return this.eventsService.findById(id);
   }
+
   @Public()
   @Put(':id')
   async update(
@@ -62,6 +65,7 @@ export class EventsController {
     this.logger.log('PUT /events/:id', EventsController.name, { id });
     return this.eventsService.update(id, updateEventDto as any);
   }
+
   @Public()
   @Delete(':id')
   async delete(@Param('id') id: string) {
