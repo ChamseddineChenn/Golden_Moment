@@ -34,13 +34,33 @@ export default function ReceiptPage() {
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
+  const hasLoadedRef = useRef(false); // Track if we've already loaded the ticket
 
   useEffect(() => {
+    // Prevent running the effect twice in strict mode
+    if (hasLoadedRef.current) {
+      return;
+    }
+    hasLoadedRef.current = true;
+
     const fetchTicket = async () => {
       try {
-        const response = await ticketsAPI.getById(ticketId);
-        // Extract data from standardized response format { success, statusCode, data, timestamp }
-        const ticketData = response.data.data || response.data;
+        // First, try to get ticket from sessionStorage or localStorage
+        let ticketData: Ticket | null = null;
+        const storedTicket =
+          sessionStorage.getItem('purchasedTicket') ||
+          localStorage.getItem('purchasedTicket');
+
+        if (storedTicket) {
+          ticketData = JSON.parse(storedTicket);
+          // Clear both storage locations after retrieving
+          sessionStorage.removeItem('purchasedTicket');
+          localStorage.removeItem('purchasedTicket');
+        } else {
+          // If not in storage, fetch from API (e.g., page refresh, direct URL access)
+          const response = await ticketsAPI.getById(ticketId);
+          ticketData = response.data.data || response.data;
+        }
 
         // Check if event has expired
         if (ticketData.eventId && typeof ticketData.eventId === 'object') {

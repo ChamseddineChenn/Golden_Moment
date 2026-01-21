@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest) {
   // Optional: Redirect authenticated users away from auth pages
   if (isAuthRoute) {
     const userType = await getCurrentUser(request);
-    
+
     if (userType) {
       // Already logged in, redirect to appropriate dashboard
       if (userType === 'ADMIN') {
