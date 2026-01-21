@@ -364,6 +364,7 @@ export class TicketsService {
         await this.eventsService.update(
           createTicketDto.eventId.toString(),
           updateData,
+          true, // skipLogging: this is an automatic system update, not a manual admin update
         );
       }
 
@@ -877,7 +878,7 @@ export class TicketsService {
 
         // STEP 4: Update the event
         if (Object.keys(updateData).length > 0) {
-          await this.eventsService.update(eventId, updateData).catch(() => {
+          await this.eventsService.update(eventId, updateData, true).catch(() => {
             // Silently ignore if event update fails (event may have been deleted)
             this.logger.warn(
               'Could not update event counts',
