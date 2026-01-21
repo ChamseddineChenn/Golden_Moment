@@ -321,6 +321,7 @@ export class EventsService {
   async update(
     id: string,
     updateData: Partial<Event> | any,
+    skipLogging: boolean = false,
   ): Promise<Event | null> {
     try {
       // Verify event exists
@@ -399,14 +400,16 @@ export class EventsService {
         name: updated?.name,
       });
 
-      // Log the event update
-      await this.logsService.createLog(LogAction.EVENT_UPDATED, {
-        eventName: updated?.name,
-        eventId: id,
-        metadata: {
-          updatedFields: Object.keys(updateData),
-        },
-      });
+      // Log the event update (only if not a system automatic update)
+      if (!skipLogging) {
+        await this.logsService.createLog(LogAction.EVENT_UPDATED, {
+          eventName: updated?.name,
+          eventId: id,
+          metadata: {
+            updatedFields: Object.keys(updateData),
+          },
+        });
+      }
 
       return updated;
     } catch (error) {
