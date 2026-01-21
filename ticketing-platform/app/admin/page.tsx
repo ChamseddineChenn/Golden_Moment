@@ -57,7 +57,13 @@ interface Ticket {
   expiresAt?: string;
 }
 
-type ActiveTab = 'dashboard' | 'events' | 'tickets' | 'scanner' | 'logs' | 'create';
+type ActiveTab =
+  | 'dashboard'
+  | 'events'
+  | 'tickets'
+  | 'scanner'
+  | 'logs'
+  | 'create';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
@@ -165,6 +171,7 @@ export default function AdminPage() {
   useEffect(() => {
     fetchEvents();
     fetchAllTickets();
+    fetchLogs();
   }, []);
 
   useEffect(() => {
@@ -397,22 +404,29 @@ export default function AdminPage() {
   };
 
   const fetchLogs = async () => {
-    setLoading(true);
     try {
       const response = await logsAPI.getAll(100, 0);
-      // Extract data from standardized response format { success, statusCode, data, timestamp }
-      const logsData = response.data.data || response.data;
-      if (logsData && logsData.data) {
-        setLogs(Array.isArray(logsData.data) ? logsData.data : []);
-        setLogsTotal(logsData.total || 0);
-      } else {
-        setLogs(Array.isArray(logsData) ? logsData : []);
+      // Response format: { success, statusCode, data: { data: [...], total, limit, skip }, timestamp }
+      const responseData = response.data;
+      
+      // Extract the actual logs data
+      let logsArray = [];
+      let logsCount = 0;
+      
+      if (responseData && responseData.data) {
+        const logsResult = responseData.data;
+        if (logsResult.data && Array.isArray(logsResult.data)) {
+          logsArray = logsResult.data;
+          logsCount = logsResult.total || 0;
+        }
       }
+      
+      setLogs(logsArray);
+      setLogsTotal(logsCount);
     } catch (err) {
       console.error('Failed to fetch logs:', err);
       setLogs([]);
-    } finally {
-      setLoading(false);
+      setLogsTotal(0);
     }
   };
 
@@ -2760,7 +2774,8 @@ export default function AdminPage() {
                       Activity Logs
                     </h2>
                     <p className="text-sm md:text-base text-stone-600">
-                      Track all events created, updated, deleted, and tickets purchased
+                      Track all events created, updated, deleted, and tickets
+                      purchased
                     </p>
                   </div>
                   <button
@@ -2788,27 +2803,63 @@ export default function AdminPage() {
                 {logs.length > 0 ? (
                   <div className="space-y-3">
                     {logs.map((log, idx) => {
-                      const actionColors: Record<string, { bg: string; text: string; badge: string }> = {
-                        EVENT_CREATED: { bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700' },
-                        EVENT_UPDATED: { bg: 'bg-purple-50', text: 'text-purple-800', badge: 'bg-purple-100 text-purple-700' },
-                        EVENT_DELETED: { bg: 'bg-red-50', text: 'text-red-800', badge: 'bg-red-100 text-red-700' },
-                        TICKET_PURCHASED: { bg: 'bg-green-50', text: 'text-green-800', badge: 'bg-green-100 text-green-700' },
-                        TICKET_DELETED: { bg: 'bg-orange-50', text: 'text-orange-800', badge: 'bg-orange-100 text-orange-700' },
+                      const actionColors: Record<
+                        string,
+                        { bg: string; text: string; badge: string }
+                      > = {
+                        EVENT_CREATED: {
+                          bg: 'bg-blue-50',
+                          text: 'text-blue-800',
+                          badge: 'bg-blue-100 text-blue-700',
+                        },
+                        EVENT_UPDATED: {
+                          bg: 'bg-purple-50',
+                          text: 'text-purple-800',
+                          badge: 'bg-purple-100 text-purple-700',
+                        },
+                        EVENT_DELETED: {
+                          bg: 'bg-red-50',
+                          text: 'text-red-800',
+                          badge: 'bg-red-100 text-red-700',
+                        },
+                        TICKET_PURCHASED: {
+                          bg: 'bg-green-50',
+                          text: 'text-green-800',
+                          badge: 'bg-green-100 text-green-700',
+                        },
+                        TICKET_DELETED: {
+                          bg: 'bg-orange-50',
+                          text: 'text-orange-800',
+                          badge: 'bg-orange-100 text-orange-700',
+                        },
                       };
 
-                      const colors = actionColors[log.action] || { bg: 'bg-stone-50', text: 'text-stone-800', badge: 'bg-stone-100 text-stone-700' };
+                      const colors = actionColors[log.action] || {
+                        bg: 'bg-stone-50',
+                        text: 'text-stone-800',
+                        badge: 'bg-stone-100 text-stone-700',
+                      };
                       const actionLabel = log.action.replace(/_/g, ' ');
-                      const timestamp = new Date(log.createdAt || log.timestamp).toLocaleString();
+                      const timestamp = new Date(
+                        log.createdAt || log.timestamp,
+                      ).toLocaleString();
 
                       return (
-                        <div key={idx} className={`${colors.bg} border border-stone-200 rounded-xl p-4 hover:shadow-md transition`}>
+                        <div
+                          key={idx}
+                          className={`${colors.bg} border border-stone-200 rounded-xl p-4 hover:shadow-md transition`}
+                        >
                           <div className="flex items-center justify-between gap-4 flex-wrap">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                <span className={`inline-block px-3 py-1 rounded-lg font-semibold text-xs ${colors.badge}`}>
+                                <span
+                                  className={`inline-block px-3 py-1 rounded-lg font-semibold text-xs ${colors.badge}`}
+                                >
                                   {actionLabel}
                                 </span>
-                                <span className={`${colors.text} font-semibold text-sm`}>
+                                <span
+                                  className={`${colors.text} font-semibold text-sm`}
+                                >
                                   {log.eventName || log.ticketName || 'Unknown'}
                                 </span>
                               </div>
@@ -2854,7 +2905,8 @@ export default function AdminPage() {
                       No logs yet
                     </h3>
                     <p className="text-stone-600">
-                      Logs will appear here when events are created, updated, or deleted
+                      Logs will appear here when events are created, updated, or
+                      deleted
                     </p>
                   </div>
                 )}

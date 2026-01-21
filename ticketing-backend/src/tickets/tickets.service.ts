@@ -809,23 +809,25 @@ export class TicketsService {
       this.logger.log('Ticket deleted', TicketsService.name, { id });
 
       // Log the ticket deletion
-      await this.logsService.createLog(LogAction.TICKET_DELETED, {
-        ticketName: `Ticket #${ticket.ticketNumber}`,
-        eventName: event?.name || 'Event Unknown',
-        eventId: eventId,
-        ticketId: id,
-        metadata: {
-          ticketType: ticket.ticketType,
-          buyerEmail: ticket.buyerEmail,
-        },
-      }).catch(() => {
-        // Don't let logging errors affect the deletion
-        this.logger.warn(
-          'Failed to log ticket deletion',
-          TicketsService.name,
-          { id },
-        );
-      });
+      await this.logsService
+        .createLog(LogAction.TICKET_DELETED, {
+          ticketName: `Ticket #${ticket.ticketNumber}`,
+          eventName: event?.name || 'Event Unknown',
+          eventId: eventId,
+          ticketId: id,
+          metadata: {
+            ticketType: ticket.ticketType,
+            buyerEmail: ticket.buyerEmail,
+          },
+        })
+        .catch(() => {
+          // Don't let logging errors affect the deletion
+          this.logger.warn(
+            'Failed to log ticket deletion',
+            TicketsService.name,
+            { id },
+          );
+        });
 
       // STEP 3: Recalculate event counts (only if event still exists)
       if (event) {
