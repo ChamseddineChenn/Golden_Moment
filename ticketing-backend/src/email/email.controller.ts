@@ -1,6 +1,7 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { EmailService } from './email.service';
 import { AppLogger } from '../common/utils/logger';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('email')
 export class EmailController {
@@ -8,6 +9,7 @@ export class EmailController {
 
   constructor(private readonly emailService: EmailService) {}
 
+  @Public()
   @Post('send-receipt')
   async sendReceipt(
     @Body()
@@ -42,6 +44,7 @@ export class EmailController {
     }
   }
 
+  @Public()
   @Post('send-bulk-receipts')
   async sendBulkReceipts(
     @Body()
@@ -66,6 +69,7 @@ export class EmailController {
     }
   }
 
+  @Public()
   @Post('test')
   async testEmail() {
     try {

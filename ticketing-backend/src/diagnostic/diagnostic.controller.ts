@@ -1,11 +1,13 @@
 import { Controller, Get, Res } from '@nestjs/common';
 import { AppLogger } from '../common/utils/logger';
 import type { Response } from 'express';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('diagnostic')
 export class DiagnosticController {
   private readonly logger = new AppLogger(DiagnosticController.name);
 
+  @Public()
   @Get('health')
   async health() {
     return {
@@ -14,6 +16,7 @@ export class DiagnosticController {
     };
   }
 
+  @Public()
   @Get('test-event')
   async testEvent(@Res() res: Response) {
     try {

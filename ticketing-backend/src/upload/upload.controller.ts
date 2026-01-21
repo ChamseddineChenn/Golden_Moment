@@ -9,6 +9,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
 import { AppLogger } from '../common/utils/logger';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('upload')
 export class UploadController {
@@ -16,6 +17,7 @@ export class UploadController {
 
   constructor(private readonly uploadService: UploadService) {}
 
+  @Public()
   @Post('image')
   @UseInterceptors(FileInterceptor('file'))
   async uploadImage(@UploadedFile() file: Express.Multer.File) {
@@ -38,6 +40,7 @@ export class UploadController {
     };
   }
 
+  @Public()
   @Post('delete-image')
   async deleteImage(@Body('publicId') publicId: string) {
     if (!publicId) {

@@ -74,6 +74,7 @@ export class AuthController {
     return this.authService.refreshTokens(userId, email, userType, res);
   }
 
+  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(
