@@ -406,25 +406,17 @@ export default function AdminPage() {
   const fetchLogs = async () => {
     try {
       const response = await logsAPI.getAll(100, 0);
-      // Response format: { success, statusCode, data: { data: [...], total, limit, skip }, timestamp }
-      const responseData = response.data;
+      const innerData = response.data?.data?.data;
       
-      // Extract the actual logs data
-      let logsArray = [];
-      let logsCount = 0;
-      
-      if (responseData && responseData.data) {
-        const logsResult = responseData.data;
-        if (logsResult.data && Array.isArray(logsResult.data)) {
-          logsArray = logsResult.data;
-          logsCount = logsResult.total || 0;
-        }
+      if (innerData && Array.isArray(innerData.logs)) {
+        setLogs(innerData.logs);
+        setLogsTotal(innerData.total || 0);
+      } else {
+        setLogs([]);
+        setLogsTotal(0);
       }
-      
-      setLogs(logsArray);
-      setLogsTotal(logsCount);
     } catch (err) {
-      console.error('Failed to fetch logs:', err);
+      console.error('[Logs] Failed to fetch logs:', err);
       setLogs([]);
       setLogsTotal(0);
     }
@@ -2849,23 +2841,18 @@ export default function AdminPage() {
                           key={idx}
                           className={`${colors.bg} border border-stone-200 rounded-xl p-4 hover:shadow-md transition`}
                         >
-                          <div className="flex items-center justify-between gap-4 flex-wrap">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                <span
-                                  className={`inline-block px-3 py-1 rounded-lg font-semibold text-xs ${colors.badge}`}
-                                >
-                                  {actionLabel}
-                                </span>
-                                <span
-                                  className={`${colors.text} font-semibold text-sm`}
-                                >
-                                  {log.eventName || log.ticketName || 'Unknown'}
-                                </span>
-                              </div>
-                              <p className="text-xs md:text-sm text-stone-600">
-                                {timestamp}
-                              </p>
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <span
+                                className={`inline-block px-3 py-1 rounded-lg font-semibold text-xs whitespace-nowrap ${colors.badge}`}
+                              >
+                                {actionLabel}
+                              </span>
+                              <span
+                                className={`${colors.text} font-semibold text-sm truncate`}
+                              >
+                                {log.eventName || log.ticketName || 'Unknown'}
+                              </span>
                             </div>
                             {log.metadata && (
                               <div className="text-right">
@@ -2881,6 +2868,9 @@ export default function AdminPage() {
                                 )}
                               </div>
                             )}
+                            <p className="text-xs md:text-sm text-stone-600 whitespace-nowrap ml-4">
+                              {timestamp}
+                            </p>
                           </div>
                         </div>
                       );
