@@ -6,6 +6,7 @@ import { LoginAttemptsService } from './login-attempts.service';
 import { User, UserSchema } from './schemas/user.schema';
 import { OrganizerSchema } from './schemas/organizer.schema';
 import { AdminSchema } from './schemas/admin.schema';
+import { MailModule } from '../mail/mail.module';
 import {
   LoginAttempt,
   LoginAttemptSchema,
@@ -28,6 +29,7 @@ import { UserType } from './enums/user-type.enum';
         },
       },
     ]),
+    MailModule,
     MongooseModule.forFeature([
       { name: LoginAttempt.name, schema: LoginAttemptSchema },
     ]),
