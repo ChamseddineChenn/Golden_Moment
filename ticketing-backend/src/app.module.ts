@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
 import { EventsModule } from './events/events.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { UserTypeGuard } from './auth/guards/user-type.guard';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { UserTypeGuard } from './auth/guards/user-type.guard';
       }),
       inject: [ConfigService],
     }),
-
+    EventEmitterModule.forRoot(),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => [
