@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -10,10 +11,11 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { User, UserDocument } from './schemas/user.schema';
-import { Organizer, OrganizerDocument } from './schemas/organizer.schema';
-import { Admin, AdminDocument } from './schemas/admin.schema';
+import { OrganizerDocument } from './schemas/organizer.schema';
+import { AdminDocument } from './schemas/admin.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserType } from './enums/user-type.enum';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class UsersService {
@@ -22,6 +24,7 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private configService: ConfigService,
+    private eventEmitter: EventEmitter2,
   ) {
     this.bcryptRounds =
       this.configService.get<number>('security.bcryptRounds') || 12;
@@ -80,26 +83,28 @@ export class UsersService {
     let user: UserDocument;
 
     if (userType === UserType.ORGANIZER) {
-      // Use the discriminator model for Organizer
       const OrganizerModel =
         this.userModel.discriminators?.[UserType.ORGANIZER] || this.userModel;
       user = new OrganizerModel(userData);
     } else if (userType === UserType.ADMIN) {
-      // Use the discriminator model for Admin
       const AdminModel =
         this.userModel.discriminators?.[UserType.ADMIN] || this.userModel;
       user = new AdminModel(userData);
     } else {
-      // Regular user
       user = new this.userModel(userData);
     }
 
     await user.save();
 
-    // Verify the userType was set correctly
     const savedUser = await this.userModel.findById(user._id).exec();
 
-    // Return plain token (not hashed) to send in email
+    // Emit event for email verification
+    this.eventEmitter.emit('user.emailVerificationNeeded', {
+      email: savedUser.email,
+      token: verificationToken,
+      userId: savedUser.id,
+    });
+
     (savedUser as any).plainVerificationToken = verificationToken;
 
     return savedUser;
@@ -279,6 +284,13 @@ export class UsersService {
 
     await user.save();
 
+    // Emit event for email sending
+    this.eventEmitter.emit('user.emailVerificationNeeded', {
+      email: user.email,
+      token: verificationToken,
+      userId: user.id,
+    });
+
     return verificationToken;
   }
 
@@ -323,20 +335,147 @@ export class UsersService {
     };
   }
 
-  async updateProfile(userId: string, updateData: any): Promise<any> {
-    delete updateData.password;
-    delete updateData.userType;
-    delete updateData.isActive;
-    delete updateData.emailVerified;
+  /**
+   * Update user profile with role-based validation and email verification flow
+   */
+  async updateProfile(
+    userId: string,
+    userType: string,
+    updateData: any,
+  ): Promise<any> {
+    const user = await this.userModel.findById(userId).exec();
 
-    const user = await this.userModel
-      .findByIdAndUpdate(userId, updateData, { new: true })
-      .exec();
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // CRITICAL: Block restricted fields
+    const restrictedFields = [
+      'password',
+      'userType',
+      'isActive',
+      'emailVerified',
+      'refreshTokenHash',
+      'emailVerificationToken',
+      'emailVerificationExpires',
+      'passwordResetToken',
+      'passwordResetExpires',
+      'lastLoginAt',
+      'createdAt',
+      'updatedAt',
+      '__v',
+      '_id',
+      'id',
+    ];
+
+    // Admin-specific restricted fields (admins cannot self-modify these)
+    const adminRestrictedFields = [
+      'adminLevel',
+      'permissions',
+      'department',
+      'employeeId',
+      'adminSince',
+      'totalActionsPerformed',
+      'lastAdminActionAt',
+    ];
+
+    // Remove any restricted fields from updateData
+    restrictedFields.forEach((field) => delete updateData[field]);
+    
+    if (userType === UserType.ADMIN) {
+      adminRestrictedFields.forEach((field) => delete updateData[field]);
+    }
+
+    // Organizer-specific fields validation
+    const organizerOnlyFields = [
+      'organizationName',
+      'phone',
+      'address',
+      'businessLicense',
+      'website',
+      'description',
+      'organizationEstablishedDate',
+      'isVerifiedOrganizer', // Cannot self-verify
+      'totalEventsCreated',
+      'totalTicketsSold',
+      'totalRevenue',
+    ];
+
+    // Prevent non-organizers from updating organizer-only fields
+    if (userType !== UserType.ORGANIZER) {
+      organizerOnlyFields.forEach((field) => {
+        if (updateData[field] !== undefined) {
+          throw new ForbiddenException(
+            `Only organizers can update the field: ${field}`,
+          );
+        }
+      });
+    }
+
+    // Block self-modification of verification status
+    delete updateData.isVerifiedOrganizer;
+    delete updateData.totalEventsCreated;
+    delete updateData.totalTicketsSold;
+    delete updateData.totalRevenue;
+
+    // Handle email update with verification flow
+    let emailChanged = false;
+    let verificationToken: string | null = null;
+
+    if (updateData.email && updateData.email !== user.email) {
+      const normalizedEmail = updateData.email.toLowerCase().trim();
+
+      // Check if email is already taken
+      const existingUser = await this.userModel.findOne({
+        email: normalizedEmail,
+        _id: { $ne: userId },
+      });
+
+      if (existingUser) {
+        throw new ConflictException('Email is already in use');
+      }
+
+      // Generate new verification token
+      verificationToken = crypto.randomBytes(32).toString('hex');
+      const hashedToken = crypto
+        .createHash('sha256')
+        .update(verificationToken)
+        .digest('hex');
+
+      // Update email and reset verification status
+      updateData.email = normalizedEmail;
+      updateData.emailVerified = false;
+      updateData.emailVerificationToken = hashedToken;
+      updateData.emailVerificationExpires = new Date(
+        Date.now() + 24 * 60 * 60 * 1000,
+      );
+
+      emailChanged = true;
+    }
+
+    // Apply updates
+    Object.assign(user, updateData);
+    await user.save();
+
+    // Emit email verification event if email changed
+    if (emailChanged && verificationToken) {
+      this.eventEmitter.emit('user.emailVerificationNeeded', {
+        email: user.email,
+        token: verificationToken,
+        userId: user.id,
+      });
+    }
+
+    // Fetch updated user (without sensitive fields)
+    const updatedUser = await this.userModel.findById(userId).exec();
 
     return {
       success: true,
-      message: 'Profile updated successfully',
-      data: user,
+      message: emailChanged
+        ? 'Profile updated successfully. Please verify your new email address.'
+        : 'Profile updated successfully',
+      data: updatedUser,
+      emailVerificationRequired: emailChanged,
     };
   }
 
