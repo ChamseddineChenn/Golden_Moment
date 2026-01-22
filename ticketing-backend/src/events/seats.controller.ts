@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { SeatsService } from './seats.service';
 import { TicketsService } from '../tickets/tickets.service';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('seats')
 export class SeatsController {
@@ -19,12 +20,13 @@ export class SeatsController {
     @Inject(forwardRef(() => TicketsService))
     private readonly ticketsService: TicketsService,
   ) {}
-
+  @Public()
   @Get('event/:eventId')
   async getSeatMap(@Param('eventId') eventId: string) {
     return this.seatsService.getSeatMap(eventId);
   }
 
+  @Public()
   @Post('reserve')
   @HttpCode(HttpStatus.OK)
   async reserveSeats(
@@ -43,6 +45,7 @@ export class SeatsController {
   // 2. Marks seats as unavailable
   // 3. Creates and returns the ticket
   // 4. Detects and rejects if any seat was sold by another customer (race condition)
+   @Public()
   @Post('finalize-purchase')
   @HttpCode(HttpStatus.CREATED)
   async finalizePurchase(
@@ -78,7 +81,7 @@ export class SeatsController {
         | 'VIP',
     });
   }
-
+  @Public()
   @Post('unreserve')
   @HttpCode(HttpStatus.OK)
   async unreserveSeats(

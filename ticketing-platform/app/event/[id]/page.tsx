@@ -736,7 +736,7 @@ export default function EventDetailPage() {
                                           })
                                         }
                                         disabled={isEarlyBirdAndSoldOut}
-                                        className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
+                                        className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer cursor-pointer"
                                       />
                                       <div className="flex-1">
                                         <p className="font-semibold text-stone-900">
@@ -925,7 +925,7 @@ export default function EventDetailPage() {
                                     })
                                   }
                                   disabled={isEarlyBirdAndSoldOut}
-                                  className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
+                                  className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer cursor-pointer"
                                 />
                                 <div className="flex-1">
                                   <p className="font-semibold text-stone-900">
