@@ -1,14 +1,13 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002',
+  baseURL: process.env.NEXT_PUBLIC_API_URL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor
 apiClient.interceptors.request.use(
   (config) => {
     return config;
@@ -18,7 +17,6 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor for token refresh
 apiClient.interceptors.response.use(
   (response) => {
     return response;
@@ -26,8 +24,7 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Don't retry on specific endpoints to avoid loops
-    const noRetryEndpoints = ['/auth/me', '/auth/refresh', '/auth/login', '/auth/signup'];
+    const noRetryEndpoints = ['/auth/me', '/auth/refresh', '/auth/login', '/auth/signup', '/auth/logout'];
     const isNoRetryEndpoint = noRetryEndpoints.some(endpoint => 
       originalRequest.url?.includes(endpoint)
     );
@@ -36,26 +33,25 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // If access token expired and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       try {
-        // Attempt to refresh tokens
         await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002'}/auth/refresh`,
+          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
           {},
           { withCredentials: true }
         );
 
-        // Retry the original request
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // Only redirect if we're not already on a public page
         if (typeof window !== 'undefined') {
-          const publicPaths = ['/', '/auth/login', '/auth/signup'];
-          if (!publicPaths.includes(window.location.pathname)) {
-            window.location.href = '/auth/login';
+          const publicPaths = ['/', '/auth/login', '/auth/signup', '/auth/signup-organizer'];
+          const currentPath = window.location.pathname;
+          
+          if (!publicPaths.includes(currentPath)) {
+            const redirectUrl = `${currentPath}${window.location.search}`;
+            window.location.href = `/auth/login?redirect=${encodeURIComponent(redirectUrl)}`;
           }
         }
         return Promise.reject(refreshError);

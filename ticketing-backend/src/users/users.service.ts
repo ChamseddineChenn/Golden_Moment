@@ -49,6 +49,8 @@ export class UsersService {
       .update(verificationToken)
       .digest('hex');
 
+    const userType = createUserDto.userType || UserType.USER;
+
     const userData: any = {
       email: createUserDto.email,
       password: hashedPassword,
@@ -56,9 +58,7 @@ export class UsersService {
       emailVerificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
     };
 
-    // Add type-specific fields
-    const userType = createUserDto.userType || UserType.USER;
-
+    // Add type-specific fields based on userType
     if (userType === UserType.ORGANIZER) {
       userData.organizationName = createUserDto.organizationName;
       userData.phone = createUserDto.phone;
@@ -76,14 +76,33 @@ export class UsersService {
       userData.adminSince = new Date();
     }
 
-    // Create with discriminator
-    const user = new this.userModel(userData);
+    // Create user with the correct discriminator model
+    let user: UserDocument;
+
+    if (userType === UserType.ORGANIZER) {
+      // Use the discriminator model for Organizer
+      const OrganizerModel =
+        this.userModel.discriminators?.[UserType.ORGANIZER] || this.userModel;
+      user = new OrganizerModel(userData);
+    } else if (userType === UserType.ADMIN) {
+      // Use the discriminator model for Admin
+      const AdminModel =
+        this.userModel.discriminators?.[UserType.ADMIN] || this.userModel;
+      user = new AdminModel(userData);
+    } else {
+      // Regular user
+      user = new this.userModel(userData);
+    }
+
     await user.save();
 
-    // Return plain token (not hashed) to send in email
-    (user as any).plainVerificationToken = verificationToken;
+    // Verify the userType was set correctly
+    const savedUser = await this.userModel.findById(user._id).exec();
 
-    return user;
+    // Return plain token (not hashed) to send in email
+    (savedUser as any).plainVerificationToken = verificationToken;
+
+    return savedUser;
   }
 
   async createOrganizer(organizerData: any): Promise<OrganizerDocument> {
