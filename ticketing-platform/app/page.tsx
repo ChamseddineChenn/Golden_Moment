@@ -442,7 +442,7 @@ export default function HomePage() {
                   )}
                   {user.userType === "Organizer" && (
                     <Link
-                      href="/organizer/dashboard"
+                      href="/"
                       className="text-stone-600 hover:text-amber-600 transition"
                     >
                       Organizer Dashboard
@@ -453,7 +453,7 @@ export default function HomePage() {
                   </span>
                   <button
                     onClick={logout}
-                    className="bg-stone-900 text-white px-4 py-2 rounded-lg hover:bg-stone-800 transition text-sm font-medium"
+                    className="bg-stone-900 text-white px-4 py-2 rounded-lg hover:bg-stone-800 transition text-sm font-medium cursor-pointer"
                   >
                     Logout
                   </button>

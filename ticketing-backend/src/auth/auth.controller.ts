@@ -21,6 +21,7 @@ import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { Public } from './decorators/public.decorator';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { GetCurrentUser } from './decorators/get-current-user.decorator';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -82,6 +83,7 @@ export class AuthController {
     return this.authService.logout(userId, res);
   }
 
+  @Throttle({ default: { limit: 100, ttl: 60000 } })
   @Get('me')
   async getCurrentUser(@GetCurrentUser('userId') userId: string) {
     return this.authService.getCurrentUser(userId);

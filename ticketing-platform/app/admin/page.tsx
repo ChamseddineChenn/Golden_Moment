@@ -2149,7 +2149,7 @@ export default function AdminPage() {
                     <button
                       onClick={openCameraScanner}
                       disabled={scanning}
-                      className="inline-flex items-center gap-3 bg-amber-500 text-white px-8 py-4 rounded-xl font-semibold hover:bg-amber-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-3 bg-amber-500 text-white px-8 py-4 rounded-xl font-semibold hover:bg-amber-600 transition disabled:opacity-50 cursor-pointer"
                     >
                       {scanning ? (
                         <>

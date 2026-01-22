@@ -1,20 +1,9 @@
-"use client";
+'use client';
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
-import { useRouter } from "next/navigation";
-import { authApi } from "../api/auth";
-import {
-  User,
-  AuthContextType,
-  UserType,
-  OrganizerSignupData,
-} from "../types/auth.types";
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { authApi } from '../api/auth';
+import { User, AuthContextType, UserType, OrganizerSignupData } from '../types/auth.types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -30,11 +19,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = async () => {
     try {
       const currentUser = await authApi.getCurrentUser();
-      console.log("✅ User authenticated:", currentUser);
+      console.log('✅ User authenticated:', currentUser);
       setUser(currentUser);
     } catch (error: any) {
-      console.log("ℹ️ Not authenticated");
+      console.log('ℹ️ Not authenticated or invalid token');
       setUser(null);
+      
+      // If we get 401, clear any stale cookies by calling logout
+      if (error.response?.status === 401) {
+        try {
+          await authApi.logout();
+        } catch (e) {
+          // Ignore logout errors
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -44,19 +42,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authApi.login(email, password);
       setUser(response.user);
-
+      
       // Redirect based on user type
       if (response.user.userType === UserType.ADMIN) {
-        router.push("/admin/dashboard");
+        router.push('/admin/');
       } else if (response.user.userType === UserType.ORGANIZER) {
-        router.push("/organizer/dashboard");
+        router.push('/');
       } else {
-        router.push("/");
+        router.push('/');
       }
-
+      
       router.refresh();
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || "Login failed");
+      throw new Error(error.response?.data?.message || 'Login failed');
     }
   };
 
@@ -64,10 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authApi.signup(email, password);
       setUser(response.user);
-      router.push("/");
+      router.push('/');
       router.refresh();
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || "Signup failed");
+      throw new Error(error.response?.data?.message || 'Signup failed');
     }
   };
 
@@ -75,12 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authApi.signupOrganizer(data);
       setUser(response.user);
-      router.push("/organizer/dashboard");
+      router.push('/');
       router.refresh();
     } catch (error: any) {
-      throw new Error(
-        error.response?.data?.message || "Organizer signup failed",
-      );
+      throw new Error(error.response?.data?.message || 'Organizer signup failed');
     }
   };
 
@@ -88,10 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await authApi.logout();
     } catch (error) {
-      console.error("Logout error:", error);
+      console.error('Logout error:', error);
     } finally {
       setUser(null);
-      router.push("/");
+      router.push('/');
       router.refresh();
     }
   };
@@ -102,24 +98,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = () => user?.userType === UserType.ADMIN;
   const isOrganizer = () => user?.userType === UserType.ORGANIZER;
-  const isRegularUser = () =>
-    user?.userType === UserType.USER || !user?.userType;
+  const isRegularUser = () => user?.userType === UserType.USER || !user?.userType;
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        login,
-        signup,
-        signupOrganizer,
-        logout,
-        refreshAuth,
-        isAdmin,
-        isOrganizer,
-        isRegularUser,
-      }}
-    >
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      login, 
+      signup, 
+      signupOrganizer,
+      logout, 
+      refreshAuth,
+      isAdmin,
+      isOrganizer,
+      isRegularUser,
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -128,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 }
