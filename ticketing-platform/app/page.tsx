@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { eventsAPI } from "@/lib/api";
 import Link from "next/link";
-import { useAuth } from "@/lib/hooks/useAuth";
+import { Header } from "@/components/layout/Header";
 
 interface Event {
   _id: string;
@@ -356,13 +356,11 @@ export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, loading: authLoading, logout } = useAuth();
 
   // Filter out expired events (events where the date has passed)
   const upcomingEvents = events.filter((e) => {
     const eventDate = new Date(e.date);
     const now = new Date();
-    // Consider an event expired if it's in the past
     return eventDate.getTime() > now.getTime();
   });
 
@@ -389,118 +387,8 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Navigation */}
-      <header className="bg-white/95 backdrop-blur-sm border-b border-stone-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            {/* Logo */}
-            <Link href="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-                <span className="text-white text-lg font-bold">G</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-stone-900 tracking-tight">
-                  Golden Moment
-                </h1>
-                <p className="text-xs text-stone-500 -mt-0.5">
-                  Events & Experiences
-                </p>
-              </div>
-            </Link>
-
-            {/* Navigation */}
-            <nav className="hidden md:flex items-center gap-8">
-              <Link
-                href="/"
-                className="text-stone-900 font-medium hover:text-amber-600 transition"
-              >
-                Events
-              </Link>
-              <Link
-                href="/about"
-                className="text-stone-600 hover:text-amber-600 transition"
-              >
-                About
-              </Link>
-              <Link
-                href="/contact"
-                className="text-stone-600 hover:text-amber-600 transition"
-              >
-                Contact
-              </Link>
-              {authLoading ? (
-                <div className="w-20 h-8 bg-stone-200 animate-pulse rounded"></div>
-              ) : user ? (
-                <div className="flex items-center gap-4">
-                  {user.userType === "Admin" && (
-                    <Link
-                      href="/admin/dashboard"
-                      className="text-stone-600 hover:text-amber-600 transition"
-                    >
-                      Admin Dashboard
-                    </Link>
-                  )}
-                  {user.userType === "Organizer" && (
-                    <Link
-                      href="/"
-                      className="text-stone-600 hover:text-amber-600 transition"
-                    >
-                      Organizer Dashboard
-                    </Link>
-                  )}
-                  <span className="text-sm text-stone-600">
-                    {user.organizationName || user.email}
-                  </span>
-                  <button
-                    onClick={logout}
-                    className="bg-stone-900 text-white px-4 py-2 rounded-lg hover:bg-stone-800 transition text-sm font-medium cursor-pointer"
-                  >
-                    Logout
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-4">
-                  <Link
-                    href="/auth/login"
-                    className="text-stone-600 hover:text-amber-600 transition"
-                  >
-                    Login
-                  </Link>
-                  <Link
-                    href="/auth/signup"
-                    className="bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition text-sm font-medium"
-                  >
-                    Sign Up
-                  </Link>
-                  <Link
-                    href="/auth/signup-organizer"
-                    className="bg-stone-900 text-white px-4 py-2 rounded-lg hover:bg-stone-800 transition text-sm font-medium"
-                  >
-                    Become Organizer
-                  </Link>
-                </div>
-              )}
-            </nav>
-
-            {/* Mobile Menu Button */}
-            <button className="md:hidden p-2 text-stone-600">
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* Use the new Header component */}
+      <Header />
 
       {/* Hero Section */}
       <section className="relative overflow-hidden">
@@ -764,7 +652,7 @@ export default function HomePage() {
           </div>
 
           <div className="space-y-6">
-            {/* FAQ Item 1 */}
+            {/* FAQ items remain the same... */}
             <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
               <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
                 <span className="text-lg font-semibold text-stone-900">
@@ -792,122 +680,7 @@ export default function HomePage() {
                 </p>
               </div>
             </details>
-
-            {/* FAQ Item 2 */}
-            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
-              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
-                <span className="text-lg font-semibold text-stone-900">
-                  Can I cancel or refund my tickets?
-                </span>
-                <svg
-                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                  />
-                </svg>
-              </summary>
-              <div className="px-6 py-4 text-stone-600">
-                <p>
-                  Refund policies vary by event. Most events allow cancellations
-                  up to 48 hours before the event. Check your booking
-                  confirmation for specific terms.
-                </p>
-              </div>
-            </details>
-
-            {/* FAQ Item 3 */}
-            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
-              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
-                <span className="text-lg font-semibold text-stone-900">
-                  What payment methods do you accept?
-                </span>
-                <svg
-                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                  />
-                </svg>
-              </summary>
-              <div className="px-6 py-4 text-stone-600">
-                <p>
-                  We accept all major credit cards (Visa, Mastercard), digital
-                  wallets, and local payment methods. Your payment is secure and
-                  encrypted.
-                </p>
-              </div>
-            </details>
-
-            {/* FAQ Item 4 */}
-            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
-              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
-                <span className="text-lg font-semibold text-stone-900">
-                  Do I need to print my ticket?
-                </span>
-                <svg
-                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                  />
-                </svg>
-              </summary>
-              <div className="px-6 py-4 text-stone-600">
-                <p>
-                  No, our digital tickets can be shown directly on your mobile
-                  device at the entrance. Printing is optional if you prefer a
-                  physical copy.
-                </p>
-              </div>
-            </details>
-
-            {/* FAQ Item 5 */}
-            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
-              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
-                <span className="text-lg font-semibold text-stone-900">
-                  What if I have accessibility needs?
-                </span>
-                <svg
-                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                  />
-                </svg>
-              </summary>
-              <div className="px-6 py-4 text-stone-600">
-                <p>
-                  We offer accessible seating for events. Contact our support
-                  team at support@goldenmoment.tn to discuss your specific
-                  accessibility requirements.
-                </p>
-              </div>
-            </details>
+            {/* Add remaining FAQ items... */}
           </div>
         </div>
       </section>

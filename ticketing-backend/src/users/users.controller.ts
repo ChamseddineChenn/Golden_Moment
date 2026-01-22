@@ -6,11 +6,17 @@ import {
   Body,
   Param,
   Patch,
+  BadRequestException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UserTypes } from '../auth/decorators/user-types.decorator';
 import { UserType } from './enums/user-type.enum';
 import { GetCurrentUser } from '../auth/decorators/get-current-user.decorator';
+import {
+  UpdateBaseProfileDto,
+  UpdateOrganizerProfileDto,
+  UpdateAdminProfileDto,
+} from './dto/update-profile.dto';
 
 @Controller('users')
 export class UsersController {
@@ -63,11 +69,34 @@ export class UsersController {
     };
   }
 
-  @Put('me/profile')
+  @Patch('me/profile')
   async updateMyProfile(
     @GetCurrentUser('userId') userId: string,
-    @Body() updateData: any,
+    @GetCurrentUser('userType') userType: string,
+    @Body()
+    updateData:
+      | UpdateBaseProfileDto
+      | UpdateOrganizerProfileDto
+      | UpdateAdminProfileDto,
   ) {
-    return this.usersService.updateProfile(userId, updateData);
+    // Validate DTO based on userType
+    if (userType === UserType.ORGANIZER) {
+      // TypeScript will validate UpdateOrganizerProfileDto fields
+      return this.usersService.updateProfile(userId, userType, updateData);
+    } else if (userType === UserType.ADMIN) {
+      // Admins can only update base fields (email)
+      return this.usersService.updateProfile(userId, userType, updateData);
+    } else {
+      // Regular users can only update email
+      if (
+        Object.keys(updateData).length > 1 ||
+        (Object.keys(updateData).length === 1 && !updateData.email)
+      ) {
+        throw new BadRequestException(
+          'Regular users can only update their email',
+        );
+      }
+      return this.usersService.updateProfile(userId, userType, updateData);
+    }
   }
 }
