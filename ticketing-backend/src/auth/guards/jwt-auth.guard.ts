@@ -26,8 +26,20 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     return super.canActivate(context);
   }
 
-  handleRequest(err: any, user: any, info: any) {
+  handleRequest<TUser = any>(
+    err: any,
+    user: any,
+    _info: any,
+    context: ExecutionContext,
+  ): TUser {
+    // If authentication fails, clear the cookies
     if (err || !user) {
+      const response = context.switchToHttp().getResponse();
+
+      // Clear invalid cookies
+      response.clearCookie('access_token', { path: '/' });
+      response.clearCookie('refresh_token', { path: '/' });
+
       throw err || new UnauthorizedException('Authentication required');
     }
     return user;

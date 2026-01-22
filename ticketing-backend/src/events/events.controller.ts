@@ -16,7 +16,7 @@ import { Public } from '../auth/decorators/public.decorator';
 @Controller('events')
 export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
-
+  @Public()
   @Post()
   async create(@Body() createEventDto: CreateEventDto) {
     try {
@@ -48,7 +48,7 @@ export class EventsController {
     // Public endpoint - only show published events
     return this.eventsService.findAllPublished();
   }
-
+  @Public()
   @Get('admin/all')
   async findAllAdmin() {
     // Admin endpoint - show all events including drafts
@@ -60,7 +60,7 @@ export class EventsController {
   async findById(@Param('id') id: string) {
     return this.eventsService.findById(id);
   }
-
+  @Public()
   @Put(':id')
   async update(
     @Param('id') id: string,
@@ -68,7 +68,7 @@ export class EventsController {
   ) {
     return this.eventsService.update(id, updateEventDto as any);
   }
-
+  @Public()
   @Delete(':id')
   async delete(@Param('id') id: string) {
     return this.eventsService.delete(id);

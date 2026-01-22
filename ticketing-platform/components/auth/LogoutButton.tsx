@@ -10,6 +10,7 @@ export function LogoutButton() {
     <Button
       onClick={logout}
       variant="secondary"
+      className="cursor-pointer"
     >
       Logout
     </Button>
