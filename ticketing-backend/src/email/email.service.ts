@@ -89,6 +89,7 @@ export class EmailService {
       eventDate?: Date;
       eventLocation?: string;
       qrCode?: string;
+      seats?: Array<{ sectionId?: string; seatId: string }>;
     },
     options?: {
       attachPdf?: boolean;
@@ -116,6 +117,7 @@ export class EmailService {
           ticketType: ticketData.ticketType || 'Standard',
           createdAt: new Date(),
           qrCode: ticketData.qrCode,
+          seats: ticketData.seats,
         },
         {
           name: eventName,
@@ -145,6 +147,7 @@ export class EmailService {
               ticketType: ticketData.ticketType || 'Standard',
               createdAt: new Date(),
               qrCode: ticketData.qrCode,
+              seats: ticketData.seats,
             },
             {
               name: eventName,

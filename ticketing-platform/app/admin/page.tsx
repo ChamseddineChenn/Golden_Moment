@@ -75,13 +75,6 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [creatingEvent, setCreatingEvent] = useState(false);
 
-  // DEVELOPMENT: Suppress auth redirects during development
-  // This allows access to /admin without authentication
-  useEffect(() => {
-    // Do nothing - allow unauthenticated access during development
-    // Remove this in production when authentication is properly set up
-  }, []);
-
   // Search states
   const [eventSearch, setEventSearch] = useState('');
   const [ticketSearch, setTicketSearch] = useState('');

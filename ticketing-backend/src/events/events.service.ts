@@ -31,7 +31,7 @@ export class EventsService {
       });
 
       // Ensure category is set, default to 'Concert' if not provided
-      const eventData: any = {
+      let eventData: any = {
         ...createEventDto,
         category: createEventDto.category || 'Concert',
       };
@@ -265,7 +265,7 @@ export class EventsService {
 
   async findById(id: string): Promise<Event | null> {
     try {
-      const event = await this.eventModel.findById(id).lean().exec();
+      let event = await this.eventModel.findById(id).lean().exec();
 
       if (!event) {
         throw new EventNotFoundException(id);

@@ -90,6 +90,19 @@ export class TicketsController {
   }
 
   @Public()
+  @Get('by-payment/:paymentId')
+  async findByPaymentId(@Param('paymentId') paymentId: string) {
+    this.logger.log(
+      'GET /tickets/by-payment/:paymentId',
+      TicketsController.name,
+      {
+        paymentId,
+      },
+    );
+    return this.ticketsService.findByPaymentId(paymentId);
+  }
+
+  @Public()
   @Get('by-number/:ticketNumber')
   async findByTicketNumber(@Param('ticketNumber') ticketNumber: string) {
     this.logger.log(
