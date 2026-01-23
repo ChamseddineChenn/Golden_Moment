@@ -1341,4 +1341,20 @@ export class TicketsService {
       throw error;
     }
   }
-}
+
+  // Get tickets by payment ID (for idempotency check)
+  async getTicketsByPaymentId(paymentId: string): Promise<Ticket[]> {
+    try {
+      const tickets = await this.ticketModel.find({
+        paymentId: new (require('mongoose').Types.ObjectId)(paymentId),
+      });
+      return tickets;
+    } catch (error) {
+      this.logger.error(
+        'Error fetching tickets by payment ID',
+        TicketsService.name,
+        error,
+      );
+      return [];
+    }
+  }
