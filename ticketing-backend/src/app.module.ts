@@ -15,6 +15,7 @@ import { TicketsModule } from './tickets/tickets.module';
 import { UploadModule } from './upload/upload.module';
 import { EmailModule } from './email/email.module';
 import { LogsModule } from './logs/logs.module';
+import { PaymentsModule } from './payments/payments.module';
 import { databaseConfig, cloudinaryConfig, appConfig } from './config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -52,6 +53,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     UploadModule,
     EmailModule,
     LogsModule,
+    PaymentsModule,
   ],
   providers: [
     {

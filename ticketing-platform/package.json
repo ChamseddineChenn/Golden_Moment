@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^5.4.1",
+    "@stripe/stripe-js": "^5.1.0",
     "axios": "^1.13.2",
     "html2canvas": "^1.4.1",
     "html5-qrcode": "^2.3.8",

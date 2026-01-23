@@ -3,11 +3,16 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import { json, raw } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
+
+  // Middleware order matters: raw for webhooks, then json for regular requests
+  app.use('/payments/webhook', raw({ type: 'application/json' }));
+  app.use(json());
 
   app.use(
     helmet({

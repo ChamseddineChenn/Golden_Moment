@@ -1,4 +1,10 @@
-import { IsOptional, IsString, IsBoolean, IsDate, IsObject } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsBoolean,
+  IsDate,
+  IsObject,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { SeatingConfiguration, TicketTypes } from '../event.schema';
 
