@@ -38,7 +38,7 @@ function CheckoutForm({
     e.preventDefault();
 
     if (!stripe || !elements) {
-      setError('Payment system not loaded');
+      setError('Payment system not loaded. Please refresh the page.');
       return;
     }
 
@@ -48,7 +48,16 @@ function CheckoutForm({
     try {
       const { error: submitError } = await elements.submit();
       if (submitError) {
-        setError(submitError.message || 'Payment failed');
+        // Format the error message based on error type
+        let errorMessage = submitError.message || 'Payment validation failed';
+        if (submitError.code === 'incomplete_cvc') {
+          errorMessage = 'Please enter a valid CVC code';
+        } else if (submitError.code === 'incomplete_expiry') {
+          errorMessage = 'Please enter a valid expiration date';
+        } else if (submitError.code === 'incomplete_number') {
+          errorMessage = 'Please enter a valid card number';
+        }
+        setError(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -62,7 +71,29 @@ function CheckoutForm({
         });
 
       if (confirmError) {
-        setError(confirmError.message || 'Payment confirmation failed');
+        // Format error message based on error type
+        let errorMessage = confirmError.message || 'Payment confirmation failed';
+        
+        if (confirmError.code === 'card_declined') {
+          errorMessage = 'Your card was declined. Please try a different card.';
+        } else if (confirmError.code === 'processing_error') {
+          errorMessage = 'An error occurred while processing your card. Please try again.';
+        } else if (confirmError.code === 'rate_limit') {
+          errorMessage = 'Too many requests. Please wait a moment and try again.';
+        } else if (confirmError.code === 'authentication_error') {
+          errorMessage = 'Authentication failed. Please check your card details.';
+        } else if (confirmError.message?.includes('402')) {
+          errorMessage = 'Payment Required: Your card was not accepted. Please try a different payment method.';
+        }
+        
+        console.error('Payment confirmation error:', {
+          code: confirmError.code,
+          message: confirmError.message,
+          type: confirmError.type,
+          param: confirmError.param,
+        });
+        
+        setError(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -88,9 +119,10 @@ function CheckoutForm({
         setError('Payment processing failed. Please try again.');
       }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'An unexpected error occurred',
-      );
+      const errorMsg =
+        err instanceof Error ? err.message : 'An unexpected error occurred';
+      console.error('Checkout error:', errorMsg);
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -122,8 +154,26 @@ function CheckoutForm({
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+          <div className="flex items-start gap-3">
+            <svg
+              className="w-5 h-5 text-red-500 mt-0.5 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <h3 className="text-red-700 font-semibold mb-1">Payment Error</h3>
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -149,7 +199,11 @@ export default function CheckoutPage() {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [checkoutData, setCheckoutData] = useState<any>(null);
+  const [checkoutData, setCheckoutData] = useState<{
+    eventName: string;
+    totalAmount: number;
+    ticketCount: number;
+  } | null>(null);
 
   useEffect(() => {
     const initializeCheckout = async () => {
@@ -173,7 +227,8 @@ export default function CheckoutPage() {
         }
 
         // Parse ticketIds from JSON
-        let parsedTicketIds: any[] = [];
+        let parsedTicketIds: (string | { sectionId: string; seatId: string })[] =
+          [];
         try {
           parsedTicketIds = JSON.parse(ticketIds);
         } catch {

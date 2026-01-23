@@ -106,6 +106,18 @@ export class PaymentsService {
         throw new NotFoundException('Payment not found');
       }
 
+      // IDEMPOTENCY CHECK: If payment already succeeded and tickets were created, don't process again
+      if (payment.status === 'succeeded') {
+        this.logger.log(
+          `Payment ${paymentIntentId} already processed, skipping duplicate webhook`,
+        );
+        // Check if tickets already exist for this payment
+        const existingTickets = await this.ticketsService.getTicketsByPaymentId(
+          payment._id.toString(),
+        );
+        return { payment, createdTickets: existingTickets || [] };
+      }
+
       // Update payment status first
       payment.status = 'succeeded';
       payment.paidAt = new Date();
@@ -119,7 +131,7 @@ export class PaymentsService {
 
       try {
         // Use ticketIds directly - they should be an array of objects with sectionId/seatId
-        let parsedTicketIds: any[] = Array.isArray(payment.ticketIds)
+        const parsedTicketIds: any[] = Array.isArray(payment.ticketIds)
           ? payment.ticketIds
           : [];
 
@@ -144,6 +156,10 @@ export class PaymentsService {
           `Failed to create tickets for payment ${paymentIntentId}:`,
           ticketError,
         );
+        // Mark payment with ticket creation error
+        payment.status = 'ticket_creation_failed';
+        payment.failureReason = ticketError.message;
+        await payment.save();
         // Payment is marked succeeded, but tickets failed - log this critical issue
         throw new Error(
           `Payment succeeded but ticket creation failed: ${ticketError.message}`,
