@@ -168,6 +168,13 @@ export default function EventDetailPage() {
       setSubmitting(true);
       setError(null);
 
+      // Validate required fields
+      if (!formData.buyerEmail || !formData.buyerName) {
+        setError('Please provide your name and email address');
+        setSubmitting(false);
+        return;
+      }
+
       // Validate selected ticket type is available
       const availableTypes = getAvailableTicketTypes();
       if (!availableTypes.find((t) => t.type === formData.selectedTicketType)) {
@@ -185,93 +192,42 @@ export default function EventDetailPage() {
         return;
       }
 
-      // If visual seating is enabled, atomically finalize the selected seats at purchase time
+      // Get ticket IDs (seat IDs or auto-assigned)
+      let ticketIds: any[] = [];
       if (event.seatingLayout?.enabled && selectedSeats.length > 0) {
-        console.log(
-          '[EventDetail] Finalizing purchase for seats:',
-          selectedSeats.map((s) => s.seatId),
-        );
-
-        // Call the atomic finalizePurchase endpoint
-        // This will lock seats and prevent double-booking
-        const purchaseData = {
-          eventId: event._id,
-          seats: selectedSeats.map((seat) => ({
-            sectionId: seat.sectionId,
-            seatId: seat.seatId,
-          })),
-          buyerName: formData.buyerName,
-          buyerEmail: formData.buyerEmail,
-          buyerPhoneNumber: formData.buyerPhoneNumber,
-          ticketType: formData.selectedTicketType,
-        };
-
-        const response = await seatsAPI.finalizePurchase(purchaseData);
-        const ticket: Ticket = response.data.data || response.data;
-
-        console.log(
-          '[EventDetail] Purchase finalized successfully:',
-          ticket._id,
-        );
-        // Store ticket data in both sessionStorage and localStorage to avoid redundant API call
-        const ticketJSON = JSON.stringify(ticket);
-        sessionStorage.setItem('purchasedTicket', ticketJSON);
-        localStorage.setItem('purchasedTicket', ticketJSON);
-        router.push(`/receipt/${ticket._id}`);
+        // Pass full seat objects with sectionId and seatId for locking seats
+        ticketIds = selectedSeats.map((s) => ({
+          sectionId: s.sectionId,
+          seatId: s.seatId,
+        }));
       } else {
-        // No visual seating or no seats selected - auto-assign seats
-        const ticketData = {
-          eventId: event._id,
-          seats: [],
-          buyerName: formData.buyerName,
-          buyerEmail: formData.buyerEmail,
-          buyerPhoneNumber: formData.buyerPhoneNumber,
-          ticketType: formData.selectedTicketType,
-        };
-
-        const response = await ticketsAPI.create(ticketData);
-        const ticket: Ticket = response.data.data || response.data;
-
-        // Store ticket data in both sessionStorage and localStorage to avoid redundant API call
-        const ticketJSON = JSON.stringify(ticket);
-        sessionStorage.setItem('purchasedTicket', ticketJSON);
-        localStorage.setItem('purchasedTicket', ticketJSON);
-        router.push(`/receipt/${ticket._id}`);
-      }
-    } catch (err: any) {
-      // Extract error message from various possible locations
-      let errorMessage = 'Failed to purchase ticket. Please try again.';
-
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
-      } else if (typeof err.response?.data === 'string') {
-        errorMessage = err.response.data;
-      } else if (err.message) {
-        errorMessage = err.message;
+        // For non-seating events, generate a placeholder ticket ID
+        ticketIds = ['auto-assigned'];
       }
 
-      // Handle specific error cases
-      if (err.response?.status === 409 || errorMessage.includes('just sold')) {
-        setError(
-          'One or more seats were just purchased by another user. Please select different seats and try again.',
-        );
-        // Reload the seat map to show current availability
-        window.location.reload();
-      } else if (err.response?.status === 400) {
-        setError(errorMessage || 'Invalid seat selection. Please try again.');
-      } else if (
-        errorMessage.includes('not available') ||
-        errorMessage.includes('Early Bird')
-      ) {
-        // Ticket type validation errors
-        setError(errorMessage);
-      } else {
-        setError(errorMessage);
-      }
-      console.error('[EventDetail] Purchase failed:', err);
-    } finally {
+      // Calculate total amount
+      const pricePerTicket = getTicketTypePrice();
+      const totalAmount = (selectedSeats.length || 1) * pricePerTicket;
+
+      // Build checkout URL with parameters
+      const checkoutParams = new URLSearchParams({
+        eventId: event._id,
+        eventName: event.name,
+        ticketIds: JSON.stringify(ticketIds),
+        totalAmount: totalAmount.toString(),
+        buyerEmail: formData.buyerEmail,
+        buyerName: formData.buyerName,
+        buyerPhoneNumber: formData.buyerPhoneNumber,
+        ticketType: formData.selectedTicketType,
+      });
+
+      // Redirect to checkout page
+      router.push(`/checkout?${checkoutParams.toString()}`);
+    } catch (err) {
+      console.error('[EventDetail] Checkout redirect failed:', err);
+      setError(
+        err instanceof Error ? err.message : 'Failed to proceed to checkout',
+      );
       setSubmitting(false);
     }
   };

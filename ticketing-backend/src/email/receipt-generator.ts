@@ -12,6 +12,7 @@ export function generateReceiptHTML(
     ticketType: string;
     createdAt?: Date;
     qrCode?: string;
+    seats?: Array<{ sectionId?: string; seatId: string }>;
   },
   eventData: {
     name: string;
@@ -120,6 +121,11 @@ export function generateReceiptHTML(
           /* Section */
           .section {
             margin-bottom: 28px;
+          }
+          @media print {
+            .section {
+              page-break-inside: avoid;
+            }
           }
           .section-title {
             font-size: 13px;
@@ -390,6 +396,35 @@ export function generateReceiptHTML(
                 </div>
               </div>
             </div>
+            
+            <!-- Seats Section (if available) -->
+            ${
+              ticketData.seats && ticketData.seats.length > 0
+                ? `
+            <div class="section" style="page-break-before: avoid; page-break-inside: avoid; margin-top: 60px;">
+              <h2 class="section-title">Seats</h2>
+              <div class="ticket-info">
+                ${ticketData.seats
+                  .map((seat, index) => {
+                    // Parse seatId format like "S2-B5" to extract section number and seat number
+                    const seatIdMatch = seat.seatId.match(/^S(\d+)-(.+)$/);
+                    const sectionNumber = seatIdMatch ? seatIdMatch[1] : '';
+                    const seatNumber = seatIdMatch
+                      ? seatIdMatch[2]
+                      : seat.seatId;
+                    return `
+                <div class="ticket-row">
+                  <span class="ticket-label">Seat ${index + 1}</span>
+                  <span class="ticket-value">Section ${sectionNumber} Number ${seatNumber} (${seat.seatId})</span>
+                </div>
+                `;
+                  })
+                  .join('')}
+              </div>
+            </div>
+            `
+                : ''
+            }
             
             <!-- Price Highlight -->
             <div class="price-section">

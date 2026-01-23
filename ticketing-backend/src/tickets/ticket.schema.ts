@@ -17,6 +17,9 @@ export class Ticket extends Document {
   @Prop({ type: Types.ObjectId, ref: 'Event', required: true })
   eventId: Types.ObjectId;
 
+  @Prop({ type: Types.ObjectId, ref: 'Payment' })
+  paymentId?: Types.ObjectId;
+
   @Prop({ required: true, unique: true })
   ticketNumber: string;
 

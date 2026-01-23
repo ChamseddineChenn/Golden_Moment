@@ -304,6 +304,14 @@ export class UsersService {
     (organizer as any).isVerifiedOrganizer = true;
     await organizer.save();
 
+    // Log admin action
+    if (this.logsService) {
+      await this.logsService.createLog(LogAction.ADMIN_VERIFY_ORGANIZER, {
+        performedBy: 'admin', // Replace with actual admin user if available
+        metadata: { organizerId },
+      });
+    }
+
     return {
       success: true,
       message: 'Organizer verified successfully',
@@ -320,6 +328,14 @@ export class UsersService {
     user.isActive = false;
     await user.save();
 
+    // Log admin action
+    if (this.logsService) {
+      await this.logsService.createLog(LogAction.ADMIN_DEACTIVATE_USER, {
+        performedBy: 'admin', // Replace with actual admin user if available
+        metadata: { userId },
+      });
+    }
+
     return {
       success: true,
       message: 'User deactivated successfully',
@@ -328,6 +344,14 @@ export class UsersService {
 
   async deleteUser(userId: string): Promise<any> {
     await this.userModel.findByIdAndDelete(userId).exec();
+
+    // Log admin action
+    if (this.logsService) {
+      await this.logsService.createLog(LogAction.ADMIN_DELETE_USER, {
+        performedBy: 'admin', // Replace with actual admin user if available
+        metadata: { userId },
+      });
+    }
 
     return {
       success: true,
@@ -381,7 +405,7 @@ export class UsersService {
 
     // Remove any restricted fields from updateData
     restrictedFields.forEach((field) => delete updateData[field]);
-    
+
     if (userType === UserType.ADMIN) {
       adminRestrictedFields.forEach((field) => delete updateData[field]);
     }

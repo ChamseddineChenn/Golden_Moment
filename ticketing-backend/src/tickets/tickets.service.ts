@@ -442,6 +442,160 @@ export class TicketsService {
   /**
    * Send receipt email asynchronously
    */
+  private async sendPaymentReceiptEmailAsync(
+    ticket: any,
+    event: any,
+    paymentId: string,
+  ): Promise<void> {
+    try {
+      this.logger.log(
+        'Starting payment receipt email process',
+        TicketsService.name,
+        {
+          ticketId: ticket._id.toString(),
+          email: ticket.buyerEmail,
+          ticketNumber: ticket.ticketNumber,
+          eventName: event.name,
+          paymentId,
+        },
+      );
+
+      const qrCode = ticket.qrCode;
+
+      // Generate HTML with payment info included
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+            .section { margin: 20px 0; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e5e7eb; }
+            .label { font-weight: bold; color: #6b7280; font-size: 12px; text-transform: uppercase; }
+            .value { font-size: 16px; color: #111827; margin-top: 5px; }
+            .payment-info { background: #ecfdf5; border-left: 4px solid #10b981; padding: 15px; margin: 15px 0; }
+            .footer { text-align: center; margin-top: 30px; color: #6b7280; font-size: 14px; }
+            .button { display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 10px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>✓ Payment Confirmed</h1>
+              <p>Your ticket has been successfully created</p>
+            </div>
+            <div class="content">
+              <p>Hi <strong>${ticket.buyerName}</strong>,</p>
+              <p>Thank you for your purchase! Your payment has been confirmed and your ticket is now ready.</p>
+              
+              <div class="payment-info">
+                <div class="label">Payment ID</div>
+                <div class="value">${paymentId}</div>
+              </div>
+
+              <div class="section">
+                <div class="label">Ticket Number</div>
+                <div class="value">${ticket.ticketNumber}</div>
+              </div>
+
+              <div class="section">
+                <div class="label">Event</div>
+                <div class="value">${event.name}</div>
+              </div>
+
+              <div class="section">
+                <div class="label">Date & Time</div>
+                <div class="value">${new Date(event.date).toLocaleDateString(
+                  'en-US',
+                  {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  },
+                )} at ${new Date(event.date).toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}</div>
+              </div>
+
+              <div class="section">
+                <div class="label">Venue</div>
+                <div class="value">${event.venue}</div>
+              </div>
+
+              <div class="section">
+                <div class="label">Ticket Type</div>
+                <div class="value">${ticket.ticketType}</div>
+              </div>
+
+              <div class="section">
+                <div class="label">Amount Paid</div>
+                <div class="value" style="font-size: 20px; color: #f59e0b;">\\$${(ticket.totalPrice / 100).toFixed(2)}</div>
+              </div>
+
+              <p style="margin-top: 20px; text-align: center;">
+                <a href="http://localhost:3000/receipt/${ticket._id}" class="button">View Your Receipt</a>
+              </p>
+
+              <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                <strong>Important:</strong> Please arrive 30 minutes before the event starts. Have your QR code ready for scanning at the entrance.
+              </p>
+            </div>
+            <div class="footer">
+              <p>Golden Moment Events © 2026</p>
+              <p>For support, contact support@goldenmoment.tn</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      await this.emailService.sendTicketReceipt(
+        {
+          email: ticket.buyerEmail,
+          ticketNumber: ticket.ticketNumber,
+          eventName: event.name,
+          ticketType: ticket.ticketType,
+          purchaseDate: new Date(ticket.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+          }),
+          totalAmount: ticket.totalPrice,
+          customerName: ticket.buyerName,
+          eventDate: new Date(event.date),
+          eventLocation: event.venue,
+          qrCode,
+          receiptHtml: htmlContent,
+          seats: ticket.seats,
+        },
+        {
+          attachPdf: true,
+        },
+      );
+
+      this.logger.log(
+        'Payment receipt email sent successfully',
+        TicketsService.name,
+        {
+          ticketId: ticket._id.toString(),
+          email: ticket.buyerEmail,
+          paymentId,
+        },
+      );
+    } catch (error) {
+      this.logger.error(
+        'Error sending payment receipt email',
+        TicketsService.name,
+        error,
+      );
+      throw error;
+    }
+  }
+
   private async sendReceiptEmailAsync(ticket: any, event: any): Promise<void> {
     try {
       this.logger.log('Starting receipt email process', TicketsService.name, {
@@ -739,6 +893,12 @@ export class TicketsService {
     };
   }
 
+  async findByPaymentId(paymentId: string): Promise<Ticket[]> {
+    return this.ticketModel
+      .find({ paymentId: new (require('mongoose').Types.ObjectId)(paymentId) })
+      .exec();
+  }
+
   async findByTicketNumber(ticketNumber: string): Promise<Ticket | null> {
     this.logger.log('Finding ticket by number', TicketsService.name, {
       ticketNumber,
@@ -925,6 +1085,259 @@ export class TicketsService {
         id,
         error,
       });
+      throw error;
+    }
+  }
+
+  /**
+   * Create tickets ONLY after payment succeeds
+   * Called by payment webhook after payment_intent.succeeded event
+   * @param paymentId - Payment document ID
+   * @param userId - User ID
+   * @param eventId - Event ID
+   * @param ticketIds - Array of requested seat selections
+   * @param buyerEmail - Customer email
+   * @param buyerName - Customer name
+   * @param buyerPhoneNumber - Customer phone
+   * @param ticketType - Type of ticket (Free, Standard, EarlyBird, VIP)
+   * @returns Array of created tickets
+   */
+  async createTicketsFromPayment(
+    paymentId: string,
+    userId: string,
+    eventId: string,
+    ticketIds: any[],
+    buyerEmail: string,
+    buyerName: string,
+    buyerPhoneNumber: string,
+    ticketType: string = 'Standard',
+  ): Promise<Ticket[]> {
+    try {
+      this.logger.log('Creating tickets from payment', TicketsService.name, {
+        paymentId,
+        eventId,
+        ticketCount: ticketIds.length,
+        ticketIdsFormat: JSON.stringify(ticketIds),
+      });
+
+      // Get event details
+      const event = await this.eventsService.findById(eventId);
+      if (!event) {
+        throw new Error('Event not found');
+      }
+
+      // Check if event date has passed
+      const now = new Date();
+      const eventDate = new Date(event.date);
+      if (eventDate < now) {
+        throw new PastEventException();
+      }
+
+      // Validate ticket type
+      if (!event.ticketTypes?.[ticketType]?.enabled) {
+        throw new InvalidTicketTypeException(ticketType);
+      }
+
+      // Validate early bird limit
+      if (ticketType === 'EarlyBird') {
+        const earlyBirdLimit = event.ticketTypes.EarlyBird.limit;
+        if (
+          earlyBirdLimit &&
+          earlyBirdLimit > 0 &&
+          event.earlyBirdCount >= earlyBirdLimit
+        ) {
+          throw new EarlyBirdSoldOutException();
+        }
+      }
+
+      // Validate capacity
+      if (event.totalSeats && event.totalSeats > 0) {
+        const seatsToAdd = ticketIds.length || 1;
+        if (
+          event.seatingLayout?.enabled &&
+          event.seatingLayout.sections?.length > 0
+        ) {
+          let totalAvailable = 0;
+          for (const section of event.seatingLayout.sections) {
+            if (section.seats && Array.isArray(section.seats)) {
+              const availableInSection = section.seats.filter(
+                (s) => s.status === 'available',
+              ).length;
+              totalAvailable += availableInSection;
+            }
+          }
+          if (totalAvailable < seatsToAdd) {
+            throw new SeatUnavailableException(
+              `Not enough seats available. Requested: ${seatsToAdd}, Available: ${totalAvailable}`,
+            );
+          }
+        } else {
+          const remainingCapacity = event.totalSeats - (event.soldTickets || 0);
+          if (remainingCapacity < seatsToAdd) {
+            throw new SeatUnavailableException(
+              `Event is sold out. Remaining: ${Math.max(0, remainingCapacity)}`,
+            );
+          }
+        }
+      }
+
+      // Lock seats atomically
+      this.logger.log('Ticket IDs received for locking:', TicketsService.name, {
+        ticketIds,
+        count: ticketIds.length,
+      });
+
+      const seatsWithSection = ticketIds.filter(
+        (s) => s && typeof s === 'object' && s.sectionId && s.seatId,
+      );
+
+      this.logger.log('Seats to lock:', TicketsService.name, {
+        seatsWithSection,
+        count: seatsWithSection.length,
+      });
+
+      if (seatsWithSection.length > 0) {
+        await this.seatsService.finalizePurchase(
+          eventId,
+          seatsWithSection as { sectionId: string; seatId: string }[],
+        );
+      }
+
+      // Create tickets
+      const createdTickets: Ticket[] = [];
+      const expiresAt = new Date(eventDate.getTime() + 15 * 60 * 1000);
+      const basePrice = event.ticketTypes[ticketType]?.price || 0;
+
+      // Filter seats for seating events (use different name to avoid duplicate)
+      const seatsForTicket = ticketIds.filter(
+        (s) => s && typeof s === 'object' && s.sectionId && s.seatId,
+      );
+
+      this.logger.log(
+        'Filtered seats for ticket creation',
+        TicketsService.name,
+        {
+          originalCount: ticketIds.length,
+          filteredCount: seatsForTicket.length,
+          filteredSeats: JSON.stringify(seatsForTicket),
+        },
+      );
+
+      // Create a SINGLE ticket with ALL seats (not one per seat)
+      const ticketNumber = await this.generateTicketNumber();
+      const { token, encryptedToken } = this.generateQrToken();
+      const qrCode = await QRCode.toDataURL(encryptedToken);
+
+      // Calculate total price for all seats
+      let totalPrice = basePrice * (seatsForTicket.length || 1);
+      if (seatsForTicket.length > 0 && event.seatingLayout?.enabled) {
+        // Add seat price modifiers
+        const sectionPrices = new Map<string, number>();
+        for (const seat of seatsForTicket) {
+          const section = event.seatingLayout.sections.find(
+            (s) => s.id === seat.sectionId,
+          );
+          if (section && !sectionPrices.has(seat.sectionId)) {
+            sectionPrices.set(seat.sectionId, section.priceModifier || 0);
+          }
+        }
+        // Add all section modifiers
+        for (const modifier of sectionPrices.values()) {
+          totalPrice += modifier;
+        }
+      }
+
+      const ticketData = {
+        eventId: new (require('mongoose').Types.ObjectId)(eventId),
+        paymentId: new (require('mongoose').Types.ObjectId)(paymentId),
+        seats: seatsForTicket.length > 0 ? seatsForTicket : [{ seatId: '' }], // All seats in one ticket
+        buyerEmail,
+        buyerName,
+        buyerPhoneNumber,
+        ticketNumber,
+        qrCode,
+        qrToken: token,
+        expiresAt,
+        totalPrice,
+        ticketType,
+        metadata: { userId },
+      };
+
+      const createdTicket = new this.ticketModel(ticketData);
+      const savedTicket = await createdTicket.save();
+      createdTickets.push(savedTicket);
+
+      this.logger.log('Ticket created from payment', TicketsService.name, {
+        id: savedTicket._id.toString(),
+        ticketNumber,
+        paymentId,
+        seatsCount: seatsForTicket.length,
+      });
+
+      // Update event stats
+      const updateData: any = {};
+      if (ticketType === 'EarlyBird') {
+        updateData.earlyBirdCount =
+          (event.earlyBirdCount || 0) + createdTickets.length;
+      }
+
+      // Update sold tickets count
+      if (event.seatingLayout?.enabled) {
+        const updatedEvent = await this.eventsService.findById(eventId);
+        if (updatedEvent?.seatingLayout) {
+          let unavailableSeatsCount = 0;
+          for (const section of updatedEvent.seatingLayout.sections) {
+            if (section.seats && Array.isArray(section.seats)) {
+              unavailableSeatsCount += section.seats.filter(
+                (s) => s.status === 'unavailable',
+              ).length;
+            }
+          }
+          updateData.soldTickets = unavailableSeatsCount;
+        }
+      } else {
+        updateData.soldTickets =
+          (event.soldTickets || 0) + createdTickets.length;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        await this.eventsService.update(eventId, updateData);
+      }
+
+      // Log purchase action
+      await this.logsService.createLog(LogAction.TICKET_PURCHASED, {
+        ticketName: `Tickets from Payment ${paymentId}`,
+        eventName: event.name,
+        eventId,
+        metadata: {
+          paymentId,
+          ticketsCount: createdTickets.length,
+          buyerEmail,
+          ticketType,
+        },
+      });
+
+      // Send receipt emails for each ticket with payment info
+      for (const ticket of createdTickets) {
+        this.sendPaymentReceiptEmailAsync(ticket, event, paymentId).catch(
+          (error) => {
+            this.logger.error(
+              'Failed to send payment receipt email',
+              TicketsService.name,
+              error,
+            );
+            // Don't throw - payment is already succeeded, just log the error
+          },
+        );
+      }
+
+      return createdTickets;
+    } catch (error) {
+      this.logger.error(
+        'Error creating tickets from payment',
+        TicketsService.name,
+        error,
+      );
       throw error;
     }
   }

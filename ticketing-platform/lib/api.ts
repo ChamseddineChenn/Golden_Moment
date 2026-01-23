@@ -48,6 +48,8 @@ export const ticketsAPI = {
   create: (ticketData: any) => apiClient.post('/tickets', ticketData),
   getAll: () => apiClient.get('/tickets'),
   getById: (id: string) => apiClient.get(`/tickets/${id}`),
+  getByPaymentId: (paymentId: string) =>
+    apiClient.get(`/tickets/by-payment/${paymentId}`),
   getByEventId: (eventId: string) => apiClient.get(`/tickets/event/${eventId}`),
   getByTicketNumber: (ticketNumber: string) =>
     apiClient.get(`/tickets/by-number/${ticketNumber}`),
@@ -99,6 +101,14 @@ export const logsAPI = {
     apiClient.get('/logs/action', { params: { type: action, limit, skip } }),
   getForEvent: (eventId: string, limit: number = 100, skip: number = 0) =>
     apiClient.get(`/logs/event/${eventId}`, { params: { limit, skip } }),
+};
+
+// Payments API
+export const paymentsAPI = {
+  createCheckoutSession: (paymentData: any) =>
+    apiClient.post('/payments/create-checkout-session', paymentData),
+  getPayment: (paymentId: string) => apiClient.get(`/payments/${paymentId}`),
+  getUserPayments: () => apiClient.get('/payments/user/payments'),
 };
 
 export default apiClient;
