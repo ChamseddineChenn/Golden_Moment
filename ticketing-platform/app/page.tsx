@@ -535,7 +535,6 @@ export default function HomePage() {
     minPrice: '',
     maxPrice: '',
   });
-  const { user, loading: authLoading, logout } = useAuth();
 
   // Filter out expired events (events where the date has passed)
   const upcomingEvents = events.filter((e) => {
