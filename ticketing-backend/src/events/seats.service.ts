@@ -311,4 +311,161 @@ export class SeatsService {
       });
     }
   }
+
+  // Reserve seats temporarily (for 5 minutes)
+  async reserveSeats(
+    eventId: string,
+    seatIds: { sectionId: string; seatId: string }[],
+  ) {
+    this.logger.log('Reserving seats', SeatsService.name, {
+      eventId,
+      seatsCount: seatIds.length,
+    });
+
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new BadRequestException('Event not found');
+    }
+
+    const reservationExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+
+    for (const seatRequest of seatIds) {
+      const section = event.seatingLayout.sections.find(
+        (s) => s.id === seatRequest.sectionId,
+      );
+      if (!section) {
+        throw new BadRequestException(
+          `Section ${seatRequest.sectionId} not found`,
+        );
+      }
+
+      const seat =
+        section.seats && Array.isArray(section.seats)
+          ? section.seats.find((s) => s.seatId === seatRequest.seatId)
+          : undefined;
+      if (!seat) {
+        throw new BadRequestException(
+          `Seat ${seatRequest.seatId} not found in section ${seatRequest.sectionId}`,
+        );
+      }
+
+      if (seat.status !== 'available') {
+        throw new ConflictException(
+          `Seat ${seatRequest.seatId} is no longer available`,
+        );
+      }
+
+      // Mark seat as reserved
+      const updateResult = await this.eventModel.updateOne(
+        { _id: eventId },
+        {
+          $set: {
+            'seatingLayout.sections.$[section].seats.$[seatToReserve].status':
+              'reserving',
+            'seatingLayout.sections.$[section].seats.$[seatToReserve].reservingUntil':
+              reservationExpiry,
+          },
+        },
+        {
+          arrayFilters: [
+            { 'section.id': seatRequest.sectionId },
+            {
+              'seatToReserve.seatId': seatRequest.seatId,
+              'seatToReserve.status': 'available',
+            },
+          ],
+        },
+      );
+
+      if (updateResult.modifiedCount === 0) {
+        throw new ConflictException(
+          `Failed to reserve seat ${seatRequest.seatId} - it may have been reserved already`,
+        );
+      }
+    }
+
+    this.logger.log('Seats reserved successfully', SeatsService.name, {
+      eventId,
+      seatsCount: seatIds.length,
+      expiryTime: reservationExpiry,
+    });
+
+    return { reservationExpiry };
+  }
+
+  // Release reservation (if payment cancelled or failed)
+  async releaseReservation(
+    eventId: string,
+    seatIds: { sectionId: string; seatId: string }[],
+  ) {
+    this.logger.log('Releasing seat reservation', SeatsService.name, {
+      eventId,
+      seatsCount: seatIds.length,
+    });
+
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new BadRequestException('Event not found');
+    }
+
+    for (const seatRequest of seatIds) {
+      // Mark seat as available again
+      await this.eventModel.updateOne(
+        { _id: eventId },
+        {
+          $set: {
+            'seatingLayout.sections.$[section].seats.$[seatToRelease].status':
+              'available',
+            'seatingLayout.sections.$[section].seats.$[seatToRelease].reservingUntil':
+              null,
+          },
+        },
+        {
+          arrayFilters: [
+            { 'section.id': seatRequest.sectionId },
+            { 'seatToRelease.seatId': seatRequest.seatId },
+          ],
+        },
+      );
+    }
+
+    this.logger.log('Seat reservation released', SeatsService.name, {
+      eventId,
+      seatsCount: seatIds.length,
+    });
+  }
+
+  // Cleanup expired reservations (call periodically or before critical operations)
+  async cleanupExpiredReservations(eventId: string) {
+    const now = new Date();
+
+    const result = await this.eventModel.updateMany(
+      { _id: eventId },
+      {
+        $set: {
+          'seatingLayout.sections.$[].seats.$[expiredReservation].status':
+            'available',
+          'seatingLayout.sections.$[].seats.$[expiredReservation].reservingUntil':
+            null,
+        },
+      },
+      {
+        arrayFilters: [
+          {
+            'expiredReservation.status': 'reserving',
+            'expiredReservation.reservingUntil': { $lt: now },
+          },
+        ],
+      },
+    );
+
+    if (result.modifiedCount > 0) {
+      this.logger.log('Cleaned up expired reservations', SeatsService.name, {
+        eventId,
+        count: result.modifiedCount,
+      });
+    }
+
+    return result.modifiedCount;
+  }
 }

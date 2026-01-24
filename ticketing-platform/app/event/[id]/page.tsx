@@ -200,6 +200,21 @@ export default function EventDetailPage() {
           sectionId: s.sectionId,
           seatId: s.seatId,
         }));
+
+        // RESERVE SEATS TEMPORARILY (5 minutes)
+        try {
+          await seatsAPI.reserveSeats(event._id, ticketIds);
+          console.log('[EventDetail] Seats reserved successfully');
+        } catch (reserveError) {
+          console.error('[EventDetail] Failed to reserve seats:', reserveError);
+          setError(
+            reserveError instanceof Error
+              ? reserveError.message
+              : 'Failed to reserve seats. Some seats may have been taken. Please try again.',
+          );
+          setSubmitting(false);
+          return;
+        }
       } else {
         // For non-seating events, generate a placeholder ticket ID
         ticketIds = ['auto-assigned'];

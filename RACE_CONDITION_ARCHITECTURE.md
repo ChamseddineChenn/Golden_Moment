@@ -3,6 +3,7 @@
 ## Problem Statement
 
 When two users concurrently select and purchase the same seats, the system must:
+
 1. Prevent double-booking (one user gets seats, other gets error)
 2. Detect the collision and inform the user
 3. Handle it gracefully without data corruption
@@ -12,6 +13,7 @@ When two users concurrently select and purchase the same seats, the system must:
 ### Layer 1: Frontend - Prevention & Detection
 
 #### Checkout Page Error Handling
+
 **File:** [ticketing-platform/app/checkout/page.tsx](ticketing-platform/app/checkout/page.tsx)
 
 - Enhanced error messages for specific failure types
@@ -19,6 +21,7 @@ When two users concurrently select and purchase the same seats, the system must:
 - Prevents user from retrying without understanding issue
 
 #### Success Page Polling with Timeout
+
 **File:** [ticketing-platform/app/checkout/success/page.tsx](ticketing-platform/app/checkout/success/page.tsx)
 
 ```typescript
@@ -28,38 +31,42 @@ let pollCount = 0;
 
 while (pollCount < maxAttempts) {
   pollCount++;
-  
+
   // Fetch tickets for this payment
   const response = await ticketsAPI.getByPaymentId(payment._id);
-  
+
   if (ticketsFound) {
     // Success case
     showSuccess();
     return;
   }
-  
+
   if (pollCount >= maxAttempts) {
     // Timeout - tickets never created
     showError('Tickets took too long to process...');
     return;
   }
-  
+
   // Keep polling
   await sleep(1000);
 }
 ```
 
 **Why Timeout Matters:**
+
 - Without timeout: Page hangs indefinitely if webhook fails
 - With timeout: User gets error message after 30 seconds
 - 30 seconds is long enough for webhook to process (normally <1 second)
 - Short enough that user doesn't wait excessively
 
 **Race Condition Detection:**
+
 ```typescript
 // Catch "seats unavailable" error from failed webhook
 if (err instanceof Error && err.message.includes('unavailable')) {
-  setError('The seats you selected were purchased by another customer. Your payment has been refunded.');
+  setError(
+    'The seats you selected were purchased by another customer. Your payment has been refunded.',
+  );
 }
 ```
 
@@ -68,6 +75,7 @@ if (err instanceof Error && err.message.includes('unavailable')) {
 ### Layer 2: Application Logic - Idempotency & Validation
 
 #### Payment Service - Webhook Idempotency
+
 **File:** [ticketing-backend/src/payments/payments.service.ts](ticketing-backend/src/payments/payments.service.ts#L94-L145)
 
 ```typescript
@@ -103,12 +111,14 @@ async handlePaymentSuccess(paymentIntentId: string) {
 ```
 
 **Idempotency Benefits:**
+
 - Webhook might fire twice (Stripe retry mechanism)
 - First webhook: Creates ticket normally
 - Second webhook: Detects already-succeeded, returns cached tickets
 - Prevents duplicate tickets from same payment
 
 #### Tickets Service - Seat Validation
+
 **File:** [ticketing-backend/src/tickets/tickets.service.ts](ticketing-backend/src/tickets/tickets.service.ts#L1105-1200)
 
 ```typescript
@@ -144,6 +154,7 @@ async createTicketsFromPayment(...) {
 
 **Key Point:**
 The check happens BEFORE locking. When two concurrent payments arrive:
+
 1. Both see seats as "available" (before lock check)
 2. Both pass the capacity check
 3. Both call finalizePurchase()
@@ -154,6 +165,7 @@ The check happens BEFORE locking. When two concurrent payments arrive:
 ### Layer 3: Database - Atomic Locking
 
 #### MongoDB Atomic Array Filtering
+
 **File:** [ticketing-backend/src/events/seats.service.ts](ticketing-backend/src/events/seats.service.ts#L193-240)
 
 ```typescript
@@ -195,6 +207,7 @@ async finalizePurchase(eventId: string, seatIds: any[]) {
 ```
 
 **How Atomic Filtering Works:**
+
 ```
 MongoDB arrayFilters condition:
 'seatToLock.status': 'available'
@@ -227,7 +240,7 @@ T4: Payment B's updateOne with arrayFilter
 Browser A Timeline          |  Server Timeline           |  Browser B Timeline
 ========================   |  ==================        |  ========================
 T0: Select Seats A, B       |                            |
-T1: Click Pay               |  Create checkout session   |  
+T1: Click Pay               |  Create checkout session   |
                             |  Generate clientSecret     |
 T2:                         |                            |  Select Seats A, B
 T3: Confirm with Stripe     |                            |  Click Pay
@@ -287,21 +300,25 @@ T15-20:                     |                            |  Poll again (attempt 
 ## Why This Works
 
 ### 1. No Lost Reads (Database Level)
+
 - MongoDB atomically applies array filters
 - If seat status changes between read and write, the write fails
 - No race condition possible at DB level
 
 ### 2. No Lost Deletes (Application Level)
+
 - Idempotency check prevents duplicate processing
 - If webhook fires twice, second execution returns cached result
 - No duplicate tickets created
 
 ### 3. User Feedback (Frontend Level)
+
 - Timeout prevents infinite polling
 - Race condition detected and shown in error message
 - User knows what happened
 
 ### 4. Data Consistency
+
 - Payment either succeeds fully (with ticket) or fails cleanly
 - No partial states (payment succeeded but no ticket)
 - Database state matches payment state
@@ -311,6 +328,7 @@ T15-20:                     |                            |  Poll again (attempt 
 ## Testing the Architecture
 
 ### Test: Concurrent Payment Lock
+
 ```bash
 # Open two browser windows
 # Both select seats A, B
@@ -323,6 +341,7 @@ T15-20:                     |                            |  Poll again (attempt 
 ```
 
 ### Test: Webhook Idempotency
+
 ```bash
 # Make payment successfully
 # Verify ticket created
@@ -334,6 +353,7 @@ T15-20:                     |                            |  Poll again (attempt 
 ```
 
 ### Test: Timeout Correctness
+
 ```bash
 # Make payment
 # Manually delay webhook processing
@@ -415,6 +435,7 @@ The race condition prevention relies on **three layers**:
 3. **Database Layer:** Atomic array filtering ensures only seats with `status='available'` are locked
 
 Together, these ensure:
+
 - ✅ No double-booking (DB atomicity)
 - ✅ No duplicate tickets (idempotency check)
 - ✅ No infinite hangs (timeout)
