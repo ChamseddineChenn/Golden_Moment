@@ -169,13 +169,9 @@ export default function ProfilePage() {
           </div>
         </div>
       </header>
-
-      {/* Profile Content */}
       <div className="flex-1 px-4 py-8 sm:px-6 sm:py-12">
         <div className="max-w-3xl mx-auto">
-          {/* Profile Card */}
           <div className="bg-white rounded-2xl shadow-xl border border-stone-200 overflow-hidden">
-            {/* Header */}
             <div className="bg-gradient-to-br from-stone-900 to-stone-800 px-6 py-8 sm:px-8 sm:py-10 relative overflow-hidden">
               <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50"></div>
               <div className="relative flex items-center justify-between">
@@ -197,19 +193,16 @@ export default function ProfilePage() {
                 {!editing && (
                   <button
                     onClick={() => setEditing(true)}
-                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2"
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2 cursor-pointer"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                     <span className="hidden sm:inline">Edit Profile</span>
-                    <span className="sm:inline hidden">Edit</span>
                   </button>
                 )}
               </div>
             </div>
-
-            {/* Messages */}
             {error && (
               <div className="mx-6 mt-6 sm:mx-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-start gap-3">
                 <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,11 +220,8 @@ export default function ProfilePage() {
                 <span className="text-sm">{success}</span>
               </div>
             )}
-
-            {/* Form */}
             <form onSubmit={handleSubmit} className="px-6 py-6 sm:px-8 sm:py-8" suppressHydrationWarning>
               <div className="space-y-6">
-                {/* Email */}
                 <div>
                   <label className="block text-sm font-semibold text-stone-900 mb-2">
                     Email Address
@@ -259,8 +249,6 @@ export default function ProfilePage() {
                     </p>
                   )}
                 </div>
-
-                {/* Organizer Fields */}
                 {isOrganizer && (
                   <>
                     <div>
@@ -364,8 +352,6 @@ export default function ProfilePage() {
                     </div>
                   </>
                 )}
-
-                {/* Admin Info (Read-only) */}
                 {isAdmin && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                     <h3 className="text-sm font-semibold text-stone-900 mb-3">
@@ -396,8 +382,6 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 )}
-
-                {/* Password Change Note */}
                 <div className="bg-stone-50 border border-stone-200 rounded-xl p-4">
                   <p className="text-sm text-stone-600">
                     To change your password, please use the{' '}
@@ -411,8 +395,6 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
-
-              {/* Actions */}
               {editing && (
                 <div className="mt-8 flex flex-col sm:flex-row gap-3">
                   <button
