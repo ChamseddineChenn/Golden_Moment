@@ -258,7 +258,7 @@ export function Header() {
 
                 {user.userType === 'Admin' && (
                   <Link
-                    href="/admin/dashboard"
+                    href="/admin"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-4 py-2 text-stone-600 hover:bg-stone-50 rounded-lg transition mx-4"
                   >
@@ -267,7 +267,7 @@ export function Header() {
                 )}
                 {user.userType === 'Organizer' && (
                   <Link
-                    href="/organizer/dashboard"
+                    href="/"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-4 py-2 text-stone-600 hover:bg-stone-50 rounded-lg transition mx-4"
                   >

@@ -7,7 +7,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <RoleGuard allowedRoles={[UserType.ADMIN]}>
+    <RoleGuard allowedRoles={[UserType.ORGANIZER, UserType.ADMIN, UserType.USER]}>
       {children}
     </RoleGuard>
   );
