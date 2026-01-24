@@ -71,4 +71,33 @@ export class SeatsController {
         | 'VIP',
     });
   }
+
+  @Public()
+  @Post('event/:eventId/reserve')
+  @HttpCode(HttpStatus.OK)
+  async reserveSeats(
+    @Param('eventId') eventId: string,
+    @Body() body: { seats: { sectionId: string; seatId: string }[] },
+  ) {
+    return this.seatsService.reserveSeats(eventId, body.seats);
+  }
+
+  @Public()
+  @Post('event/:eventId/release')
+  @HttpCode(HttpStatus.OK)
+  async releaseReservation(
+    @Param('eventId') eventId: string,
+    @Body() body: { seats: { sectionId: string; seatId: string }[] },
+  ) {
+    await this.seatsService.releaseReservation(eventId, body.seats);
+    return { success: true };
+  }
+
+  @Public()
+  @Post('event/:eventId/cleanup-expired')
+  @HttpCode(HttpStatus.OK)
+  async cleanupExpiredReservations(@Param('eventId') eventId: string) {
+    const count = await this.seatsService.cleanupExpiredReservations(eventId);
+    return { cleanedUp: count };
+  }
 }

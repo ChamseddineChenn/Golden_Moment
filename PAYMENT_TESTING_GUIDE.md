@@ -27,9 +27,11 @@
 ## Test Cases
 
 ### Test #1: Invalid Card Error Display
+
 **Objective:** Verify that 402 Payment Required errors are shown to the user
 
 **Steps:**
+
 1. Navigate to an event page
 2. Select ticket type and seats
 3. Proceed to checkout
@@ -38,20 +40,23 @@
 6. Click "Pay"
 
 **Expected Results:**
+
 - ✅ Error message displays immediately
 - ✅ Error message: "Your card was declined. Please try a different card."
 - ✅ Error appears in prominent red box with icon
 - ✅ No console errors or uncaught exceptions
 - ✅ Payment button remains clickable for retry
 
-**Pass/Fail:** ___________
+**Pass/Fail:** ****\_\_\_****
 
 ---
 
 ### Test #2: Successful Payment Flow
+
 **Objective:** Verify normal payment processing works correctly
 
 **Steps:**
+
 1. Navigate to an event page
 2. Select 2-3 seats for a seating event
 3. Select ticket type (e.g., Standard or EarlyBird)
@@ -61,6 +66,7 @@
 7. Click "Pay"
 
 **Expected Results:**
+
 - ✅ Payment succeeds (no error message)
 - ✅ Redirected to `/checkout/success?paymentId=...`
 - ✅ Page shows "Processing Payment" loading animation
@@ -70,18 +76,21 @@
 - ✅ "View Receipt" button is available
 - ✅ Confirmation email is sent (check inbox)
 
-**Pass/Fail:** ___________
+**Pass/Fail:** ****\_\_\_****
 
 ---
 
 ### Test #3: Race Condition Detection (Concurrent Purchases)
+
 **Objective:** Verify that concurrent purchases of same seats are handled correctly
 
 **Setup:**
+
 - Event must have limited seating (e.g., 5 seats total)
 - Need 2 browsers or browser + incognito window
 
 **Steps:**
+
 1. In **Browser A**:
    - Navigate to event page
    - Select seats: Row 2, Seats B5, C5, D5 (same row/section)
@@ -107,6 +116,7 @@
 **Expected Results:**
 
 **Browser A:**
+
 - ✅ Redirected to success page
 - ✅ Shows "Payment Successful!" header
 - ✅ Within 5 seconds: Ticket is created
@@ -114,6 +124,7 @@
 - ✅ Can view receipt
 
 **Browser B:**
+
 - ✅ Redirected to success page
 - ✅ Shows "Processing Payment" loading for ~30 seconds
 - ✅ After 30 seconds: Error state appears
@@ -123,28 +134,33 @@
 - ✅ No ticket is created for Browser B
 
 **Database Verification:**
+
 - ✅ Only ONE ticket exists for this payment ID
 - ✅ Seats are locked by Browser A's payment only
 - ✅ Browser B's payment has status `ticket_creation_failed` or `failed`
 
-**Pass/Fail:** ___________
+**Pass/Fail:** ****\_\_\_****
 
 ---
 
 ### Test #4: Success Page Timeout
+
 **Objective:** Verify timeout prevents infinite polling on success page
 
 **Setup:**
+
 - Configure backend to delay webhook processing or manually delay it
 - OR: Manually trigger webhook failure
 
 **Steps:**
+
 1. Initiate successful payment
 2. Reach success page
 3. Manually delay or block webhook processing
 4. Monitor success page for 35+ seconds
 
 **Expected Results:**
+
 - ✅ Page shows "Processing Payment" loading for ~30 seconds
 - ✅ After 30 seconds: Error state appears
 - ✅ Error message: "Tickets took too long to process. Your payment was successful, but tickets are still being created..."
@@ -152,65 +168,75 @@
 - ✅ Shows "Back to Home" button
 - ✅ Page does NOT hang indefinitely
 
-**Pass/Fail:** ___________
+**Pass/Fail:** ****\_\_\_****
 
 ---
 
 ### Test #5: Webhook Idempotency
+
 **Objective:** Verify that duplicate webhooks don't create duplicate tickets
 
 **Setup:**
+
 - Requires access to backend logs and database
 - Requires ability to manually trigger webhooks (Stripe dashboard or script)
 
 **Steps:**
+
 1. Make a successful payment and reach success page
 2. Wait for ticket to be created (verify in DB)
 3. In Stripe test dashboard: Resend the `payment_intent.succeeded` webhook
 4. Check database and backend logs
 
 **Expected Results:**
+
 - ✅ Backend logs show: "Payment {id} already processed, skipping duplicate webhook"
 - ✅ Database contains only ONE ticket (no duplicates created)
 - ✅ Payment status remains "succeeded"
 - ✅ No new ticket entries added for same payment
 
-**Pass/Fail:** ___________
+**Pass/Fail:** ****\_\_\_****
 
 ---
 
 ### Test #6: Partial Card Information
+
 **Objective:** Verify validation errors for incomplete card data
 
 **Steps:**
+
 1. Navigate to checkout page
 2. Leave card number field empty
 3. Click "Pay"
 
 **Expected Results:**
+
 - ✅ Error message displays
 - ✅ Specific message about missing field (e.g., "Please enter a valid card number")
 - ✅ Payment is not submitted to Stripe
 
-**Pass/Fail:** ___________
+**Pass/Fail:** ****\_\_\_****
 
 ---
 
 ### Test #7: Authentication Required (3D Secure)
+
 **Objective:** Verify authentication flow works correctly
 
 **Steps:**
+
 1. Use test card: `4000002500003155` (requires authentication)
 2. Complete checkout form
 3. Click "Pay"
 
 **Expected Results:**
+
 - ✅ Authentication popup appears
 - ✅ Can complete authentication
 - ✅ After auth: Either succeeds or shows appropriate error
 - ✅ Success page shows final result
 
-**Pass/Fail:** ___________
+**Pass/Fail:** ****\_\_\_****
 
 ---
 
@@ -219,21 +245,25 @@
 Run these to ensure previous fixes still work:
 
 ### Regression #1: Seat Locking
+
 - ✅ After payment: Seats are locked (unavailable)
 - ✅ Cannot purchase same seats for same time period
 - ✅ Seat displays updated correctly
 
 ### Regression #2: Single Ticket with Multiple Seats
+
 - ✅ Purchasing 3 seats creates ONE ticket (not 3)
 - ✅ Ticket receipt shows all 3 seats
 - ✅ Email shows all seats
 
 ### Regression #3: Correct Payment Amount
+
 - ✅ Total amount matches selected seats + pricing
 - ✅ Seat price modifiers applied correctly
 - ✅ Early Bird pricing correct
 
 ### Regression #4: Receipt Email
+
 - ✅ Email sent after payment success
 - ✅ Email includes all seats
 - ✅ Email includes proper seat display format (Section 2 Number B5)
@@ -243,19 +273,19 @@ Run these to ensure previous fixes still work:
 
 ## Summary Table
 
-| Test | Description | Status | Notes |
-|------|-------------|--------|-------|
-| #1 | Invalid card error display | | |
-| #2 | Successful payment flow | | |
-| #3 | Race condition detection | | |
-| #4 | Success page timeout | | |
-| #5 | Webhook idempotency | | |
-| #6 | Partial card validation | | |
-| #7 | Authentication (3D Secure) | | |
-| R1 | Seat locking regression | | |
-| R2 | Single ticket multiple seats | | |
-| R3 | Correct payment amount | | |
-| R4 | Receipt email | | |
+| Test | Description                  | Status | Notes |
+| ---- | ---------------------------- | ------ | ----- |
+| #1   | Invalid card error display   |        |       |
+| #2   | Successful payment flow      |        |       |
+| #3   | Race condition detection     |        |       |
+| #4   | Success page timeout         |        |       |
+| #5   | Webhook idempotency          |        |       |
+| #6   | Partial card validation      |        |       |
+| #7   | Authentication (3D Secure)   |        |       |
+| R1   | Seat locking regression      |        |       |
+| R2   | Single ticket multiple seats |        |       |
+| R3   | Correct payment amount       |        |       |
+| R4   | Receipt email                |        |       |
 
 ---
 

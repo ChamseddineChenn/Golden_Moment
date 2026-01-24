@@ -9,6 +9,7 @@ interface Payment {
   _id: string;
   amount: number;
   status: 'succeeded' | 'pending' | 'failed' | 'ticket_creation_failed';
+  failureReason?: string;
   paidAt?: string;
   metadata?: {
     buyerEmail?: string;
@@ -69,8 +70,27 @@ export default function CheckoutSuccessPage() {
 
     const pollTickets = async () => {
       pollCount++;
-      
+
       try {
+        // First check payment status to detect failures early
+        const paymentResponse = await paymentsAPI.getPayment(payment._id);
+        const updatedPayment = paymentResponse.data.data;
+
+        // Check if ticket creation failed
+        if (
+          updatedPayment?.status === 'ticket_creation_failed' ||
+          updatedPayment?.status === 'failed'
+        ) {
+          const failureReason =
+            updatedPayment?.failureReason || 'Unknown error';
+          setError(
+            `Payment processing failed: ${failureReason}. Please try again or contact support.`,
+          );
+          setTicketsLoading(false);
+          return;
+        }
+
+        // Then check for tickets
         const response = await ticketsAPI.getByPaymentId(payment._id);
         const fetchedTickets = response.data.data || response.data;
 
@@ -94,7 +114,7 @@ export default function CheckoutSuccessPage() {
         timeoutId = setTimeout(pollTickets, 1000);
       } catch (err) {
         console.error('Error fetching tickets:', err);
-        
+
         // Check if this is a "seats unavailable" error (race condition detected)
         if (err instanceof Error && err.message.includes('unavailable')) {
           setError(
@@ -218,8 +238,8 @@ export default function CheckoutSuccessPage() {
                   Payment Successful!
                 </h1>
                 <p className="text-amber-50">
-                  Your tickets have been created and confirmation has been sent to
-                  your email.
+                  Your tickets have been created and confirmation has been sent
+                  to your email.
                 </p>
               </div>
 

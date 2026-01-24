@@ -67,29 +67,23 @@ export const seatsAPI = {
     apiClient.get(`/seats/event/${eventId}`, {
       params: { _t: Date.now() }, // Cache busting
     }),
-  // Live reservation is now DEPRECATED - seats are only locked at payment
-  reserveSeats: (data: {
-    eventId: string;
-    seats: { sectionId: string; seatId: string }[];
-  }) => {
-    return apiClient.post('/seats/reserve', data);
+  // Reserve seats temporarily (5 minutes) when user clicks Purchase button
+  reserveSeats: (
+    eventId: string,
+    seats: { sectionId: string; seatId: string }[],
+  ) => {
+    return apiClient.post(`/seats/event/${eventId}/reserve`, { seats });
   },
-  unreserveSeats: (data: {
-    eventId: string;
-    seats: { sectionId: string; seatId: string }[];
-  }) => {
-    return apiClient.post('/seats/unreserve', data);
+  // Release reservation if payment cancelled, failed, or timeout
+  releaseReservation: (
+    eventId: string,
+    seats: { sectionId: string; seatId: string }[],
+  ) => {
+    return apiClient.post(`/seats/event/${eventId}/release`, { seats });
   },
-  // NEW: Atomic payment-based seat locking with race condition detection
-  finalizePurchase: (data: {
-    eventId: string;
-    seats: { sectionId: string; seatId: string }[];
-    buyerName: string;
-    buyerEmail: string;
-    buyerPhoneNumber: string;
-    ticketType?: string;
-  }) => {
-    return apiClient.post('/seats/finalize-purchase', data);
+  // Clean up expired reservations (auto-run periodically)
+  cleanupExpiredReservations: (eventId: string) => {
+    return apiClient.post(`/seats/event/${eventId}/cleanup-expired`);
   },
 };
 

@@ -9,7 +9,7 @@ import {
   useStripe,
   useElements,
 } from '@stripe/react-stripe-js';
-import { paymentsAPI } from '@/lib/api';
+import { paymentsAPI, seatsAPI } from '@/lib/api';
 import Link from 'next/link';
 
 const stripePromise = loadStripe(
@@ -22,11 +22,15 @@ function CheckoutForm({
   eventName,
   totalAmount,
   ticketCount,
+  eventId,
+  reservedSeats,
 }: {
   clientSecret: string;
   eventName: string;
   totalAmount: number;
   ticketCount: number;
+  eventId: string;
+  reservedSeats: { sectionId: string; seatId: string }[] | null;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -72,29 +76,46 @@ function CheckoutForm({
 
       if (confirmError) {
         // Format error message based on error type
-        let errorMessage = confirmError.message || 'Payment confirmation failed';
-        
+        let errorMessage =
+          confirmError.message || 'Payment confirmation failed';
+
         if (confirmError.code === 'card_declined') {
           errorMessage = 'Your card was declined. Please try a different card.';
         } else if (confirmError.code === 'processing_error') {
-          errorMessage = 'An error occurred while processing your card. Please try again.';
+          errorMessage =
+            'An error occurred while processing your card. Please try again.';
         } else if (confirmError.code === 'rate_limit') {
-          errorMessage = 'Too many requests. Please wait a moment and try again.';
+          errorMessage =
+            'Too many requests. Please wait a moment and try again.';
         } else if (confirmError.code === 'authentication_error') {
-          errorMessage = 'Authentication failed. Please check your card details.';
+          errorMessage =
+            'Authentication failed. Please check your card details.';
         } else if (confirmError.message?.includes('402')) {
-          errorMessage = 'Payment Required: Your card was not accepted. Please try a different payment method.';
+          errorMessage =
+            'Payment Required: Your card was not accepted. Please try a different payment method.';
         }
-        
+
         console.error('Payment confirmation error:', {
           code: confirmError.code,
           message: confirmError.message,
           type: confirmError.type,
           param: confirmError.param,
         });
-        
+
         setError(errorMessage);
         setIsLoading(false);
+
+        // Release reserved seats on payment error
+        if (eventId && reservedSeats && reservedSeats.length > 0) {
+          seatsAPI
+            .releaseReservation(eventId, reservedSeats)
+            .catch((err: unknown) => {
+              console.warn(
+                '[Checkout] Failed to release seats after payment error:',
+                err,
+              );
+            });
+        }
         return;
       }
 
@@ -204,6 +225,25 @@ export default function CheckoutPage() {
     totalAmount: number;
     ticketCount: number;
   } | null>(null);
+  const [reservedSeats, setReservedSeats] = useState<
+    { sectionId: string; seatId: string }[] | null
+  >(null);
+  const [eventId, setEventId] = useState<string | null>(null);
+
+  // Release reservation if user leaves checkout or payment fails/cancels
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount - release reserved seats if user navigates away
+      if (eventId && reservedSeats && reservedSeats.length > 0) {
+        // Send release request (don't await - best effort)
+        seatsAPI
+          .releaseReservation(eventId, reservedSeats)
+          .catch((err: unknown) => {
+            console.warn('[Checkout] Failed to release seat reservation:', err);
+          });
+      }
+    };
+  }, [eventId, reservedSeats]);
 
   useEffect(() => {
     const initializeCheckout = async () => {
@@ -226,14 +266,29 @@ export default function CheckoutPage() {
           return;
         }
 
+        // Store event ID for cleanup
+        setEventId(eventId);
+
         // Parse ticketIds from JSON
-        let parsedTicketIds: (string | { sectionId: string; seatId: string })[] =
-          [];
+        let parsedTicketIds: (
+          | string
+          | { sectionId: string; seatId: string }
+        )[] = [];
         try {
           parsedTicketIds = JSON.parse(ticketIds);
         } catch {
           // Fallback: treat as comma-separated string
           parsedTicketIds = ticketIds.split(',');
+        }
+
+        // Store reserved seats for cleanup on unmount
+        const seatedTickets = parsedTicketIds.filter(
+          (t) => typeof t === 'object' && t.sectionId && t.seatId,
+        );
+        if (seatedTickets.length > 0) {
+          setReservedSeats(
+            seatedTickets as { sectionId: string; seatId: string }[],
+          );
         }
 
         // Create checkout session with backend
@@ -334,6 +389,8 @@ export default function CheckoutPage() {
             eventName={checkoutData.eventName}
             totalAmount={checkoutData.totalAmount}
             ticketCount={checkoutData.ticketCount}
+            eventId={eventId || ''}
+            reservedSeats={reservedSeats}
           />
         </Elements>
       </div>
