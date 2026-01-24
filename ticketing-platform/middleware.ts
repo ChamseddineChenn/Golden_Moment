@@ -13,12 +13,6 @@ interface AuthMeResponse {
 
 type UserType = 'ADMIN' | 'ORGANIZER' | 'USER';
 
-// Route access configuration
-const ROUTE_ACCESS: Record<string, UserType[]> = {
-  '/admin': ['ADMIN'],
-  '/organizer': ['ADMIN', 'ORGANIZER'],
-};
-
 /**
  * Fetches current user from backend /auth/me endpoint
  * Returns null if unauthorized or if request fails
@@ -56,60 +50,12 @@ async function getCurrentUser(request: NextRequest): Promise<UserType | null> {
   }
 }
 
-/**
- * Check if user role has access to the given route
- */
-function hasAccess(pathname: string, userType: UserType | null): boolean {
-  // Find matching route prefix
-  for (const [routePrefix, allowedRoles] of Object.entries(ROUTE_ACCESS)) {
-    if (pathname.startsWith(routePrefix)) {
-      // Route is protected
-      if (!userType) {
-        return false; // Not authenticated
-      }
-      return allowedRoles.includes(userType);
-    }
-  }
-  
-  // Route is not protected (public)
-  return true;
-}
-
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Define auth routes (login/signup pages)
   const authRoutes = ['/auth/login', '/auth/signup', '/auth/signup-organizer'];
   const isAuthRoute = authRoutes.includes(pathname);
-
-  // Check if this is a protected route
-  const isProtectedRoute = Object.keys(ROUTE_ACCESS).some(route => 
-    pathname.startsWith(route)
-  );
-
-  // If it's a protected route, verify authentication and authorization
-  if (isProtectedRoute) {
-    const userType = await getCurrentUser(request);
-
-    // Not authenticated - redirect to login
-    if (!userType) {
-      const loginUrl = new URL('/auth/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    // Authenticated but not authorized - redirect to forbidden or home
-    if (!hasAccess(pathname, userType)) {
-      // Option 1: Redirect to home page
-      return NextResponse.redirect(new URL('/', request.url));
-      
-      // Option 2: Redirect to a 403 forbidden page (uncomment if you have one)
-      // return NextResponse.redirect(new URL('/403', request.url));
-    }
-
-    // Authorized - allow access
-    return NextResponse.next();
-  }
 
   // Optional: Redirect authenticated users away from auth pages
   if (isAuthRoute) {
@@ -127,7 +73,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Allow access to public routes
+  // Allow access to all routes
   return NextResponse.next();
 }
 
