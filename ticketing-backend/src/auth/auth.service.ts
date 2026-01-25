@@ -220,7 +220,11 @@ export class AuthService {
   async refreshWithToken(
     refreshToken: string,
     res: Response,
-  ): Promise<{ success: boolean; message: string; data: { accessToken: string; refreshToken: string } }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: { accessToken: string; refreshToken: string };
+  }> {
     try {
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.configService.get('JWT_REFRESH_SECRET'),
@@ -231,11 +235,12 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
-      const { accessToken, refreshToken: newRefreshToken } = this.generateTokens(
-        user.id,
-        user.email,
-        user.userType || UserType.USER,
-      );
+      const { accessToken, refreshToken: newRefreshToken } =
+        this.generateTokens(
+          user.id,
+          user.email,
+          user.userType || UserType.USER,
+        );
 
       await this.usersService.updateRefreshToken(user.id, newRefreshToken);
 
@@ -365,9 +370,10 @@ export class AuthService {
     refreshToken: string,
   ) {
     // Determine if we're in production (HTTPS) or development (HTTP)
-    const isProduction = process.env.NODE_ENV === 'production' || 
-                        process.env.BACKEND_URL?.startsWith('https');
-    
+    const isProduction =
+      process.env.NODE_ENV === 'production' ||
+      process.env.BACKEND_URL?.startsWith('https');
+
     res.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: isProduction, // true in production (HTTPS), false in development (HTTP)

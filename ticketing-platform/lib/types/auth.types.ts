@@ -31,7 +31,11 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, userType?: UserType) => Promise<void>;
+  signup: (
+    email: string,
+    password: string,
+    userType?: UserType,
+  ) => Promise<void>;
   signupOrganizer: (data: OrganizerSignupData) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
