@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import type { Response } from 'express';
 import { UsersService } from '../users/users.service';
 import { LoginAttemptsService } from '../users/login-attempts.service';
-import { MailService } from '../mail/mail.service';
+import { SendGridService } from '../email/sendgrid.service';
 import { SignupDto } from './dto/signup.dto';
 import { SignupOrganizerDto } from './dto/signup-organizer.dto';
 import { LoginDto } from './dto/login.dto';
@@ -47,7 +47,7 @@ export class AuthService {
     private loginAttemptsService: LoginAttemptsService,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private mailService: MailService,
+    private sendGridService: SendGridService,
   ) {}
 
   async signup(signupDto: SignupDto, res: Response): Promise<AuthResponse> {
@@ -60,8 +60,8 @@ export class AuthService {
     const verificationToken = (user as any).plainVerificationToken;
     
     // Send verification email in background (don't await - don't block signup)
-    this.mailService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
-      this.logger.error(`Failed to send verification email to ${user.email}:`, err);
+    this.sendGridService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
+      this.logger.warn(`Failed to send verification email to ${user.email}: ${err.message}`);
     });
 
     // Use the userType from DTO or default to USER
@@ -98,8 +98,8 @@ export class AuthService {
     const verificationToken = (user as any).plainVerificationToken;
     
     // Send verification email in background (don't await - don't block signup)
-    this.mailService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
-      this.logger.error(`Failed to send verification email to ${user.email}:`, err);
+    this.sendGridService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
+      this.logger.warn(`Failed to send verification email to ${user.email}: ${err.message}`);
     });
 
     const { accessToken, refreshToken } = this.generateTokens(
@@ -240,7 +240,16 @@ export class AuthService {
 
       const user = await this.usersService.findById(payload.sub);
       if (!user) {
-        throw new UnauthorizedException('User not found');
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Verify the refresh token hash
+      const isRefreshTokenValid = await bcrypt.compare(
+        refreshToken,
+        user.refreshTokenHash || '',
+      );
+      if (!isRefreshTokenValid) {
+        throw new UnauthorizedException('Invalid refresh token');
       }
 
       const { accessToken, refreshToken: newRefreshToken } =
@@ -294,10 +303,14 @@ export class AuthService {
     const token = await this.usersService.resendVerificationEmail(
       resendVerificationDto.email,
     );
-    await this.mailService.sendVerificationEmail(
+    
+    // Send verification email in background
+    this.sendGridService.sendVerificationEmail(
       resendVerificationDto.email,
       token,
-    );
+    ).catch((err) => {
+      this.logger.warn(`Failed to send verification email to ${resendVerificationDto.email}: ${err.message}`);
+    });
 
     return {
       success: true,
@@ -312,10 +325,14 @@ export class AuthService {
       const token = await this.usersService.createPasswordResetToken(
         forgotPasswordDto.email,
       );
-      await this.mailService.sendPasswordResetEmail(
+      
+      // Send password reset email in background
+      this.sendGridService.sendPasswordResetEmail(
         forgotPasswordDto.email,
         token,
-      );
+      ).catch((err) => {
+        this.logger.warn(`Failed to send password reset email to ${forgotPasswordDto.email}: ${err.message}`);
+      });
 
       return {
         success: true,
@@ -338,7 +355,11 @@ export class AuthService {
       resetPasswordDto.newPassword,
     );
 
-    await this.mailService.sendPasswordResetConfirmation(user.email);
+    // Send password reset confirmation in background
+    this.sendGridService.sendPasswordResetConfirmation(user.email).catch((err) => {
+      this.logger.warn(`Failed to send password reset confirmation to ${user.email}: ${err.message}`);
+    });
+
 
     return {
       success: true,
@@ -400,25 +421,8 @@ export class AuthService {
   }
 
   private clearAuthCookies(res: Response) {
-    // Determine if we're in production (HTTPS) or development (HTTP)
-    const isProduction =
-      process.env.NODE_ENV === 'production' ||
-      process.env.BACKEND_URL?.startsWith('https');
-
-    // Clear cookies with the same options they were set with
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      path: '/',
-    });
-
-    res.clearCookie('refresh_token', {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      path: '/',
-    });
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
   }
 
   async getCurrentUser(
