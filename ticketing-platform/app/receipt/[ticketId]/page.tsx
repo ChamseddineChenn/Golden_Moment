@@ -814,9 +814,12 @@ export default function ReceiptPage() {
               />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-stone-900 mb-2">Ticket Not Found</h2>
+          <h2 className="text-2xl font-bold text-stone-900 mb-2">
+            Ticket Not Found
+          </h2>
           <p className="text-stone-600 mb-6">
-            We couldn't find this ticket. It may have been deleted or the link is invalid.
+            We couldn't find this ticket. It may have been deleted or the link
+            is invalid.
           </p>
           <Link
             href="/"

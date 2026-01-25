@@ -14,7 +14,11 @@ type UserType = 'ADMIN' | 'ORGANIZER' | 'USER';
 
 function normalizeUserType(userType: string): UserType | null {
   const normalized = userType.toUpperCase();
-  if (normalized === 'ADMIN' || normalized === 'ORGANIZER' || normalized === 'USER') {
+  if (
+    normalized === 'ADMIN' ||
+    normalized === 'ORGANIZER' ||
+    normalized === 'USER'
+  ) {
     return normalized as UserType;
   }
   return null;
@@ -65,7 +69,10 @@ async function getCurrentUser(request: NextRequest): Promise<UserType | null> {
 
     return normalized;
   } catch (error) {
-    console.error('Middleware auth check error:', error instanceof Error ? error.message : String(error));
+    console.error(
+      'Middleware auth check error:',
+      error instanceof Error ? error.message : String(error),
+    );
     return null;
   }
 }

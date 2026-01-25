@@ -48,8 +48,13 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 404 || error.response?.status === 500) {
       const contentType = error.response?.headers?.['content-type'];
       if (!contentType || !contentType.includes('application/json')) {
-        console.error('API returned non-JSON response:', error.response?.status);
-        return Promise.reject(new Error(`API Error: ${error.response?.status}`));
+        console.error(
+          'API returned non-JSON response:',
+          error.response?.status,
+        );
+        return Promise.reject(
+          new Error(`API Error: ${error.response?.status}`),
+        );
       }
     }
 

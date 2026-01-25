@@ -123,8 +123,9 @@ function CheckoutForm({
       if (paymentIntent?.status === 'succeeded') {
         // Payment successful - fetch the payment document ID from backend
         try {
+          const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
           const paymentResponse = await fetch(
-            `http://localhost:3002/payments/by-intent/${paymentIntent.id}`,
+            `${backendUrl}/payments/by-intent/${paymentIntent.id}`,
           );
           const paymentData = await paymentResponse.json();
           const mongoPaymentId = paymentData.data?._id || paymentIntent.id;
@@ -476,14 +477,16 @@ function CheckoutContent() {
 // Main Checkout Page with Suspense
 export default function CheckoutPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto mb-4"></div>
-          <p>Loading checkout...</p>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto mb-4"></div>
+            <p>Loading checkout...</p>
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <CheckoutContent />
     </Suspense>
   );

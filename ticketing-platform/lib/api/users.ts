@@ -26,7 +26,9 @@ export const usersApi = {
     return data.data?.data || data.data || data;
   },
 
-  updateMyProfile: async (updateData: ProfileUpdateData): Promise<ProfileResponse> => {
+  updateMyProfile: async (
+    updateData: ProfileUpdateData,
+  ): Promise<ProfileResponse> => {
     const { data } = await apiClient.patch('/users/me/profile', updateData);
     // Access nested response
     return data.data || data;
