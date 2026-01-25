@@ -65,6 +65,11 @@ export default function SeatMap({
   useEffect(() => {
     // Recalculate total whenever ticket type price changes
     const total = selectedSeats.length * (ticketTypePrice || 0);
+    console.log('[SeatMap] CALLBACK: Calling onSeatsSelected with:', {
+      seatsCount: selectedSeats.length,
+      seats: selectedSeats,
+      total: total,
+    });
     onSeatsSelected?.(selectedSeats, total);
   }, [selectedSeats, ticketTypePrice, onSeatsSelected]);
 
@@ -123,6 +128,13 @@ export default function SeatMap({
         seatId: seat.seatId,
         price,
       };
+
+      console.log('[SeatMap] Creating new seat:', {
+        sectionId: sectionId,
+        seatId: seat.seatId,
+        seatObject: JSON.stringify(seat),
+        newSeat: JSON.stringify(newSeat),
+      });
 
       setSelectedSeats([...selectedSeats, newSeat]);
       console.log(

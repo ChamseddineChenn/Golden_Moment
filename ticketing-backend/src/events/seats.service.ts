@@ -181,9 +181,42 @@ export class SeatsService {
     }
 
     for (const seatRequest of seatIds) {
-      const section = event.seatingLayout.sections.find(
+      let section = event.seatingLayout.sections.find(
         (s) => s.id === seatRequest.sectionId,
       );
+
+      // If section doesn't exist and this is an auto-assigned seat, create the "general" section
+      if (
+        !section &&
+        seatRequest.sectionId === 'general' &&
+        seatRequest.seatId === 'auto-assigned'
+      ) {
+        this.logger.log(
+          'Creating default general section for auto-assigned seats',
+          SeatsService.name,
+          {
+            eventId,
+          },
+        );
+
+        // Create the general section
+        const generalSection = {
+          id: 'general',
+          name: 'General Admission',
+          seatType: 'auto-assigned',
+          rows: 0,
+          columns: 0,
+          orientation: 'horizontal' as const,
+          priceModifier: 0,
+          accessibility: false,
+          seats: [],
+        };
+
+        event.seatingLayout.sections.push(generalSection as any);
+        await event.save();
+        section = generalSection as any;
+      }
+
       if (!section) {
         this.logger.warn('Section not found', SeatsService.name, {
           eventId,
@@ -192,6 +225,11 @@ export class SeatsService {
         throw new BadRequestException(
           `Section ${seatRequest.sectionId} not found`,
         );
+      }
+
+      // For auto-assigned seats, we don't need to check individual seats
+      if (seatRequest.seatId === 'auto-assigned') {
+        continue;
       }
 
       const seat =
@@ -209,7 +247,7 @@ export class SeatsService {
         );
       }
 
-      if (seat.status !== 'available') {
+      if (seat.status !== 'available' && seat.status !== 'reserving') {
         this.logger.warn('Seat already taken', SeatsService.name, {
           eventId,
           sectionId: seatRequest.sectionId,
@@ -223,6 +261,19 @@ export class SeatsService {
     }
 
     for (const seatRequest of seatIds) {
+      // Skip seat locking for auto-assigned seats - they don't have individual seat records
+      if (seatRequest.seatId === 'auto-assigned') {
+        this.logger.log(
+          'Skipping seat lock for auto-assigned seat',
+          SeatsService.name,
+          {
+            eventId,
+            sectionId: seatRequest.sectionId,
+          },
+        );
+        continue;
+      }
+
       const updateResult = await this.eventModel.updateOne(
         {
           _id: eventId,
@@ -240,7 +291,7 @@ export class SeatsService {
             { 'section.id': seatRequest.sectionId },
             {
               'seatToLock.seatId': seatRequest.seatId,
-              'seatToLock.status': 'available',
+              'seatToLock.status': { $in: ['available', 'reserving'] },
             },
           ],
         },

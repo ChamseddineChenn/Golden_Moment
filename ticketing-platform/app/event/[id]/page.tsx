@@ -196,10 +196,15 @@ export default function EventDetailPage() {
       let ticketIds: any[] = [];
       if (event.seatingLayout?.enabled && selectedSeats.length > 0) {
         // Pass full seat objects with sectionId and seatId for locking seats
+        console.log('[EventDetail] handleBuyTicket - Visual seating event');
+        console.log('[EventDetail] selectedSeats from state:', selectedSeats);
+
         ticketIds = selectedSeats.map((s) => ({
           sectionId: s.sectionId,
           seatId: s.seatId,
         }));
+
+        console.log('[EventDetail] ticketIds after mapping:', ticketIds);
 
         // RESERVE SEATS TEMPORARILY (5 minutes)
         try {
@@ -217,12 +222,15 @@ export default function EventDetailPage() {
         }
       } else {
         // For non-seating events, generate a placeholder ticket ID
+        console.log(
+          '[EventDetail] Non-visual seating event or no seats selected',
+        );
         ticketIds = ['auto-assigned'];
       }
 
       // Calculate total amount
       const pricePerTicket = getTicketTypePrice();
-      const totalAmount = (selectedSeats.length || 1) * pricePerTicket;
+      const totalAmount = (ticketIds.length || 1) * pricePerTicket;
 
       // Build checkout URL with parameters
       const checkoutParams = new URLSearchParams({
@@ -234,6 +242,11 @@ export default function EventDetailPage() {
         buyerName: formData.buyerName,
         buyerPhoneNumber: formData.buyerPhoneNumber,
         ticketType: formData.selectedTicketType,
+      });
+
+      console.log('[EventDetail] CHECKOUT REDIRECT - ticketIds param:', {
+        ticketIds: ticketIds,
+        stringified: JSON.stringify(ticketIds),
       });
 
       // Redirect to checkout page

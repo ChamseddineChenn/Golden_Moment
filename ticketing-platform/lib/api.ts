@@ -101,6 +101,8 @@ export const logsAPI = {
 export const paymentsAPI = {
   createCheckoutSession: (paymentData: any) =>
     apiClient.post('/payments/create-checkout-session', paymentData),
+  createFreeTicket: (ticketData: any) =>
+    apiClient.post('/payments/create-free-ticket', ticketData),
   getPayment: (paymentId: string) => apiClient.get(`/payments/${paymentId}`),
   getUserPayments: () => apiClient.get('/payments/user/payments'),
 };
