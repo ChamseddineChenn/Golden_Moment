@@ -53,11 +53,19 @@ export const authApi = {
     try {
       await apiClient.post('/auth/logout');
     } finally {
-      // Always clear tokens from localStorage, even if logout API call fails
+      // Always clear tokens from localStorage and cookies, even if logout API call fails
       if (typeof window !== 'undefined') {
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('access_token');
-        console.log('✓ Tokens cleared from localStorage');
+        
+        // Also manually clear cookies by setting them to expire
+        // This helps ensure cookies are cleared even if backend doesn't properly send Set-Cookie
+        document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;';
+        document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;';
+        document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=None; Secure;';
+        document.cookie = 'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=None; Secure;';
+        
+        console.log('✓ Tokens cleared from localStorage and cookies');
       }
     }
   },

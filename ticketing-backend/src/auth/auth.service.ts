@@ -58,7 +58,11 @@ export class AuthService {
     });
 
     const verificationToken = (user as any).plainVerificationToken;
-    await this.mailService.sendVerificationEmail(user.email, verificationToken);
+    
+    // Send verification email in background (don't await - don't block signup)
+    this.mailService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
+      this.logger.error(`Failed to send verification email to ${user.email}:`, err);
+    });
 
     // Use the userType from DTO or default to USER
     const userType = signupDto.userType || UserType.USER;
@@ -92,7 +96,11 @@ export class AuthService {
     const user = await this.usersService.createOrganizer(signupOrganizerDto);
 
     const verificationToken = (user as any).plainVerificationToken;
-    await this.mailService.sendVerificationEmail(user.email, verificationToken);
+    
+    // Send verification email in background (don't await - don't block signup)
+    this.mailService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
+      this.logger.error(`Failed to send verification email to ${user.email}:`, err);
+    });
 
     const { accessToken, refreshToken } = this.generateTokens(
       user.id,
@@ -392,8 +400,25 @@ export class AuthService {
   }
 
   private clearAuthCookies(res: Response) {
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
+    // Determine if we're in production (HTTPS) or development (HTTP)
+    const isProduction =
+      process.env.NODE_ENV === 'production' ||
+      process.env.BACKEND_URL?.startsWith('https');
+
+    // Clear cookies with the same options they were set with
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      path: '/',
+    });
+
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      path: '/',
+    });
   }
 
   async getCurrentUser(
