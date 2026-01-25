@@ -75,6 +75,16 @@ export class AuthController {
   }
 
   @Public()
+  @Post('refresh-with-token')
+  @HttpCode(HttpStatus.OK)
+  async refreshWithToken(
+    @Body() body: { refreshToken: string },
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ success: boolean; message: string; data: { accessToken: string; refreshToken: string } }> {
+    return this.authService.refreshWithToken(body.refreshToken, res);
+  }
+
+  @Public()
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(

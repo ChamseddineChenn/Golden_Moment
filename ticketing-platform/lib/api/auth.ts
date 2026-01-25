@@ -31,6 +31,21 @@ export const authApi = {
         password,
       },
     );
+    
+    // Fallback: store refresh token in localStorage if it's in the response
+    if (data.data?.refreshToken) {
+      try {
+        localStorage.setItem('refresh_token', data.data.refreshToken);
+        console.log('✓ Refresh token stored in localStorage');
+      } catch (err) {
+        console.error('Failed to store refresh token in localStorage:', err);
+      }
+    }
+    
+    // Log to help debug cookie issues
+    console.log('Login response received. Checking cookies...');
+    console.log('Cookies:', document.cookie);
+    
     return data.data; // ← Access nested data
   },
 

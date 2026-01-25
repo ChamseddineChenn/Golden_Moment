@@ -30,6 +30,15 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
+    // Fallback: if no cookies are available, try to get refresh token from localStorage
+    // and add it to request for manual refresh
+    if (typeof window !== 'undefined') {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken && !document.cookie.includes('refresh_token')) {
+        // Cookie missing but localStorage has token - try to refresh
+        console.log('⚠️ Refresh token in localStorage but not in cookies');
+      }
+    }
     return config;
   },
   (error) => {
@@ -85,19 +94,45 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch (refreshError) {
+        // Fallback: try to use localStorage refresh token
         if (typeof window !== 'undefined') {
-          const publicPaths = [
-            '/',
-            '/auth/login',
-            '/auth/signup',
-            '/auth/signup-organizer',
-          ];
-          const currentPath = window.location.pathname;
-
-          if (!publicPaths.includes(currentPath)) {
-            const redirectUrl = `${currentPath}${window.location.search}`;
-            window.location.href = `/auth/login?redirect=${encodeURIComponent(redirectUrl)}`;
+          const refreshToken = localStorage.getItem('refresh_token');
+          if (refreshToken && originalRequest.url?.includes('/auth/refresh')) {
+            console.log(
+              '⚠️ Refresh failed with cookies, attempting with localStorage token',
+            );
+            try {
+              const response = await axios.post(
+                `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh-with-token`,
+                { refreshToken },
+                { withCredentials: true },
+              );
+              if (response.data?.data?.accessToken) {
+                // Store the new token in localStorage
+                localStorage.setItem(
+                  'refresh_token',
+                  response.data.data.refreshToken || refreshToken,
+                );
+                console.log('✓ Token refreshed using localStorage fallback');
+              }
+              return apiClient(originalRequest);
+            } catch (tokenRefreshError) {
+              console.error('Token refresh failed:', tokenRefreshError);
+            }
           }
+        }
+
+        const publicPaths = [
+          '/',
+          '/auth/login',
+          '/auth/signup',
+          '/auth/signup-organizer',
+        ];
+        const currentPath = window.location.pathname;
+
+        if (!publicPaths.includes(currentPath)) {
+          const redirectUrl = `${currentPath}${window.location.search}`;
+          window.location.href = `/auth/login?redirect=${encodeURIComponent(redirectUrl)}`;
         }
         return Promise.reject(refreshError);
       }
