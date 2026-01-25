@@ -44,14 +44,89 @@ export class SendGridService {
 
       const doc = new PDFDocument({
         size: 'A4',
-        margin: 20,
+        margin: 40,
       });
 
-      // Extract text from HTML (basic extraction)
-      const text = this.extractTextFromHtml(htmlContent);
+      // Extract key information from HTML
+      const ticketMatch = htmlContent.match(/Ticket Number[^<]*<[^>]*>([^<]+)</i);
+      const ticketNumber = ticketMatch ? ticketMatch[1].trim() : 'N/A';
 
-      // Add content to PDF
-      doc.fontSize(12).text(text, { align: 'left' });
+      const eventMatch = htmlContent.match(/Event[^<]*<[^>]*>([^<]+)</i);
+      const eventName = eventMatch ? eventMatch[1].trim() : 'Event';
+
+      const amountMatch = htmlContent.match(/Total\s+Amount[^<]*<[^>]*>([^<]+)</i);
+      const amount = amountMatch ? amountMatch[1].trim() : '$0.00';
+
+      // Header
+      doc
+        .fontSize(24)
+        .font('Helvetica-Bold')
+        .text('🎟️ Ticket Receipt', { align: 'center' })
+        .fontSize(12)
+        .font('Helvetica')
+        .text('Your booking is confirmed', { align: 'center' })
+        .moveDown(0.5);
+
+      // Divider
+      doc
+        .moveTo(40, doc.y)
+        .lineTo(555, doc.y)
+        .stroke('#d97706')
+        .moveDown(1);
+
+      // Event Section
+      doc
+        .fontSize(12)
+        .font('Helvetica-Bold')
+        .text('Event Details', { underline: true })
+        .moveDown(0.3);
+
+      doc
+        .fontSize(10)
+        .font('Helvetica')
+        .text(`Event: ${eventName}`, { indent: 10 })
+        .text(`Ticket: ${ticketNumber}`, { indent: 10 })
+        .moveDown(0.3);
+
+      // Price Section
+      doc
+        .fontSize(11)
+        .font('Helvetica-Bold')
+        .text('Total Amount:', { indent: 10 })
+        .fontSize(20)
+        .font('Helvetica-Bold')
+        .text(amount, { indent: 20, color: '#d97706' })
+        .moveDown(0.5);
+
+      // Divider
+      doc
+        .moveTo(40, doc.y)
+        .lineTo(555, doc.y)
+        .stroke('#e5e7eb')
+        .moveDown(1);
+
+      // Important Notice
+      doc
+        .fontSize(10)
+        .font('Helvetica')
+        .text(
+          '✓ This is your official ticket. Please keep it safe and bring it to the event entrance.',
+          { align: 'left', color: '#166534' },
+        )
+        .moveDown(1);
+
+      // Footer
+      doc
+        .fontSize(9)
+        .font('Helvetica')
+        .text('Golden Moment Events', { align: 'center', color: '#6b7280' })
+        .text('Thank you for your purchase!', { align: 'center', color: '#6b7280' })
+        .moveDown(0.5)
+        .text(`Generated: ${new Date().toLocaleDateString()}`, {
+          align: 'center',
+          color: '#9ca3af',
+          fontSize: 8,
+        });
 
       // Convert stream to buffer
       const chunks: Buffer[] = [];
@@ -78,8 +153,11 @@ export class SendGridService {
    * Simple HTML to text extraction
    */
   private extractTextFromHtml(html: string): string {
+    // Remove script and style tags
+    let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
     // Remove HTML tags
-    let text = html.replace(/<[^>]*>/g, '');
+    text = text.replace(/<[^>]*>/g, '');
     // Decode HTML entities
     text = text
       .replace(/&nbsp;/g, ' ')
