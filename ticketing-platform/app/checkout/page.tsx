@@ -123,7 +123,8 @@ function CheckoutForm({
       if (paymentIntent?.status === 'succeeded') {
         // Payment successful - fetch the payment document ID from backend
         try {
-          const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+          const backendUrl =
+            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
           const paymentResponse = await fetch(
             `${backendUrl}/payments/by-intent/${paymentIntent.id}`,
           );
