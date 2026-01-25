@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -213,8 +214,8 @@ function CheckoutForm({
   );
 }
 
-// Main Checkout Page
-export default function CheckoutPage() {
+// Checkout Content Component
+function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initializingRef = useRef(false); // Guard against double initialization
@@ -469,5 +470,21 @@ export default function CheckoutPage() {
         </Elements>
       </div>
     </div>
+  );
+}
+
+// Main Checkout Page with Suspense
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-600 mx-auto mb-4"></div>
+          <p>Loading checkout...</p>
+        </div>
+      </div>
+    }>
+      <CheckoutContent />
+    </Suspense>
   );
 }
