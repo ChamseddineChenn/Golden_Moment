@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import {
@@ -217,6 +217,7 @@ function CheckoutForm({
 export default function CheckoutPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const initializingRef = useRef(false); // Guard against double initialization
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -247,6 +248,15 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     const initializeCheckout = async () => {
+      // Guard against double initialization
+      if (initializingRef.current) {
+        console.log(
+          '[Checkout] Initialization already in progress, skipping...',
+        );
+        return;
+      }
+
+      initializingRef.current = true;
       try {
         // Get checkout data from search params or session
         const eventId = searchParams.get('eventId');
@@ -383,6 +393,7 @@ export default function CheckoutPage() {
         );
       } finally {
         setLoading(false);
+        initializingRef.current = false; // Reset guard for potential retries
       }
     };
 
