@@ -12,7 +12,6 @@ import {
 import { SeatsService } from './seats.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { Public } from '../auth/decorators/public.decorator';
-import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('seats')
 export class SeatsController {
