@@ -251,7 +251,7 @@ export class SendGridService {
           if (pdfBuffer) {
             attachments.push({
               filename: `receipt_${ticketNumber}.pdf`,
-              content: pdfBuffer,
+              content: pdfBuffer.toString('base64'),
               type: 'application/pdf',
             });
             this.logger.log('PDF attachment generated', SendGridService.name, {
