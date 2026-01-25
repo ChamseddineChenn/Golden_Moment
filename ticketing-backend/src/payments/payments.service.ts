@@ -322,7 +322,7 @@ export class PaymentsService {
     const payment = await this.paymentModel.findOne({
       stripePaymentIntentId: paymentId,
     });
-    
+
     if (!payment) {
       throw new NotFoundException('Payment not found');
     }
