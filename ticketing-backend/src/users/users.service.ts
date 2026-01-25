@@ -16,6 +16,8 @@ import { AdminDocument } from './schemas/admin.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserType } from './enums/user-type.enum';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { LogsService } from '../logs/logs.service';
+import { LogAction } from '../logs/log.schema';
 
 @Injectable()
 export class UsersService {
@@ -25,6 +27,7 @@ export class UsersService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private configService: ConfigService,
     private eventEmitter: EventEmitter2,
+     private logsService: LogsService,
   ) {
     this.bcryptRounds =
       this.configService.get<number>('security.bcryptRounds') || 12;
