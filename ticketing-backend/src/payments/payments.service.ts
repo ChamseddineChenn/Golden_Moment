@@ -55,7 +55,6 @@ export class PaymentsService {
         },
       });
 
-      // Create Payment record in database (pending status)
       // For guest users (userId starts with 'guest-'), store as string
       // For authenticated users, convert to ObjectId
       let userIdValue: any;
@@ -66,10 +65,20 @@ export class PaymentsService {
         userIdValue = userId;
       }
 
+      // Transform ticketIds for storage
+      // If it's 'auto-assigned', convert to proper format
+      let processedTicketIds = ticketIds;
+      if (ticketIds.length === 1 && ticketIds[0] === 'auto-assigned') {
+        // For events without seating, store a placeholder
+        processedTicketIds = [
+          { sectionId: 'general', seatId: 'auto-assigned' },
+        ];
+      }
+
       const payment = new this.paymentModel({
         userId: userIdValue,
         eventId: new Types.ObjectId(eventId),
-        ticketIds: ticketIds, // Store objects directly - don't stringify
+        ticketIds: processedTicketIds,
         amount: Math.round(totalAmount * 100), // Store in cents for consistency
         currency: 'usd',
         stripePaymentIntentId: paymentIntent.id,

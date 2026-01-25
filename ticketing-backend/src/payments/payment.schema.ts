@@ -1,16 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types, Schema as MongooseSchema } from 'mongoose';
 
-// Define subdocument for ticket seat info
-@Schema({ _id: false })
-class TicketSeat {
-  @Prop({ required: true })
-  sectionId: string;
-
-  @Prop({ required: true })
-  seatId: string;
-}
-
 export type PaymentDocument = Payment & Document;
 
 @Schema({ timestamps: true })
@@ -21,8 +11,9 @@ export class Payment {
   @Prop({ type: Types.ObjectId, ref: 'Event', required: true })
   eventId: Types.ObjectId;
 
-  @Prop({ type: [TicketSeat], required: true })
-  ticketIds: TicketSeat[];
+  // Changed to Mixed type to handle both objects and strings
+  @Prop({ type: MongooseSchema.Types.Mixed, required: true })
+  ticketIds: any[];
 
   @Prop({ required: true })
   amount: number;
@@ -34,7 +25,7 @@ export class Payment {
   stripePaymentIntentId: string;
 
   @Prop({
-    enum: ['pending', 'succeeded', 'failed', 'cancelled'],
+    enum: ['pending', 'succeeded', 'failed', 'cancelled', 'ticket_creation_failed'],
     default: 'pending',
   })
   status: string;
