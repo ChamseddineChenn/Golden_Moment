@@ -25,7 +25,13 @@ export class Payment {
   stripePaymentIntentId: string;
 
   @Prop({
-    enum: ['pending', 'succeeded', 'failed', 'cancelled', 'ticket_creation_failed'],
+    enum: [
+      'pending',
+      'succeeded',
+      'failed',
+      'cancelled',
+      'ticket_creation_failed',
+    ],
     default: 'pending',
   })
   status: string;
