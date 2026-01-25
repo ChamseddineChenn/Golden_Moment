@@ -80,7 +80,11 @@ export class AuthController {
   async refreshWithToken(
     @Body() body: { refreshToken: string },
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ success: boolean; message: string; data: { accessToken: string; refreshToken: string } }> {
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: { accessToken: string; refreshToken: string };
+  }> {
     return this.authService.refreshWithToken(body.refreshToken, res);
   }
 

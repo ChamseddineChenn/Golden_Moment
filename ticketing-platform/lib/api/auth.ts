@@ -31,7 +31,7 @@ export const authApi = {
         password,
       },
     );
-    
+
     // Fallback: store refresh token in localStorage if it's in the response
     if (data.data?.data?.refreshToken) {
       try {
@@ -41,16 +41,25 @@ export const authApi = {
         console.error('Failed to store refresh token in localStorage:', err);
       }
     }
-    
+
     // Log to help debug cookie issues
     console.log('Login response received. Checking cookies...');
     console.log('Cookies:', document.cookie);
-    
+
     return data.data; // ← Access nested data
   },
 
   logout: async (): Promise<void> => {
-    await apiClient.post('/auth/logout');
+    try {
+      await apiClient.post('/auth/logout');
+    } finally {
+      // Always clear tokens from localStorage, even if logout API call fails
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('access_token');
+        console.log('✓ Tokens cleared from localStorage');
+      }
+    }
   },
 
   getCurrentUser: async (): Promise<User | null> => {
