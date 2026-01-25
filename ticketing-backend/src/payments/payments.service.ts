@@ -44,6 +44,18 @@ export class PaymentsService {
         throw new BadRequestException('Invalid checkout session parameters');
       }
 
+      // Ensure ticketIds are properly formatted
+      const formattedTicketIds = ticketIds.map((item: any) => {
+        if (typeof item === 'string') {
+          return item; // "auto-assigned" or similar
+        }
+        // Ensure objects have the right structure
+        return {
+          sectionId: item.sectionId,
+          seatId: item.seatId,
+        };
+      });
+
       // Create Stripe Payment Intent
       const paymentIntent = await this.stripe.paymentIntents.create({
         amount: Math.round(totalAmount * 100), // Convert to cents
@@ -51,7 +63,7 @@ export class PaymentsService {
         metadata: {
           userId,
           eventId,
-          ticketIds: JSON.stringify(ticketIds),
+          ticketIds: JSON.stringify(formattedTicketIds),
         },
       });
 
@@ -69,7 +81,7 @@ export class PaymentsService {
       const payment = new this.paymentModel({
         userId: userIdValue,
         eventId: new Types.ObjectId(eventId),
-        ticketIds: ticketIds, // Store objects directly - don't stringify
+        ticketIds: formattedTicketIds, // Use formatted tickets - plain JavaScript objects
         amount: Math.round(totalAmount * 100), // Store in cents for consistency
         currency: 'usd',
         stripePaymentIntentId: paymentIntent.id,
@@ -82,6 +94,11 @@ export class PaymentsService {
           successUrl,
           cancelUrl,
         },
+      });
+
+      this.logger.log('Saving payment with ticketIds:', {
+        paymentId: payment._id?.toString(),
+        ticketIds: JSON.stringify(formattedTicketIds),
       });
 
       await payment.save();
@@ -98,13 +115,23 @@ export class PaymentsService {
 
   async handlePaymentSuccess(paymentIntentId: string) {
     try {
-      const payment = await this.paymentModel.findOne({
-        stripePaymentIntentId: paymentIntentId,
-      });
+      // Explicitly fetch all payment fields to ensure Mixed type is properly loaded
+      const payment = await this.paymentModel
+        .findOne({
+          stripePaymentIntentId: paymentIntentId,
+        })
+        .lean(false); // Don't use lean() to get Mongoose document with proper methods
 
       if (!payment) {
         throw new NotFoundException('Payment not found');
       }
+
+      // Debug log: check what we received
+      this.logger.log(`Retrieved payment with ticketIds:`, {
+        ticketIdsType: typeof payment.ticketIds,
+        ticketIdsLength: payment.ticketIds?.length,
+        ticketIds: JSON.stringify(payment.ticketIds),
+      });
 
       // Update payment status first
       payment.status = 'succeeded';
@@ -118,10 +145,50 @@ export class PaymentsService {
       const ticketCreationData = payment.metadata || {};
 
       try {
+        // Convert payment to plain JavaScript object to ensure ticketIds are properly deserialized
+        const paymentObj = payment.toObject ? payment.toObject() : payment;
+
         // Use ticketIds directly - they should be an array of objects with sectionId/seatId
-        let parsedTicketIds: any[] = Array.isArray(payment.ticketIds)
-          ? payment.ticketIds
-          : [];
+        // NOTE: MongoDB Mixed types need to be explicitly converted back to objects
+        let parsedTicketIds: any[] = [];
+
+        if (
+          Array.isArray(paymentObj.ticketIds) &&
+          paymentObj.ticketIds.length > 0
+        ) {
+          parsedTicketIds = paymentObj.ticketIds
+            .map((item: any) => {
+              // Handle both plain objects, MongoDB documents, and strings
+              if (typeof item === 'string') {
+                return item; // e.g., "auto-assigned"
+              }
+              if (item && typeof item === 'object') {
+                return {
+                  sectionId: item.sectionId,
+                  seatId: item.seatId,
+                };
+              }
+              return item;
+            })
+            .filter((item: any) => {
+              // Filter out empty or invalid items
+              if (typeof item === 'string') return true;
+              if (item && item.sectionId && item.seatId) return true;
+              return false;
+            });
+        }
+
+        this.logger.log(
+          `Processing ticketIds for payment ${paymentIntentId}:`,
+          {
+            originalCount: paymentObj.ticketIds?.length || 0,
+            parsedCount: parsedTicketIds.length,
+            sample:
+              parsedTicketIds.length > 0
+                ? JSON.stringify(parsedTicketIds.slice(0, 2))
+                : 'empty',
+          },
+        );
 
         const createdTickets =
           await this.ticketsService.createTicketsFromPayment(

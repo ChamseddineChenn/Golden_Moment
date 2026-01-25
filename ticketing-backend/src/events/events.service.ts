@@ -5,8 +5,6 @@ import { Event } from './event.schema';
 import { CreateEventDto } from './dto/create-event.dto';
 import { SeatsService } from './seats.service';
 import { UploadService } from '../upload/upload.service';
-import { LogsService } from '../logs/logs.service';
-import { LogAction } from '../logs/log.schema';
 import { AppLogger } from '../common/utils/logger';
 import {
   EventNotFoundException,
@@ -21,7 +19,6 @@ export class EventsService {
     @InjectModel(Event.name) private eventModel: Model<Event>,
     private seatsService: SeatsService,
     private uploadService: UploadService,
-    private logsService: LogsService,
   ) {}
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
@@ -102,16 +99,6 @@ export class EventsService {
       this.logger.log('Event saved successfully', EventsService.name, {
         id: savedEvent._id.toString(),
         name: savedEvent.name,
-      });
-
-      // Log the event creation
-      await this.logsService.createLog(LogAction.EVENT_CREATED, {
-        eventName: savedEvent.name,
-        eventId: savedEvent._id.toString(),
-        metadata: {
-          venue: savedEvent.venue,
-          date: savedEvent.date,
-        },
       });
 
       // If seating is enabled, initialize the seat matrix
@@ -400,17 +387,6 @@ export class EventsService {
         name: updated?.name,
       });
 
-      // Log the event update (only if not a system automatic update)
-      if (!skipLogging) {
-        await this.logsService.createLog(LogAction.EVENT_UPDATED, {
-          eventName: updated?.name,
-          eventId: id,
-          metadata: {
-            updatedFields: Object.keys(updateData),
-          },
-        });
-      }
-
       return updated;
     } catch (error) {
       if (error instanceof EventNotFoundException) {
@@ -473,16 +449,6 @@ export class EventsService {
       // Delete the event from database
       await this.eventModel.findByIdAndDelete(id).exec();
       this.logger.log('Event deleted successfully', EventsService.name, { id });
-
-      // Log the event deletion
-      await this.logsService.createLog(LogAction.EVENT_DELETED, {
-        eventName: event.name,
-        eventId: id,
-        metadata: {
-          venue: event.venue,
-          date: event.date,
-        },
-      });
     } catch (error) {
       if (error instanceof EventNotFoundException) {
         throw error;

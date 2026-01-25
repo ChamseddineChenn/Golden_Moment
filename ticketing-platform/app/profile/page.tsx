@@ -61,10 +61,10 @@ export default function ProfilePage() {
 
     try {
       // Only send changed fields
-      const updates: ProfileUpdateData = {};
+      const updates: Record<string, any> = {};
       Object.keys(formData).forEach((key) => {
         if (formData[key as keyof ProfileUpdateData] !== profile[key]) {
-          updates[key as keyof ProfileUpdateData] = formData[key as keyof ProfileUpdateData];
+          updates[key] = formData[key as keyof ProfileUpdateData];
         }
       });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { eventsAPI, ticketsAPI, logsAPI } from '@/lib/api';
+import { eventsAPI, ticketsAPI } from '@/lib/api';
 import Link from 'next/link';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { toast, ToastContainer } from 'react-toastify';
@@ -28,10 +28,7 @@ interface Event {
   category?: string;
   isDraft?: boolean;
   isPublished?: boolean;
-  seatingLayout?: {
-    enabled: boolean;
-    sections: Array<any>;
-  };
+  seatingLayout?: Array<any>;
 }
 
 interface Ticket {
@@ -48,7 +45,6 @@ interface Ticket {
   seats: Array<{ sectionId?: string; seatId: string }>;
   buyerName: string;
   buyerEmail: string;
-  buyerPhoneNumber: string;
   purchaseDate: string;
   totalPrice?: number;
   status: 'valid' | 'used' | 'expired';
@@ -57,21 +53,13 @@ interface Ticket {
   expiresAt?: string;
 }
 
-type ActiveTab =
-  | 'dashboard'
-  | 'events'
-  | 'tickets'
-  | 'scanner'
-  | 'logs'
-  | 'create';
+type ActiveTab = 'dashboard' | 'events' | 'tickets' | 'scanner' | 'create';
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [events, setEvents] = useState<Event[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [logs, setLogs] = useState<any[]>([]);
-  const [logsTotal, setLogsTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [creatingEvent, setCreatingEvent] = useState(false);
 
@@ -106,27 +94,14 @@ export default function AdminPage() {
     date: '',
     venue: '',
     ticketTypes: {
-      Free: {
-        enabled: true,
-        price: 0 as string | number,
-        description: 'Standing spot, paid food',
-      },
-      Standard: {
-        enabled: false,
-        price: '' as string | number,
-        description: 'Seating provided, paid food',
-      },
+      Free: { enabled: true, price: 0 as string | number },
+      Standard: { enabled: false, price: '' as string | number },
       EarlyBird: {
         enabled: false,
         price: '' as string | number,
         limit: '' as string | number,
-        description: 'Early booking discount',
       },
-      VIP: {
-        enabled: false,
-        price: '' as string | number,
-        description: 'VIP seating, food provided, backstage access',
-      },
+      VIP: { enabled: false, price: '' as string | number },
     },
     category: 'Concert',
     isDraft: true,
@@ -171,10 +146,14 @@ export default function AdminPage() {
   useEffect(() => {
     fetchEvents();
     fetchAllTickets();
-    fetchLogs();
   }, []);
 
   useEffect(() => {
+    // Guard: ensure events and tickets are arrays before doing calculations
+    if (!Array.isArray(events) || !Array.isArray(tickets)) {
+      return;
+    }
+
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today);
@@ -249,28 +228,28 @@ export default function AdminPage() {
       eventsYesterday > 0
         ? Math.round(((eventsToday - eventsYesterday) / eventsYesterday) * 100)
         : eventsToday > 0
-          ? 100
-          : 0;
+        ? 100
+        : 0;
     const weekChange =
       eventsLastWeek > 0
         ? Math.round(((eventsThisWeek - eventsLastWeek) / eventsLastWeek) * 100)
         : eventsThisWeek > 0
-          ? 100
-          : 0;
+        ? 100
+        : 0;
     const monthChange =
       eventsLastMonth > 0
         ? Math.round(
-            ((eventsThisMonth - eventsLastMonth) / eventsLastMonth) * 100,
+            ((eventsThisMonth - eventsLastMonth) / eventsLastMonth) * 100
           )
         : eventsThisMonth > 0
-          ? 100
-          : 0;
+        ? 100
+        : 0;
     const yearChange =
       eventsLastYear > 0
         ? Math.round(((eventsThisYear - eventsLastYear) / eventsLastYear) * 100)
         : eventsThisYear > 0
-          ? 100
-          : 0;
+        ? 100
+        : 0;
 
     // Calculate attendance and ticket rates by category
     const attendanceByCategory: Record<string, number> = {};
@@ -295,7 +274,7 @@ export default function AdminPage() {
       });
       ticketsByCategory[cat] = categoryTickets.length;
       attendanceByCategory[cat] = categoryTickets.filter(
-        (t) => t.status === 'used',
+        (t) => t.status === 'used'
       ).length;
     });
 
@@ -338,14 +317,14 @@ export default function AdminPage() {
     const revenueYearChange =
       revenueLastYear > 0
         ? Math.round(
-            ((revenueThisYear - revenueLastYear) / revenueLastYear) * 100,
+            ((revenueThisYear - revenueLastYear) / revenueLastYear) * 100
           )
         : 0;
 
     const revenueMonthChange =
       revenueLastMonth > 0
         ? Math.round(
-            ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100,
+            ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100
           )
         : 0;
 
@@ -380,12 +359,18 @@ export default function AdminPage() {
   const fetchEvents = async () => {
     try {
       const response = await eventsAPI.getAllAdmin();
-      // Extract data from standardized response format { success, statusCode, data, timestamp }
-      const eventsData = response.data.data || response.data;
-      console.log('Fetched events:', eventsData);
-      setEvents(Array.isArray(eventsData) ? eventsData : []);
+      // Debug: log events to see their structure
+      console.log('Fetched events:', response.data);
+      // Handle different response formats - ensure we always set an array
+      const eventsData = Array.isArray(response.data) 
+        ? response.data 
+        : Array.isArray(response.data?.data) 
+        ? response.data.data 
+        : [];
+      setEvents(eventsData);
     } catch (err) {
       console.error('Failed to fetch events:', err);
+      setEvents([]); // Fallback to empty array on error
     }
   };
 
@@ -393,32 +378,18 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const response = await ticketsAPI.getAll();
-      // Extract data from standardized response format { success, statusCode, data, timestamp }
-      const ticketsData = response.data.data || response.data;
-      setTickets(Array.isArray(ticketsData) ? ticketsData : []);
+      // Handle different response formats - ensure we always set an array
+      const ticketsData = Array.isArray(response.data) 
+        ? response.data 
+        : Array.isArray(response.data?.data) 
+        ? response.data.data 
+        : [];
+      setTickets(ticketsData);
     } catch (err) {
       console.error('Failed to fetch tickets:', err);
+      setTickets([]); // Fallback to empty array on error
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchLogs = async () => {
-    try {
-      const response = await logsAPI.getAll(100, 0);
-      const innerData = response.data?.data?.data;
-
-      if (innerData && Array.isArray(innerData.logs)) {
-        setLogs(innerData.logs);
-        setLogsTotal(innerData.total || 0);
-      } else {
-        setLogs([]);
-        setLogsTotal(0);
-      }
-    } catch (err) {
-      console.error('[Logs] Failed to fetch logs:', err);
-      setLogs([]);
-      setLogsTotal(0);
     }
   };
 
@@ -431,9 +402,7 @@ export default function AdminPage() {
     setSearchingTickets(true);
     try {
       const response = await ticketsAPI.search(query);
-      // Extract data from standardized response format { success, statusCode, data, timestamp }
-      const ticketsData = response.data.data || response.data;
-      setTickets(Array.isArray(ticketsData) ? ticketsData : []);
+      setTickets(response.data);
     } catch (err) {
       console.error('Search failed:', err);
     } finally {
@@ -464,56 +433,24 @@ export default function AdminPage() {
 
   const updateSection = (
     id: string,
-    updates: Partial<(typeof newEvent.sections)[0]>,
+    updates: Partial<(typeof newEvent.sections)[0]>
   ) => {
     setNewEvent({
       ...newEvent,
       sections: newEvent.sections.map((s) =>
-        s.id === id ? { ...s, ...updates } : s,
+        s.id === id ? { ...s, ...updates } : s
       ),
     });
   };
 
   const calculateTotalSeatsFromSections = () => {
     return newEvent.sections.reduce((total, section) => {
-      return total + (section.columns || 0) * (section.rows || 0);
+      return total + section.columns * section.rows;
     }, 0);
   };
 
-  // Reconstruct columns and rows from seats array if missing
-  const reconstructSectionDimensions = (section: any) => {
-    // If columns and rows are already set, return as-is
-    if (section.columns && section.rows) {
-      return section;
-    }
-
-    // If seats exist, calculate dimensions from them
-    if (
-      section.seats &&
-      Array.isArray(section.seats) &&
-      section.seats.length > 0
-    ) {
-      const maxRow = Math.max(...section.seats.map((s: any) => s.row || 0));
-      const uniqueColumns = new Set(
-        section.seats.map((s: any) => s.column || ''),
-      );
-      return {
-        ...section,
-        rows: maxRow + 1, // rows are 0-indexed
-        columns: uniqueColumns.size || 10, // fallback to 10 if can't calculate
-      };
-    }
-
-    // Fallback: assume some reasonable defaults
-    return {
-      ...section,
-      columns: section.columns || 10,
-      rows: section.rows || 5,
-    };
-  };
-
   const handleCoverImageUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
+    e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -531,7 +468,7 @@ export default function AdminPage() {
       toast.success('Cover image uploaded successfully!');
     } catch (err) {
       toast.error(
-        'Failed to upload cover image. Check Cloudinary configuration.',
+        'Failed to upload cover image. Check Cloudinary configuration.'
       );
       console.error(err);
     } finally {
@@ -561,17 +498,12 @@ export default function AdminPage() {
 
       // Convert ticketTypes prices from strings to numbers
       const ticketTypes = {
-        Free: {
-          enabled: newEvent.ticketTypes.Free.enabled,
-          price: 0,
-          description: (newEvent.ticketTypes.Free as any).description || '',
-        },
+        Free: { enabled: newEvent.ticketTypes.Free.enabled, price: 0 },
         Standard: {
           enabled: newEvent.ticketTypes.Standard.enabled,
           price: newEvent.ticketTypes.Standard.enabled
             ? parseFloat(newEvent.ticketTypes.Standard.price as string) || 0
             : 0,
-          description: (newEvent.ticketTypes.Standard as any).description || '',
         },
         EarlyBird: {
           enabled: newEvent.ticketTypes.EarlyBird.enabled,
@@ -581,15 +513,12 @@ export default function AdminPage() {
           limit: newEvent.ticketTypes.EarlyBird.enabled
             ? parseInt(newEvent.ticketTypes.EarlyBird.limit as string) || 0
             : 0,
-          description:
-            (newEvent.ticketTypes.EarlyBird as any).description || '',
         },
         VIP: {
           enabled: newEvent.ticketTypes.VIP.enabled,
           price: newEvent.ticketTypes.VIP.enabled
             ? parseFloat(newEvent.ticketTypes.VIP.price as string) || 0
             : 0,
-          description: (newEvent.ticketTypes.VIP as any).description || '',
         },
       };
 
@@ -616,7 +545,7 @@ export default function AdminPage() {
         // Calculate total seats from sections
         eventData.totalSeats = newEvent.sections.reduce(
           (total, section) => total + section.columns * section.rows,
-          0,
+          0
         );
       } else if (!newEvent.seatingEnabled && newEvent.totalSeats) {
         // For standing room events without visual seating, use manual totalSeats
@@ -628,36 +557,16 @@ export default function AdminPage() {
 
       // If editing, call update endpoint instead of create
       if (editingEventId) {
-        const updateResponse = await eventsAPI.update(
-          editingEventId,
-          eventData,
-        );
-        console.log('[AdminPage] Update event response:', {
-          responseData: updateResponse.data,
-          dataField: updateResponse.data?.data,
-          eventId: updateResponse.data.data?._id || updateResponse.data._id,
-        });
+        await eventsAPI.update(editingEventId, eventData);
         toast.success('Event updated successfully!');
       } else {
         const response = await eventsAPI.create(eventData);
-        console.log('[AdminPage] Create event response:', {
-          responseData: response.data,
-          dataField: response.data?.data,
-          eventId: response.data.data?._id || response.data._id,
-          hasTicketTypes:
-            !!response.data.data?.ticketTypes || !!response.data?.ticketTypes,
-        });
 
         // Initialize seats if seating is enabled
         if (newEvent.seatingEnabled && newEvent.sections.length > 0) {
           const apiUrl =
-            process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
-          const createdEventId = response.data.data?._id || response.data._id;
-          console.log(
-            '[AdminPage] Initializing seats for event:',
-            createdEventId,
-          );
-          await fetch(`${apiUrl}/seats/event/${createdEventId}/initialize`, {
+            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
+          await fetch(`${apiUrl}/seats/event/${response.data._id}/initialize`, {
             method: 'POST',
           });
         }
@@ -675,27 +584,10 @@ export default function AdminPage() {
         date: '',
         venue: '',
         ticketTypes: {
-          Free: {
-            enabled: true,
-            price: 0 as string | number,
-            description: 'Standing spot, paid food',
-          },
-          Standard: {
-            enabled: false,
-            price: '' as string | number,
-            description: 'Seating provided, paid food',
-          },
-          EarlyBird: {
-            enabled: false,
-            price: '' as string | number,
-            limit: '' as string | number,
-            description: 'Early booking discount',
-          },
-          VIP: {
-            enabled: false,
-            price: '' as string | number,
-            description: 'VIP seating, food provided, backstage access',
-          },
+          Free: { enabled: true, price: 0 },
+          Standard: { enabled: false, price: '' },
+          EarlyBird: { enabled: false, price: '', limit: '' },
+          VIP: { enabled: false, price: '' },
         },
         category: 'Concert',
         isDraft: true,
@@ -708,11 +600,7 @@ export default function AdminPage() {
       setTimeout(() => setActiveTab('events'), 1500);
     } catch (err) {
       toast.error('Failed to save event. Please try again.');
-      console.error('[AdminPage] Error saving event:', {
-        error: err,
-        message: err instanceof Error ? err.message : 'Unknown error',
-        response: (err as any)?.response?.data,
-      });
+      console.error(err);
     } finally {
       setLoading(false);
       setCreatingEvent(false);
@@ -735,7 +623,7 @@ export default function AdminPage() {
   const handleDeleteTicket = async (id: string) => {
     if (
       !confirm(
-        'Are you sure you want to delete this ticket? This will also free up the reserved seats.',
+        'Are you sure you want to delete this ticket? This will also free up the reserved seats.'
       )
     )
       return;
@@ -744,13 +632,11 @@ export default function AdminPage() {
       setLoading(true);
       await ticketsAPI.delete(id);
       toast.success(
-        'Ticket deleted successfully! Seats and counts have been updated.',
+        'Ticket deleted successfully! Seats and counts have been updated.'
       );
       // Refresh the tickets list
       const allTickets = await ticketsAPI.getAll();
-      // Extract data from response wrapper { success, statusCode, data, timestamp }
-      const ticketsData = allTickets.data.data || allTickets.data;
-      setTickets(Array.isArray(ticketsData) ? ticketsData : []);
+      setTickets(allTickets.data);
     } catch (err) {
       toast.error('Failed to delete ticket.');
       console.error(err);
@@ -808,7 +694,7 @@ export default function AdminPage() {
     const scanner = new Html5QrcodeScanner(
       'qr-reader',
       { fps: 10, qrbox: { width: 250, height: 250 } },
-      false,
+      false
     );
 
     qrScannerRef.current = scanner;
@@ -827,17 +713,14 @@ export default function AdminPage() {
         try {
           // Validate the ticket via API using encrypted token
           const apiUrl =
-            process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
           const response = await fetch(`${apiUrl}/tickets/validate-qr`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ encryptedToken }),
           });
-          const responseData = await response.json();
-
-          // Extract data from wrapped response format { success, statusCode, data, timestamp }
-          const scanData = responseData.data || responseData;
-          setScanResult(scanData);
+          const data = await response.json();
+          setScanResult(data);
 
           // Refresh tickets list
           fetchAllTickets();
@@ -860,7 +743,7 @@ export default function AdminPage() {
       (error: string) => {
         // Error is normal (scanning in progress), only log if severe
         console.debug('Scanner error:', error);
-      },
+      }
     );
 
     return () => {
@@ -870,167 +753,6 @@ export default function AdminPage() {
       }
     };
   }, [showCameraModal]);
-
-  // Handle QR code from image file upload
-  const handleQRImageUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setScanning(true);
-
-      // VALIDATION #1: Check file size (max 5MB)
-      const maxFileSize = 5 * 1024 * 1024; // 5MB
-      if (file.size > maxFileSize) {
-        setScanResult({
-          success: false,
-          message:
-            'Image file is too large. Please use an image smaller than 5MB.',
-        });
-        event.target.value = '';
-        setScanning(false);
-        return;
-      }
-
-      // VALIDATION #2: Check file type
-      const validImageTypes = [
-        'image/jpeg',
-        'image/png',
-        'image/webp',
-        'image/gif',
-      ];
-      if (!validImageTypes.includes(file.type)) {
-        setScanResult({
-          success: false,
-          message: 'Invalid image format. Please use JPG, PNG, WebP, or GIF.',
-        });
-        event.target.value = '';
-        setScanning(false);
-        return;
-      }
-
-      // Use html5-qrcode for file-based QR code reading
-      const { Html5Qrcode } = await import('html5-qrcode');
-
-      try {
-        // Create a temporary hidden element for the scanner
-        const tempElementId = `temp-qr-scanner-${Date.now()}`;
-        const tempElement = document.createElement('div');
-        tempElement.id = tempElementId;
-        tempElement.style.display = 'none';
-        document.body.appendChild(tempElement);
-
-        try {
-          const qrcode = new Html5Qrcode(tempElementId);
-
-          // Suppress library internal error logging by temporarily overriding console.error
-          const originalConsoleError = console.error;
-          const suppressedErrors: string[] = [];
-          console.error = (...args: any[]) => {
-            const errorMessage = String(args[0] || '');
-            // Only suppress library-specific errors
-            if (
-              errorMessage.includes('MultiFormat') ||
-              errorMessage.includes('No readers') ||
-              errorMessage.includes('Failed to locate')
-            ) {
-              suppressedErrors.push(errorMessage);
-              return;
-            }
-            // Log other errors normally
-            originalConsoleError(...args);
-          };
-
-          let decodedText: string;
-          try {
-            decodedText = await qrcode.scanFile(file, true);
-          } finally {
-            // Restore original console.error
-            console.error = originalConsoleError;
-          }
-
-          console.log('[QR Scanner] Successfully decoded QR code from image');
-
-          // Validate the ticket
-          const apiUrl =
-            process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
-          const response = await fetch(`${apiUrl}/tickets/validate-qr`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ encryptedToken: decodedText }),
-          });
-          const responseData = await response.json();
-
-          // Extract data from wrapped response format { success, statusCode, data, timestamp }
-          const scanData = responseData.data || responseData;
-          setScanResult(scanData);
-
-          // Refresh tickets list
-          fetchAllTickets();
-
-          // Close scanner after successful scan
-          setTimeout(() => {
-            closeCameraScanner();
-          }, 1500);
-
-          // Reset file input
-          event.target.value = '';
-        } finally {
-          // Clean up temporary element
-          document.body.removeChild(tempElement);
-        }
-      } catch (decodeErr: any) {
-        // IMPROVED ERROR FEEDBACK
-        const errorMessage = String(decodeErr?.message || '');
-        let userMessage =
-          'Could not find QR code in the image. Please try another image.';
-
-        if (
-          errorMessage.includes('corrupted') ||
-          errorMessage.includes('invalid')
-        ) {
-          userMessage =
-            'The image appears to be corrupted or tampered with. Please use an authentic QR code image.';
-        } else if (errorMessage.includes('format')) {
-          userMessage =
-            'Image format not recognized. Please try a different image format.';
-        } else if (errorMessage.includes('timeout')) {
-          userMessage =
-            'Image processing took too long. Please try a smaller or simpler image.';
-        }
-
-        console.debug('[QR Scanner] Decode error (suppressed):', errorMessage);
-        setScanResult({
-          success: false,
-          message: userMessage,
-        });
-        event.target.value = '';
-
-        // Close scanner after error (with slight delay to show message)
-        setTimeout(() => {
-          closeCameraScanner();
-        }, 1500);
-      } finally {
-        setScanning(false);
-      }
-    } catch (err: any) {
-      const errorMessage = String(err?.message || 'Unknown error');
-      console.error('[QR Scanner] File reading error:', errorMessage);
-      setScanResult({
-        success: false,
-        message: 'Failed to read the image file. Please try another file.',
-      });
-      event.target.value = '';
-      setScanning(false);
-
-      // Close scanner after error
-      setTimeout(() => {
-        closeCameraScanner();
-      }, 1500);
-    }
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -1067,7 +789,7 @@ export default function AdminPage() {
   const filteredEvents = (Array.isArray(events) ? events : []).filter(
     (event) =>
       event.name.toLowerCase().includes(eventSearch.toLowerCase()) ||
-      event.venue.toLowerCase().includes(eventSearch.toLowerCase()),
+      event.venue.toLowerCase().includes(eventSearch.toLowerCase())
   );
 
   const navItems = [
@@ -1143,25 +865,6 @@ export default function AdminPage() {
             strokeLinejoin="round"
             strokeWidth={2}
             d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
-          />
-        </svg>
-      ),
-    },
-    {
-      id: 'logs' as const,
-      label: 'Logs',
-      icon: (
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z M13 3v5a2 2 0 002 2h5"
           />
         </svg>
       ),
@@ -1330,6 +1033,19 @@ export default function AdminPage() {
           </nav>
 
           <div className="p-3 md:p-6">
+            {/* Alerts */}
+            <ToastContainer
+              position="top-right"
+              autoClose={4000}
+              hideProgressBar={false}
+              newestOnTop={true}
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="light"
+            />
             {/* Alerts */}
             <ToastContainer
               position="top-right"
@@ -1549,10 +1265,10 @@ export default function AdminPage() {
                           category === 'Movies'
                             ? '🎬'
                             : category === 'Theatre'
-                              ? '🎭'
-                              : category === 'Concert'
-                                ? '🎵'
-                                : '🌙';
+                            ? '🎭'
+                            : category === 'Concert'
+                            ? '🎵'
+                            : '🌙';
 
                         return (
                           <div
@@ -1607,7 +1323,7 @@ export default function AdminPage() {
                             </div>
                           </div>
                         );
-                      },
+                      }
                     )}
                   </div>
                 </div>
@@ -1643,11 +1359,11 @@ export default function AdminPage() {
                                 Sahra: '#FBBF24',
                               };
                               const eventCounts = categories.map(
-                                (cat) => stats.eventsByCategory[cat] || 0,
+                                (cat) => stats.eventsByCategory[cat] || 0
                               );
                               const total = eventCounts.reduce(
                                 (a, b) => a + b,
-                                0,
+                                0
                               );
 
                               if (total === 0) {
@@ -1727,7 +1443,7 @@ export default function AdminPage() {
                                 stats.eventsByCategory[category] || 0;
                               const total = stats.totalEvents || 1;
                               const percentage = Math.round(
-                                (events / total) * 100,
+                                (events / total) * 100
                               );
                               const colorMap = {
                                 Movies: 'bg-red-500',
@@ -1739,10 +1455,10 @@ export default function AdminPage() {
                                 category === 'Movies'
                                   ? '🎬'
                                   : category === 'Theatre'
-                                    ? '🎭'
-                                    : category === 'Concert'
-                                      ? '🎵'
-                                      : '🌙';
+                                  ? '🎭'
+                                  : category === 'Concert'
+                                  ? '🎵'
+                                  : '🌙';
 
                               return (
                                 <div
@@ -1771,7 +1487,7 @@ export default function AdminPage() {
                                   </div>
                                 </div>
                               );
-                            },
+                            }
                           )}
                         </div>
                       </div>
@@ -1785,7 +1501,7 @@ export default function AdminPage() {
                     <h3 className="text-lg font-bold text-stone-900 mb-4">
                       Recent Events
                     </h3>
-                    {events.slice(0, 5).map((event) => (
+                    {Array.isArray(events) && events.slice(0, 5).map((event) => (
                       <div
                         key={event._id}
                         className="flex items-center gap-4 py-3 border-b border-stone-100 last:border-0"
@@ -1817,14 +1533,14 @@ export default function AdminPage() {
                     <h3 className="text-lg font-bold text-stone-900 mb-4">
                       Recent Tickets
                     </h3>
-                    {tickets
+                    {(Array.isArray(tickets) ? tickets : [])
                       .slice()
                       .sort((a, b) => {
                         const aTime = new Date(
-                          a.createdAt || a.purchaseDate || 0,
+                          a.createdAt || a.purchaseDate || 0
                         ).getTime();
                         const bTime = new Date(
-                          b.createdAt || b.purchaseDate || 0,
+                          b.createdAt || b.purchaseDate || 0
                         ).getTime();
                         return bTime - aTime; // Newest first
                       })
@@ -1928,7 +1644,7 @@ export default function AdminPage() {
                         placeholder="Search events..."
                         value={eventSearch}
                         onChange={(e) => setEventSearch(e.target.value)}
-                        className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-stone-900"
+                        className="w-full pl-12 pr-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white text-stone-900 placeholder:text-stone-400"
                       />
                     </div>
                   </div>
@@ -1971,28 +1687,28 @@ export default function AdminPage() {
                             return eventId === event._id;
                           });
                           const usedTickets = eventTickets.filter(
-                            (t) => t.status === 'used',
+                            (t) => t.status === 'used'
                           ).length;
                           const attendanceRate =
                             eventTickets.length > 0
                               ? Math.round(
-                                  (usedTickets / eventTickets.length) * 100,
+                                  (usedTickets / eventTickets.length) * 100
                                 )
                               : 0;
 
                           // Get category ticket sales
                           const categoryEvents = events.filter(
-                            (e) => e.category === event.category,
+                            (e) => e.category === event.category
                           );
                           const totalCategorySold = categoryEvents.reduce(
                             (acc, e) => acc + e.soldTickets,
-                            0,
+                            0
                           );
                           const categoryOccupancyRate =
                             totalCategorySold > 0
                               ? Math.round(
                                   (totalCategorySold / categoryEvents.length) *
-                                    100,
+                                    100
                                 )
                               : 0;
 
@@ -2036,7 +1752,7 @@ export default function AdminPage() {
                                   {
                                     month: 'short',
                                     day: 'numeric',
-                                  },
+                                  }
                                 )}
                               </td>
                               <td className="px-6 py-4">
@@ -2087,13 +1803,13 @@ export default function AdminPage() {
                                           };
                                           await eventsAPI.update(
                                             event._id,
-                                            updates,
+                                            updates
                                           );
                                           fetchEvents();
                                         } catch (error) {
                                           console.error(
                                             'Error unpublishing event:',
-                                            error,
+                                            error
                                           );
                                         }
                                       }}
@@ -2113,13 +1829,13 @@ export default function AdminPage() {
                                           };
                                           await eventsAPI.update(
                                             event._id,
-                                            updates,
+                                            updates
                                           );
                                           fetchEvents();
                                         } catch (error) {
                                           console.error(
                                             'Error publishing event:',
-                                            error,
+                                            error
                                           );
                                         }
                                       }}
@@ -2141,11 +1857,7 @@ export default function AdminPage() {
                                         coverImagePublicId:
                                           event.coverImagePublicId || '',
                                         coverImageFile: null,
-                                        date: event.date
-                                          ? new Date(event.date)
-                                              .toISOString()
-                                              .slice(0, 16) // Format: YYYY-MM-DDTHH:mm
-                                          : '',
+                                        date: event.date,
                                         venue: event.venue,
                                         ticketTypes: event.ticketTypes
                                           ? {
@@ -2154,11 +1866,6 @@ export default function AdminPage() {
                                                   event.ticketTypes.Free
                                                     ?.enabled ?? true,
                                                 price: 0,
-                                                description:
-                                                  (
-                                                    event.ticketTypes
-                                                      .Free as any
-                                                  )?.description ?? '',
                                               },
                                               Standard: {
                                                 enabled:
@@ -2167,11 +1874,6 @@ export default function AdminPage() {
                                                 price:
                                                   event.ticketTypes.Standard?.price?.toString() ??
                                                   '',
-                                                description:
-                                                  (
-                                                    event.ticketTypes
-                                                      .Standard as any
-                                                  )?.description ?? '',
                                               },
                                               EarlyBird: {
                                                 enabled:
@@ -2183,11 +1885,6 @@ export default function AdminPage() {
                                                 limit:
                                                   event.ticketTypes.EarlyBird?.limit?.toString() ??
                                                   '',
-                                                description:
-                                                  (
-                                                    event.ticketTypes
-                                                      .EarlyBird as any
-                                                  )?.description ?? '',
                                               },
                                               VIP: {
                                                 enabled:
@@ -2196,48 +1893,32 @@ export default function AdminPage() {
                                                 price:
                                                   event.ticketTypes.VIP?.price?.toString() ??
                                                   '',
-                                                description:
-                                                  (event.ticketTypes.VIP as any)
-                                                    ?.description ?? '',
                                               },
                                             }
                                           : {
-                                              Free: {
-                                                enabled: true,
-                                                price: 0,
-                                                description: '',
-                                              },
+                                              Free: { enabled: true, price: 0 },
                                               Standard: {
                                                 enabled: false,
                                                 price: '',
-                                                description: '',
                                               },
                                               EarlyBird: {
                                                 enabled: false,
                                                 price: '',
                                                 limit: '',
-                                                description: '',
                                               },
                                               VIP: {
                                                 enabled: false,
                                                 price: '',
-                                                description: '',
                                               },
                                             },
                                         category: event.category || 'Concert',
                                         isDraft: event.isDraft ?? true,
                                         seatingEnabled:
                                           (event.seatingLayout &&
-                                            event.seatingLayout.enabled) ??
+                                            event.seatingLayout.length > 0) ??
                                           false,
                                         totalSeats: event.totalSeats || '',
-                                        sections: Array.isArray(
-                                          event.seatingLayout?.sections,
-                                        )
-                                          ? event.seatingLayout.sections.map(
-                                              reconstructSectionDimensions,
-                                            )
-                                          : [],
+                                        sections: event.seatingLayout || [],
                                       });
                                       // Switch to create tab to show the form
                                       setActiveTab('create');
@@ -2386,7 +2067,7 @@ export default function AdminPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-stone-100">
-                        {tickets.map((ticket) => {
+                        {(Array.isArray(tickets) ? tickets : []).map((ticket) => {
                           const eventInfo =
                             typeof ticket.eventId === 'object'
                               ? ticket.eventId
@@ -2549,50 +2230,10 @@ export default function AdminPage() {
                           </button>
                         </div>
                         <div className="p-6">
-                          {/* Camera Scanner */}
                           <div id="qr-reader" style={{ width: '100%' }}></div>
                           <p className="text-sm text-stone-500 mt-4 text-center">
                             Position the QR code in front of your camera
                           </p>
-
-                          {/* Divider */}
-                          <div className="flex items-center gap-4 my-6">
-                            <div className="flex-1 border-t border-stone-200"></div>
-                            <span className="text-sm text-stone-500">or</span>
-                            <div className="flex-1 border-t border-stone-200"></div>
-                          </div>
-
-                          {/* Image Upload */}
-                          <div className="mt-6">
-                            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-stone-300 rounded-xl cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition">
-                              <svg
-                                className="w-8 h-8 text-stone-400 mb-2"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M12 4v16m8-8H4"
-                                />
-                              </svg>
-                              <span className="text-sm font-semibold text-stone-700">
-                                Upload QR Image
-                              </span>
-                              <span className="text-xs text-stone-500 mt-1">
-                                Click to select an image file
-                              </span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleQRImageUpload}
-                                disabled={scanning}
-                                className="hidden"
-                              />
-                            </label>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -2757,159 +2398,6 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-            {/* Logs Tab */}
-            {activeTab === 'logs' && (
-              <div className="max-w-5xl mx-auto">
-                <div className="mb-4 md:mb-6 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl md:text-2xl font-bold text-stone-900">
-                      Activity Logs
-                    </h2>
-                    <p className="text-sm md:text-base text-stone-600">
-                      Track all events created, updated, deleted, and tickets
-                      purchased
-                    </p>
-                  </div>
-                  <button
-                    onClick={fetchLogs}
-                    disabled={loading}
-                    className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition disabled:opacity-50"
-                  >
-                    <svg
-                      className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                      />
-                    </svg>
-                    {loading ? 'Loading...' : 'Refresh'}
-                  </button>
-                </div>
-
-                {logs.length > 0 ? (
-                  <div className="space-y-3">
-                    {logs.map((log, idx) => {
-                      const actionColors: Record<
-                        string,
-                        { bg: string; text: string; badge: string }
-                      > = {
-                        EVENT_CREATED: {
-                          bg: 'bg-blue-50',
-                          text: 'text-blue-800',
-                          badge: 'bg-blue-100 text-blue-700',
-                        },
-                        EVENT_UPDATED: {
-                          bg: 'bg-purple-50',
-                          text: 'text-purple-800',
-                          badge: 'bg-purple-100 text-purple-700',
-                        },
-                        EVENT_DELETED: {
-                          bg: 'bg-red-50',
-                          text: 'text-red-800',
-                          badge: 'bg-red-100 text-red-700',
-                        },
-                        TICKET_PURCHASED: {
-                          bg: 'bg-green-50',
-                          text: 'text-green-800',
-                          badge: 'bg-green-100 text-green-700',
-                        },
-                        TICKET_DELETED: {
-                          bg: 'bg-orange-50',
-                          text: 'text-orange-800',
-                          badge: 'bg-orange-100 text-orange-700',
-                        },
-                      };
-
-                      const colors = actionColors[log.action] || {
-                        bg: 'bg-stone-50',
-                        text: 'text-stone-800',
-                        badge: 'bg-stone-100 text-stone-700',
-                      };
-                      const actionLabel = log.action.replace(/_/g, ' ');
-                      const timestamp = new Date(
-                        log.createdAt || log.timestamp,
-                      ).toLocaleString();
-
-                      return (
-                        <div
-                          key={idx}
-                          className={`${colors.bg} border border-stone-200 rounded-xl p-4 hover:shadow-md transition`}
-                        >
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <span
-                                className={`inline-block px-3 py-1 rounded-lg font-semibold text-xs whitespace-nowrap ${colors.badge}`}
-                              >
-                                {actionLabel}
-                              </span>
-                              <span
-                                className={`${colors.text} font-semibold text-sm truncate`}
-                              >
-                                {log.eventName || log.ticketName || 'Unknown'}
-                              </span>
-                            </div>
-                            {log.metadata && (
-                              <div className="text-right">
-                                {log.metadata.totalPrice && (
-                                  <p className="text-sm font-semibold text-amber-600">
-                                    ${log.metadata.totalPrice.toFixed(2)}
-                                  </p>
-                                )}
-                                {log.metadata.buyerEmail && (
-                                  <p className="text-xs text-stone-500">
-                                    {log.metadata.buyerEmail}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                            <p className="text-xs md:text-sm text-stone-600 whitespace-nowrap ml-4">
-                              {timestamp}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-12 bg-white rounded-2xl border border-stone-200">
-                    <svg
-                      className="w-12 h-12 text-stone-400 mx-auto mb-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    <h3 className="text-lg font-semibold text-stone-900 mb-1">
-                      No logs yet
-                    </h3>
-                    <p className="text-stone-600">
-                      Logs will appear here when events are created, updated, or
-                      deleted
-                    </p>
-                  </div>
-                )}
-
-                {logsTotal > logs.length && (
-                  <div className="text-center mt-6">
-                    <p className="text-sm text-stone-600 mb-3">
-                      Showing {logs.length} of {logsTotal} logs
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
             {/* Create Event Tab */}
             {activeTab === 'create' && (
               <div className="max-w-2xl mx-auto">
@@ -2936,7 +2424,7 @@ export default function AdminPage() {
                         onChange={(e) =>
                           setNewEvent({ ...newEvent, name: e.target.value })
                         }
-                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
                         placeholder="Enter event name"
                         required
                       />
@@ -2953,7 +2441,7 @@ export default function AdminPage() {
                             description: e.target.value,
                           })
                         }
-                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
                         rows={3}
                         placeholder="Brief description for event listing"
                         required
@@ -2971,7 +2459,7 @@ export default function AdminPage() {
                             longDescription: e.target.value,
                           })
                         }
-                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
                         rows={6}
                         placeholder="Detailed description for event details page"
                       />
@@ -2996,8 +2484,9 @@ export default function AdminPage() {
                               });
                               try {
                                 setLoading(true);
-                                const { uploadImage } =
-                                  await import('@/lib/api');
+                                const { uploadImage } = await import(
+                                  '@/lib/api'
+                                );
                                 const uploadResult = await uploadImage(file);
                                 setNewEvent((prev) => ({
                                   ...prev,
@@ -3005,11 +2494,11 @@ export default function AdminPage() {
                                   coverImagePublicId: uploadResult.public_id,
                                 }));
                                 toast.success(
-                                  'Cover image uploaded successfully!',
+                                  'Cover image uploaded successfully!'
                                 );
                               } catch (err) {
                                 toast.error(
-                                  'Failed to upload cover image. Check Cloudinary configuration.',
+                                  'Failed to upload cover image. Check Cloudinary configuration.'
                                 );
                                 console.error(err);
                               } finally {
@@ -3017,7 +2506,7 @@ export default function AdminPage() {
                               }
                             }
                           }}
-                          className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                          className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
                         />
                         {newEvent.coverImage && (
                           <div className="relative w-full h-48 bg-stone-100 rounded-xl overflow-hidden">
@@ -3033,10 +2522,11 @@ export default function AdminPage() {
                                   // Delete from Cloudinary if public_id exists
                                   if (newEvent.coverImagePublicId) {
                                     setLoading(true);
-                                    const { eventsAPI } =
-                                      await import('@/lib/api');
+                                    const { eventsAPI } = await import(
+                                      '@/lib/api'
+                                    );
                                     await eventsAPI.deleteImage(
-                                      newEvent.coverImagePublicId,
+                                      newEvent.coverImagePublicId
                                     );
                                   }
                                   // Clear the image fields
@@ -3092,7 +2582,7 @@ export default function AdminPage() {
                         onChange={(e) =>
                           setNewEvent({ ...newEvent, date: e.target.value })
                         }
-                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
                         required
                       />
                     </div>
@@ -3108,7 +2598,7 @@ export default function AdminPage() {
 
                       {/* Free Ticket Type */}
                       <div className="mb-6 p-4 border border-stone-200 rounded-lg bg-stone-50">
-                        <div className="flex items-center gap-4 mb-3">
+                        <div className="flex items-center gap-4">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
@@ -3134,32 +2624,6 @@ export default function AdminPage() {
                           <span className="text-sm text-stone-600">
                             (Always $0 - no price input needed)
                           </span>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-stone-700 mb-2">
-                            Description
-                          </label>
-                          <textarea
-                            value={
-                              (newEvent.ticketTypes.Free as any).description ||
-                              ''
-                            }
-                            onChange={(e) =>
-                              setNewEvent({
-                                ...newEvent,
-                                ticketTypes: {
-                                  ...newEvent.ticketTypes,
-                                  Free: {
-                                    ...newEvent.ticketTypes.Free,
-                                    description: e.target.value,
-                                  } as any,
-                                },
-                              })
-                            }
-                            className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 resize-none"
-                            placeholder="e.g., Standing spot, paid food"
-                            rows={2}
-                          />
                         </div>
                       </div>
 
@@ -3190,58 +2654,30 @@ export default function AdminPage() {
                           </label>
                         </div>
                         {newEvent.ticketTypes.Standard.enabled && (
-                          <div className="space-y-3">
-                            <div>
-                              <label className="block text-sm font-medium text-stone-700 mb-2">
-                                Price ($)
-                              </label>
-                              <input
-                                type="number"
-                                value={newEvent.ticketTypes.Standard.price}
-                                onChange={(e) =>
-                                  setNewEvent({
-                                    ...newEvent,
-                                    ticketTypes: {
-                                      ...newEvent.ticketTypes,
-                                      Standard: {
-                                        ...newEvent.ticketTypes.Standard,
-                                        price: e.target.value,
-                                      },
+                          <div>
+                            <label className="block text-sm font-medium text-stone-700 mb-2">
+                              Price ($)
+                            </label>
+                            <input
+                              type="number"
+                              value={newEvent.ticketTypes.Standard.price}
+                              onChange={(e) =>
+                                setNewEvent({
+                                  ...newEvent,
+                                  ticketTypes: {
+                                    ...newEvent.ticketTypes,
+                                    Standard: {
+                                      ...newEvent.ticketTypes.Standard,
+                                      price: e.target.value,
                                     },
-                                  })
-                                }
-                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                                placeholder="e.g., 29.99"
-                                step="0.01"
-                                min="0"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-stone-700 mb-2">
-                                Description
-                              </label>
-                              <textarea
-                                value={
-                                  (newEvent.ticketTypes.Standard as any)
-                                    .description || ''
-                                }
-                                onChange={(e) =>
-                                  setNewEvent({
-                                    ...newEvent,
-                                    ticketTypes: {
-                                      ...newEvent.ticketTypes,
-                                      Standard: {
-                                        ...newEvent.ticketTypes.Standard,
-                                        description: e.target.value,
-                                      } as any,
-                                    },
-                                  })
-                                }
-                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 resize-none"
-                                placeholder="e.g., Seating provided, paid food"
-                                rows={2}
-                              />
-                            </div>
+                                  },
+                                })
+                              }
+                              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
+                              placeholder="e.g., 29.99"
+                              step="0.01"
+                              min="0"
+                            />
                           </div>
                         )}
                       </div>
@@ -3293,7 +2729,7 @@ export default function AdminPage() {
                                     },
                                   })
                                 }
-                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
                                 placeholder="e.g., 19.99"
                                 step="0.01"
                                 min="0"
@@ -3318,35 +2754,9 @@ export default function AdminPage() {
                                     },
                                   })
                                 }
-                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
                                 placeholder="e.g., 50"
                                 min="1"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-stone-700 mb-2">
-                                Description
-                              </label>
-                              <textarea
-                                value={
-                                  (newEvent.ticketTypes.EarlyBird as any)
-                                    .description || ''
-                                }
-                                onChange={(e) =>
-                                  setNewEvent({
-                                    ...newEvent,
-                                    ticketTypes: {
-                                      ...newEvent.ticketTypes,
-                                      EarlyBird: {
-                                        ...newEvent.ticketTypes.EarlyBird,
-                                        description: e.target.value,
-                                      } as any,
-                                    },
-                                  })
-                                }
-                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 resize-none"
-                                placeholder="e.g., Early booking discount"
-                                rows={2}
                               />
                             </div>
                           </div>
@@ -3380,58 +2790,30 @@ export default function AdminPage() {
                           </label>
                         </div>
                         {newEvent.ticketTypes.VIP.enabled && (
-                          <div className="space-y-3">
-                            <div>
-                              <label className="block text-sm font-medium text-stone-700 mb-2">
-                                Price ($)
-                              </label>
-                              <input
-                                type="number"
-                                value={newEvent.ticketTypes.VIP.price}
-                                onChange={(e) =>
-                                  setNewEvent({
-                                    ...newEvent,
-                                    ticketTypes: {
-                                      ...newEvent.ticketTypes,
-                                      VIP: {
-                                        ...newEvent.ticketTypes.VIP,
-                                        price: e.target.value,
-                                      },
+                          <div>
+                            <label className="block text-sm font-medium text-stone-700 mb-2">
+                              Price ($)
+                            </label>
+                            <input
+                              type="number"
+                              value={newEvent.ticketTypes.VIP.price}
+                              onChange={(e) =>
+                                setNewEvent({
+                                  ...newEvent,
+                                  ticketTypes: {
+                                    ...newEvent.ticketTypes,
+                                    VIP: {
+                                      ...newEvent.ticketTypes.VIP,
+                                      price: e.target.value,
                                     },
-                                  })
-                                }
-                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
-                                placeholder="e.g., 49.99"
-                                step="0.01"
-                                min="0"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-stone-700 mb-2">
-                                Description
-                              </label>
-                              <textarea
-                                value={
-                                  (newEvent.ticketTypes.VIP as any)
-                                    .description || ''
-                                }
-                                onChange={(e) =>
-                                  setNewEvent({
-                                    ...newEvent,
-                                    ticketTypes: {
-                                      ...newEvent.ticketTypes,
-                                      VIP: {
-                                        ...newEvent.ticketTypes.VIP,
-                                        description: e.target.value,
-                                      } as any,
-                                    },
-                                  })
-                                }
-                                className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 resize-none"
-                                placeholder="e.g., VIP seating, food provided, backstage access"
-                                rows={2}
-                              />
-                            </div>
+                                  },
+                                })
+                              }
+                              className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
+                              placeholder="e.g., 49.99"
+                              step="0.01"
+                              min="0"
+                            />
                           </div>
                         )}
                       </div>
@@ -3446,7 +2828,7 @@ export default function AdminPage() {
                         onChange={(e) =>
                           setNewEvent({ ...newEvent, venue: e.target.value })
                         }
-                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
                         placeholder="Enter venue address"
                         required
                       />
@@ -3524,177 +2906,175 @@ export default function AdminPage() {
                             </button>
                           </div>
 
-                          {Array.isArray(newEvent.sections) &&
-                            newEvent.sections.map((section, index) => (
-                              <div
-                                key={section.id}
-                                className="border border-stone-200 rounded-xl p-4 bg-stone-50"
-                              >
-                                <div className="flex items-center justify-between mb-3">
+                          {newEvent.sections.map((section, index) => (
+                            <div
+                              key={section.id}
+                              className="border border-stone-200 rounded-xl p-4 bg-stone-50"
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <input
+                                  type="text"
+                                  value={section.name}
+                                  onChange={(e) =>
+                                    updateSection(section.id, {
+                                      name: e.target.value,
+                                    })
+                                  }
+                                  className="text-lg font-bold text-stone-900 bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-amber-500 rounded px-2"
+                                  placeholder="Section name"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeSection(section.id)}
+                                  className="text-red-500 hover:text-red-700 transition"
+                                >
+                                  <svg
+                                    className="w-5 h-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div>
+                                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                                    Columns
+                                  </label>
                                   <input
-                                    type="text"
-                                    value={section.name}
+                                    type="number"
+                                    value={section.columns}
                                     onChange={(e) =>
                                       updateSection(section.id, {
-                                        name: e.target.value,
+                                        columns: parseInt(e.target.value) || 1,
                                       })
                                     }
-                                    className="text-lg font-bold text-stone-900 bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-amber-500 rounded px-2"
-                                    placeholder="Section name"
+                                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                                    min="1"
+                                    max="26"
                                   />
-                                  <button
-                                    type="button"
-                                    onClick={() => removeSection(section.id)}
-                                    className="text-red-500 hover:text-red-700 transition"
-                                  >
-                                    <svg
-                                      className="w-5 h-5"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                      />
-                                    </svg>
-                                  </button>
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                  <div>
-                                    <label className="block text-xs font-semibold text-stone-700 mb-1">
-                                      Columns
-                                    </label>
-                                    <input
-                                      type="number"
-                                      value={section.columns}
-                                      onChange={(e) =>
-                                        updateSection(section.id, {
-                                          columns:
-                                            parseInt(e.target.value) || 1,
-                                        })
-                                      }
-                                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
-                                      min="1"
-                                      max="26"
-                                    />
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-xs font-semibold text-stone-700 mb-1">
-                                      Rows
-                                    </label>
-                                    <input
-                                      type="number"
-                                      value={section.rows}
-                                      onChange={(e) =>
-                                        updateSection(section.id, {
-                                          rows: parseInt(e.target.value) || 1,
-                                        })
-                                      }
-                                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
-                                      min="1"
-                                      max="50"
-                                    />
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-xs font-semibold text-stone-700 mb-1">
-                                      Price +/-
-                                    </label>
-                                    <input
-                                      type="number"
-                                      value={section.priceModifier}
-                                      onChange={(e) =>
-                                        updateSection(section.id, {
-                                          priceModifier:
-                                            parseFloat(e.target.value) || 0,
-                                        })
-                                      }
-                                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
-                                      step="0.01"
-                                    />
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-xs font-semibold text-stone-700 mb-1">
-                                      Orientation
-                                    </label>
-                                    <select
-                                      value={section.orientation}
-                                      onChange={(e) =>
-                                        updateSection(section.id, {
-                                          orientation: e.target.value as
-                                            | 'vertical'
-                                            | 'horizontal',
-                                        })
-                                      }
-                                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
-                                    >
-                                      <option value="horizontal">
-                                        Horizontal
-                                      </option>
-                                      <option value="vertical">Vertical</option>
-                                    </select>
-                                  </div>
-                                </div>
-
-                                <div className="mt-3 flex items-center gap-2">
-                                  <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={section.accessibility}
-                                      onChange={(e) =>
-                                        updateSection(section.id, {
-                                          accessibility: e.target.checked,
-                                        })
-                                      }
-                                      className="w-4 h-4 text-amber-600 bg-stone-100 border-stone-300 rounded focus:ring-amber-500"
-                                    />
-                                    <span>Accessible seating section</span>
+                                <div>
+                                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                                    Rows
                                   </label>
+                                  <input
+                                    type="number"
+                                    value={section.rows}
+                                    onChange={(e) =>
+                                      updateSection(section.id, {
+                                        rows: parseInt(e.target.value) || 1,
+                                      })
+                                    }
+                                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                                    min="1"
+                                    max="50"
+                                  />
                                 </div>
 
-                                {/* Mini preview */}
-                                <div className="mt-3 p-3 bg-white rounded-lg border border-stone-200">
-                                  <div className="text-xs text-stone-600 mb-2">
-                                    Preview: {section.columns} × {section.rows}{' '}
-                                    = {section.columns * section.rows} seats
-                                  </div>
-                                  <div
-                                    className="grid gap-0.5"
-                                    style={{
-                                      gridTemplateColumns:
-                                        section.orientation === 'horizontal'
-                                          ? `repeat(${Math.min(
-                                              section.columns,
-                                              15,
-                                            )}, minmax(0, 1fr))`
-                                          : `repeat(${Math.min(
-                                              section.rows,
-                                              15,
-                                            )}, minmax(0, 1fr))`,
-                                    }}
+                                <div>
+                                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                                    Price +/-
+                                  </label>
+                                  <input
+                                    type="number"
+                                    value={section.priceModifier}
+                                    onChange={(e) =>
+                                      updateSection(section.id, {
+                                        priceModifier:
+                                          parseFloat(e.target.value) || 0,
+                                      })
+                                    }
+                                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
+                                    step="0.01"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-xs font-semibold text-stone-700 mb-1">
+                                    Orientation
+                                  </label>
+                                  <select
+                                    value={section.orientation}
+                                    onChange={(e) =>
+                                      updateSection(section.id, {
+                                        orientation: e.target.value as
+                                          | 'vertical'
+                                          | 'horizontal',
+                                      })
+                                    }
+                                    className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm"
                                   >
-                                    {Array.from({
-                                      length: Math.min(
-                                        section.columns * section.rows,
-                                        150,
-                                      ),
-                                    }).map((_, i) => (
-                                      <div
-                                        key={i}
-                                        className="w-3 h-3 bg-green-500 rounded-sm"
-                                        title="Available seat"
-                                      />
-                                    ))}
-                                  </div>
+                                    <option value="horizontal">
+                                      Horizontal
+                                    </option>
+                                    <option value="vertical">Vertical</option>
+                                  </select>
                                 </div>
                               </div>
-                            ))}
+
+                              <div className="mt-3 flex items-center gap-2">
+                                <label className="flex items-center gap-2 text-sm text-stone-700 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={section.accessibility}
+                                    onChange={(e) =>
+                                      updateSection(section.id, {
+                                        accessibility: e.target.checked,
+                                      })
+                                    }
+                                    className="w-4 h-4 text-amber-600 bg-stone-100 border-stone-300 rounded focus:ring-amber-500"
+                                  />
+                                  <span>Accessible seating section</span>
+                                </label>
+                              </div>
+
+                              {/* Mini preview */}
+                              <div className="mt-3 p-3 bg-white rounded-lg border border-stone-200">
+                                <div className="text-xs text-stone-600 mb-2">
+                                  Preview: {section.columns} × {section.rows} ={' '}
+                                  {section.columns * section.rows} seats
+                                </div>
+                                <div
+                                  className="grid gap-0.5"
+                                  style={{
+                                    gridTemplateColumns:
+                                      section.orientation === 'horizontal'
+                                        ? `repeat(${Math.min(
+                                            section.columns,
+                                            15
+                                          )}, minmax(0, 1fr))`
+                                        : `repeat(${Math.min(
+                                            section.rows,
+                                            15
+                                          )}, minmax(0, 1fr))`,
+                                  }}
+                                >
+                                  {Array.from({
+                                    length: Math.min(
+                                      section.columns * section.rows,
+                                      150
+                                    ),
+                                  }).map((_, i) => (
+                                    <div
+                                      key={i}
+                                      className="w-3 h-3 bg-green-500 rounded-sm"
+                                      title="Available seat"
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
 
                           {newEvent.sections.length > 0 && (
                             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -3749,7 +3129,7 @@ export default function AdminPage() {
                               })
                             }
                             placeholder="e.g., 500"
-                            className="w-full px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                            className="w-full px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900 placeholder:text-stone-400"
                           />
                           <p className="text-xs text-stone-500 mt-2">
                             Seats will be automatically assigned as generic
@@ -3829,28 +3209,14 @@ export default function AdminPage() {
                               date: '',
                               venue: '',
                               ticketTypes: {
-                                Free: {
-                                  enabled: true,
-                                  price: 0 as string | number,
-                                  description: 'Standing spot, paid food',
-                                },
-                                Standard: {
-                                  enabled: false,
-                                  price: '' as string | number,
-                                  description: 'Seating provided, paid food',
-                                },
+                                Free: { enabled: true, price: 0 },
+                                Standard: { enabled: false, price: '' },
                                 EarlyBird: {
                                   enabled: false,
-                                  price: '' as string | number,
-                                  limit: '' as string | number,
-                                  description: 'Early booking discount',
+                                  price: '',
+                                  limit: '',
                                 },
-                                VIP: {
-                                  enabled: false,
-                                  price: '' as string | number,
-                                  description:
-                                    'VIP seating, food provided, backstage access',
-                                },
+                                VIP: { enabled: false, price: '' },
                               },
                               category: 'Concert',
                               isDraft: true,
@@ -4039,10 +3405,10 @@ export default function AdminPage() {
                                           </span>
                                         )}
                                     </p>
-                                  ),
+                                  )
                               )}
                               {!Object.values(newEvent.ticketTypes).some(
-                                (t) => t.enabled,
+                                (t) => t.enabled
                               ) && (
                                 <p className="text-stone-500 italic">
                                   No ticket types enabled

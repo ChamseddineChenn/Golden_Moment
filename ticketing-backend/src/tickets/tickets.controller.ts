@@ -12,7 +12,6 @@ import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { AppLogger } from '../common/utils/logger';
-import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('tickets')
 export class TicketsController {
@@ -125,17 +124,17 @@ export class TicketsController {
   }
 
   @Public()
-  @Get(':id')
-  async findById(@Param('id') id: string) {
-    this.logger.log('GET /tickets/:id', TicketsController.name, { id });
-    return this.ticketsService.findById(id);
-  }
-
-  @Public()
   @Get()
   async findAll() {
     this.logger.log('GET /tickets', TicketsController.name);
     return this.ticketsService.findAll();
+  }
+
+  @Public()
+  @Get(':id')
+  async findById(@Param('id') id: string) {
+    this.logger.log('GET /tickets/:id', TicketsController.name, { id });
+    return this.ticketsService.findById(id);
   }
 
   @Public()

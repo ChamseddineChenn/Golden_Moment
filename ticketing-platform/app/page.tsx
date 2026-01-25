@@ -6,6 +6,7 @@ import { applyFilters, getAvailableTicketTypes } from '@/lib/eventFilters';
 import { EventFilters, FilterState } from '@/components/EventFilters';
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 interface Event {
   _id: string;
@@ -243,9 +244,9 @@ function EventCard({ event }: { event: Event }) {
             </div>
           )}
 
-          {/* Price Badge - Main Price with All Options */}
+          {/* Price Badge - Cheapest on Top with All Options Below */}
           {pricingText && (
-            <div className="absolute bottom-4 right-4 flex flex-col-reverse items-end gap-1">
+            <div className="absolute top-20 right-4 flex flex-col items-end gap-1">
               <div className="bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
                 {pricingText}
               </div>
@@ -390,9 +391,9 @@ function EventCard({ event }: { event: Event }) {
           </div>
         )}
 
-        {/* Price Badge - Main Price with All Options */}
+        {/* Price Badge - Cheapest on Top with All Options Below */}
         {pricingText && (
-          <div className="absolute bottom-4 right-4 flex flex-col-reverse items-end gap-1">
+          <div className="absolute top-20 right-4 flex flex-col items-end gap-1">
             <div className="bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
               {pricingText}
             </div>
@@ -843,7 +844,7 @@ export default function HomePage() {
           </div>
 
           <div className="space-y-6">
-            {/* FAQ items remain the same... */}
+            {/* FAQ Item 1 */}
             <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
               <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
                 <span className="text-lg font-semibold text-stone-900">
@@ -867,11 +868,126 @@ export default function HomePage() {
                 <p>
                   Browse through our event listings, select your preferred
                   event, choose your seats, and complete the checkout process.
-                  You&apos;ll receive your e-ticket instantly via email.
+                  You'll receive your e-ticket instantly via email.
                 </p>
               </div>
             </details>
-            {/* Add remaining FAQ items... */}
+
+            {/* FAQ Item 2 */}
+            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
+              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
+                <span className="text-lg font-semibold text-stone-900">
+                  Can I cancel or refund my tickets?
+                </span>
+                <svg
+                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                  />
+                </svg>
+              </summary>
+              <div className="px-6 py-4 text-stone-600">
+                <p>
+                  Refund policies vary by event. Most events allow cancellations
+                  up to 48 hours before the event. Check your booking
+                  confirmation for specific terms.
+                </p>
+              </div>
+            </details>
+
+            {/* FAQ Item 3 */}
+            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
+              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
+                <span className="text-lg font-semibold text-stone-900">
+                  What payment methods do you accept?
+                </span>
+                <svg
+                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                  />
+                </svg>
+              </summary>
+              <div className="px-6 py-4 text-stone-600">
+                <p>
+                  We accept all major credit cards (Visa, Mastercard), digital
+                  wallets, and local payment methods. Your payment is secure and
+                  encrypted.
+                </p>
+              </div>
+            </details>
+
+            {/* FAQ Item 4 */}
+            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
+              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
+                <span className="text-lg font-semibold text-stone-900">
+                  Do I need to print my ticket?
+                </span>
+                <svg
+                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                  />
+                </svg>
+              </summary>
+              <div className="px-6 py-4 text-stone-600">
+                <p>
+                  No, our digital tickets can be shown directly on your mobile
+                  device at the entrance. Printing is optional if you prefer a
+                  physical copy.
+                </p>
+              </div>
+            </details>
+
+            {/* FAQ Item 5 */}
+            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
+              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
+                <span className="text-lg font-semibold text-stone-900">
+                  What if I have accessibility needs?
+                </span>
+                <svg
+                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                  />
+                </svg>
+              </summary>
+              <div className="px-6 py-4 text-stone-600">
+                <p>
+                  We offer accessible seating for events. Contact our support
+                  team at support@goldenmoment.tn to discuss your specific
+                  accessibility requirements.
+                </p>
+              </div>
+            </details>
           </div>
         </div>
       </section>

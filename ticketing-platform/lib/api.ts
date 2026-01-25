@@ -93,15 +93,15 @@ export const seatsAPI = {
   },
 };
 
-// Logs API
-export const logsAPI = {
-  getAll: (limit: number = 100, skip: number = 0) =>
-    apiClient.get('/logs', { params: { limit, skip } }),
-  getByAction: (action: string, limit: number = 100, skip: number = 0) =>
-    apiClient.get('/logs/action', { params: { type: action, limit, skip } }),
-  getForEvent: (eventId: string, limit: number = 100, skip: number = 0) =>
-    apiClient.get(`/logs/event/${eventId}`, { params: { limit, skip } }),
-};
+// Logs API - DISABLED (logs endpoint doesn't exist)
+// export const logsAPI = {
+//   getAll: (limit: number = 100, skip: number = 0) =>
+//     apiClient.get('/logs', { params: { limit, skip } }),
+//   getByAction: (action: string, limit: number = 100, skip: number = 0) =>
+//     apiClient.get('/logs/action', { params: { type: action, limit, skip } }),
+//   getForEvent: (eventId: string, limit: number = 100, skip: number = 0) =>
+//     apiClient.get(`/logs/event/${eventId}`, { params: { limit, skip } }),
+// };
 
 // Payments API
 export const paymentsAPI = {

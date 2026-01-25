@@ -8,8 +8,6 @@ import { CreateTicketDto } from './dto/create-ticket.dto';
 import { EventsService } from '../events/events.service';
 import { SeatsService } from '../events/seats.service';
 import { EmailService } from '../email/email.service';
-import { LogsService } from '../logs/logs.service';
-import { LogAction } from '../logs/log.schema';
 import { AppLogger } from '../common/utils/logger';
 import {
   TicketNotFoundException,
@@ -32,7 +30,6 @@ export class TicketsService {
     private readonly eventsService: EventsService,
     private readonly seatsService: SeatsService,
     private readonly emailService: EmailService,
-    private readonly logsService: LogsService,
   ) {}
 
   // Generate a secure encrypted QR token
@@ -314,20 +311,6 @@ export class TicketsService {
         id: savedTicket._id.toString(),
         ticketNumber,
         price: totalPrice,
-      });
-
-      // Log the ticket purchase
-      await this.logsService.createLog(LogAction.TICKET_PURCHASED, {
-        ticketName: `Ticket #${ticketNumber}`,
-        eventName: event.name,
-        eventId: createTicketDto.eventId.toString(),
-        ticketId: savedTicket._id.toString(),
-        metadata: {
-          ticketType,
-          buyerEmail: createTicketDto.buyerEmail,
-          buyerName: createTicketDto.buyerName,
-          totalPrice,
-        },
       });
 
       // Update event's Early Bird count if applicable
@@ -969,27 +952,6 @@ export class TicketsService {
 
       this.logger.log('Ticket deleted', TicketsService.name, { id });
 
-      // Log the ticket deletion
-      await this.logsService
-        .createLog(LogAction.TICKET_DELETED, {
-          ticketName: `Ticket #${ticket.ticketNumber}`,
-          eventName: event?.name || 'Event Unknown',
-          eventId: eventId,
-          ticketId: id,
-          metadata: {
-            ticketType: ticket.ticketType,
-            buyerEmail: ticket.buyerEmail,
-          },
-        })
-        .catch(() => {
-          // Don't let logging errors affect the deletion
-          this.logger.warn(
-            'Failed to log ticket deletion',
-            TicketsService.name,
-            { id },
-          );
-        });
-
       // STEP 3: Recalculate event counts (only if event still exists)
       if (event) {
         const updateData: any = {};
@@ -1303,19 +1265,6 @@ export class TicketsService {
       if (Object.keys(updateData).length > 0) {
         await this.eventsService.update(eventId, updateData);
       }
-
-      // Log purchase action
-      await this.logsService.createLog(LogAction.TICKET_PURCHASED, {
-        ticketName: `Tickets from Payment ${paymentId}`,
-        eventName: event.name,
-        eventId,
-        metadata: {
-          paymentId,
-          ticketsCount: createdTickets.length,
-          buyerEmail,
-          ticketType,
-        },
-      });
 
       // Send receipt emails for each ticket with payment info
       for (const ticket of createdTickets) {

@@ -7,14 +7,12 @@ import { SeatsService } from './seats.service';
 import { SeatsController } from './seats.controller';
 import { TicketsModule } from '../tickets/tickets.module';
 import { UploadModule } from '../upload/upload.module';
-import { LogsModule } from '../logs/logs.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Event.name, schema: EventSchema }]),
     forwardRef(() => TicketsModule),
     UploadModule,
-    LogsModule,
   ],
   controllers: [EventsController, SeatsController],
   providers: [EventsService, SeatsService],

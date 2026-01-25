@@ -795,6 +795,11 @@ export default function ReceiptPage() {
     );
   }
 
+  // At this point, ticket must exist (we've handled all null cases above)
+  if (!ticket) {
+    return null;
+  }
+
   const eventInfo = typeof ticket.eventId === 'object' ? ticket.eventId : null;
   const eventDate = eventInfo ? new Date(eventInfo.date) : new Date();
   const purchaseDate = new Date(ticket.purchaseDate);

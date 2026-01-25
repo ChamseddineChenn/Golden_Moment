@@ -20,8 +20,24 @@ async function bootstrap() {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
+          scriptSrc: [
+            "'self'",
+            'https://m.stripe.network',
+            'https://js.stripe.com',
+            'https://q.stripe.com',
+          ],
           imgSrc: ["'self'", 'data:', 'https:'],
+          frameSrc: [
+            "'self'",
+            'https://js.stripe.com',
+            'https://m.stripe.network',
+          ],
+          connectSrc: [
+            "'self'",
+            'https://api.stripe.com',
+            'https://m.stripe.network',
+            'https://q.stripe.com',
+          ],
         },
       },
       hsts: {

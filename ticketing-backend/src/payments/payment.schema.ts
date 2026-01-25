@@ -21,8 +21,13 @@ export class Payment {
   @Prop({ type: Types.ObjectId, ref: 'Event', required: true })
   eventId: Types.ObjectId;
 
-  @Prop({ type: [TicketSeat], required: true })
-  ticketIds: TicketSeat[];
+  @Prop({
+    type: [
+      MongooseSchema.Types.Mixed, // Allow both TicketSeat objects and "auto-assigned" string
+    ],
+    required: true,
+  })
+  ticketIds: (TicketSeat | string)[];
 
   @Prop({ required: true })
   amount: number;

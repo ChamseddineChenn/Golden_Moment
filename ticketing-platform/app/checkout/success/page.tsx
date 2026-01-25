@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { paymentsAPI, ticketsAPI } from '@/lib/api';
 
-export default function CheckoutSuccessPage() {
+function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
   const [payment, setPayment] = useState<any>(null);
   const [tickets, setTickets] = useState<any[]>([]);
@@ -13,37 +13,49 @@ export default function CheckoutSuccessPage() {
   const [ticketsLoading, setTicketsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch payment details
-  useEffect(() => {
-    const fetchPayment = async () => {
-      try {
-        const paymentId = searchParams.get('paymentId');
-        if (!paymentId) {
-          setError('No payment ID found');
-          setLoading(false);
-          return;
-        }
+  // Fetch payment details with optional forceRefresh to get latest paidAt
+  const fetchPayment = async (forceRefresh = false) => {
+    try {
+      const paymentId = searchParams.get('paymentId');
+      if (!paymentId) {
+        setError('No payment ID found');
+        return null;
+      }
 
-        const response = await paymentsAPI.getPayment(paymentId);
-        setPayment(response.data.data);
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching payment:', err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : 'Failed to fetch payment details',
-        );
+      const response = await paymentsAPI.getPayment(paymentId);
+      const paymentData = response.data.data;
+      setPayment(paymentData);
+
+      if (forceRefresh) {
+        setLoading(false); // Update loading state only on refresh
+      }
+
+      return paymentData;
+    } catch (err) {
+      console.error('Error fetching payment:', err);
+      setError(
+        err instanceof Error ? err.message : 'Failed to fetch payment details',
+      );
+      return null;
+    }
+  };
+
+  // Initial payment fetch
+  useEffect(() => {
+    fetchPayment().then((paymentData) => {
+      if (paymentData) {
         setLoading(false);
       }
-    };
-
-    fetchPayment();
+    });
   }, [searchParams]);
 
   // Poll for tickets until they are created by webhook
   useEffect(() => {
     if (!payment?._id) return;
+
+    let pollCount = 0;
+    const maxPolls = 20; // Max 20 seconds of polling
+    let timeoutId: NodeJS.Timeout;
 
     const pollTickets = async () => {
       try {
@@ -53,19 +65,34 @@ export default function CheckoutSuccessPage() {
         if (Array.isArray(fetchedTickets) && fetchedTickets.length > 0) {
           setTickets(fetchedTickets);
           setTicketsLoading(false);
+
+          // Refetch payment to ensure paidAt is populated from webhook update
+          // This eliminates the "N/A" date issue after payment succeeds
+          await fetchPayment(true);
         } else {
+          pollCount++;
           // Tickets not yet created, retry in 1 second
-          setTimeout(pollTickets, 1000);
+          if (pollCount < maxPolls) {
+            timeoutId = setTimeout(pollTickets, 1000);
+          } else {
+            // Stop polling after timeout, but show partial data
+            setTicketsLoading(false);
+          }
         }
       } catch (err) {
         console.error('Error fetching tickets:', err);
+        pollCount++;
         // Retry on error
-        setTimeout(pollTickets, 1000);
+        if (pollCount < maxPolls) {
+          timeoutId = setTimeout(pollTickets, 1000);
+        } else {
+          setTicketsLoading(false);
+        }
       }
     };
 
     // Start polling after a small delay to allow webhook to process
-    const timeoutId = setTimeout(pollTickets, 500);
+    timeoutId = setTimeout(pollTickets, 500);
     return () => clearTimeout(timeoutId);
   }, [payment?._id]);
 
@@ -256,5 +283,19 @@ export default function CheckoutSuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CheckoutSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-stone-50">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
+        </div>
+      }
+    >
+      <CheckoutSuccessContent />
+    </Suspense>
   );
 }

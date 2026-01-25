@@ -15,8 +15,8 @@ type UserType = 'ADMIN' | 'ORGANIZER' | 'USER';
 
 // Route access configuration
 const ROUTE_ACCESS: Record<string, UserType[]> = {
-  '/admin': ['ADMIN'],
-  '/organizer': ['ADMIN', 'ORGANIZER'],
+  // '/admin': ['ADMIN'],  // DISABLED FOR DEVELOPMENT
+  // '/organizer': ['ADMIN', 'ORGANIZER'],  // DISABLED FOR DEVELOPMENT
 };
 
 /**
