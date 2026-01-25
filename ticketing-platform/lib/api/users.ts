@@ -9,7 +9,7 @@ export interface ProfileUpdateData {
   website?: string;
   description?: string;
   businessLicense?: string;
-  organizationEstablishedDate?: Date;
+  organizationEstablishedDate?: string | Date;
 }
 
 export interface ProfileResponse {
