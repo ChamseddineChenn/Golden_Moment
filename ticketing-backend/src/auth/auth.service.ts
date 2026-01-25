@@ -27,6 +27,10 @@ export interface AuthResponse {
   success: boolean;
   message: string;
   user: UserResponse;
+  data?: {
+    accessToken: string;
+    refreshToken: string;
+  };
 }
 
 export interface SimpleResponse {
@@ -74,6 +78,10 @@ export class AuthService {
       message:
         'User registered successfully. Please check your email to verify your account.',
       user: this.formatUserResponse(user),
+      data: {
+        accessToken,
+        refreshToken,
+      },
     };
   }
 
@@ -101,6 +109,10 @@ export class AuthService {
       message:
         'Organizer registered successfully. Please check your email to verify your account.',
       user: this.formatUserResponse(user),
+      data: {
+        accessToken,
+        refreshToken,
+      },
     };
   }
   async login(
@@ -176,6 +188,10 @@ export class AuthService {
       success: true,
       message: 'Login successful',
       user: this.formatUserResponse(user),
+      data: {
+        accessToken,
+        refreshToken,
+      },
     };
   }
 
@@ -199,6 +215,43 @@ export class AuthService {
       success: true,
       message: 'Tokens refreshed successfully',
     };
+  }
+
+  async refreshWithToken(
+    refreshToken: string,
+    res: Response,
+  ): Promise<{ success: boolean; message: string; data: { accessToken: string; refreshToken: string } }> {
+    try {
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+
+      const user = await this.usersService.findById(payload.sub);
+      if (!user || user.refreshToken !== refreshToken) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      const { accessToken, refreshToken: newRefreshToken } = this.generateTokens(
+        user.id,
+        user.email,
+        user.userType || UserType.USER,
+      );
+
+      await this.usersService.updateRefreshToken(user.id, newRefreshToken);
+
+      this.setAuthCookies(res, accessToken, newRefreshToken);
+
+      return {
+        success: true,
+        message: 'Token refreshed successfully',
+        data: {
+          accessToken,
+          refreshToken: newRefreshToken,
+        },
+      };
+    } catch (error) {
+      throw new UnauthorizedException('Failed to refresh token');
+    }
   }
 
   async logout(userId: string, res: Response): Promise<SimpleResponse> {
