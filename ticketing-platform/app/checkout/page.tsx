@@ -355,13 +355,13 @@ export default function CheckoutPage() {
           isArray: Array.isArray(parsedTicketIds),
           stringified: JSON.stringify(parsedTicketIds),
           items: Array.isArray(parsedTicketIds)
-            ? parsedTicketIds.map((item, idx) => ({
+            ? parsedTicketIds.map((item: any, idx: number) => ({
                 index: idx,
                 type: typeof item,
                 value: JSON.stringify(item),
                 isObject: typeof item === 'object',
-                hasSection: item?.sectionId ? 'yes' : 'no',
-                hasSeat: item?.seatId ? 'yes' : 'no',
+                hasSection: (item as any)?.sectionId ? 'yes' : 'no',
+                hasSeat: (item as any)?.seatId ? 'yes' : 'no',
               }))
             : [],
         });

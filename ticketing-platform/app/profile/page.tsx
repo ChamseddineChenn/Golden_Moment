@@ -63,8 +63,10 @@ export default function ProfilePage() {
       // Only send changed fields
       const updates: ProfileUpdateData = {};
       Object.keys(formData).forEach((key) => {
-        if (formData[key as keyof ProfileUpdateData] !== profile[key]) {
-          updates[key as keyof ProfileUpdateData] = formData[key as keyof ProfileUpdateData];
+        const formValue = formData[key as keyof ProfileUpdateData];
+        const profileValue = (profile as any)?.[key];
+        if (formValue !== profileValue) {
+          updates[key as keyof ProfileUpdateData] = formValue as any;
         }
       });
 

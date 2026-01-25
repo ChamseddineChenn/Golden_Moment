@@ -795,6 +795,40 @@ export default function ReceiptPage() {
     );
   }
 
+  if (!ticket) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl p-8 text-center max-w-md shadow-lg border border-stone-200">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg
+              className="w-8 h-8 text-red-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-stone-900 mb-2">Ticket Not Found</h2>
+          <p className="text-stone-600 mb-6">
+            We couldn't find this ticket. It may have been deleted or the link is invalid.
+          </p>
+          <Link
+            href="/"
+            className="inline-block px-6 py-3 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700 transition"
+          >
+            Back to Home
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const eventInfo = typeof ticket.eventId === 'object' ? ticket.eventId : null;
   const eventDate = eventInfo ? new Date(eventInfo.date) : new Date();
   const purchaseDate = new Date(ticket.purchaseDate);
