@@ -10,14 +10,31 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
 
   constructor(private configService: ConfigService) {
+    const mailHost = this.configService.get<string>('mail.host') || 'smtp.gmail.com';
+    const mailPort = this.configService.get<number>('mail.port') || 587;
+    const mailUser = this.configService.get<string>('mail.user');
+    const mailPassword = this.configService.get<string>('mail.password');
+    
+    this.logger.log(`Initializing mail service with host: ${mailHost}:${mailPort}`);
+    
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get<string>('mail.host'),
-      port: this.configService.get<number>('mail.port'),
-      secure: false, // true for 465, false for other ports
+      host: mailHost,
+      port: mailPort,
+      secure: mailPort === 465, // true for 465, false for other ports like 587
       auth: {
-        user: this.configService.get<string>('mail.user'),
-        pass: this.configService.get<string>('mail.password'),
+        user: mailUser,
+        pass: mailPassword,
       },
+      connectionTimeout: 10000, // 10 seconds - longer timeout for Render
+      socketTimeout: 10000, // 10 seconds
+      pool: {
+        maxConnections: 1,
+        maxMessages: 100,
+        rateDelta: 1000,
+        rateLimit: 5,
+      },
+      logger: true,
+      debug: process.env.NODE_ENV !== 'production',
     });
   }
 
@@ -112,8 +129,7 @@ export class MailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Verification email sent to ${email}`);
+      await this.sendMailWithRetry(mailOptions);
     } catch (error) {
       this.logger.error(
         `Failed to send verification email to ${email}:`,
@@ -175,8 +191,7 @@ export class MailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Password reset email sent to ${email}`);
+      await this.sendMailWithRetry(mailOptions);
     } catch (error) {
       this.logger.error(
         `Failed to send password reset email to ${email}:`,
@@ -224,8 +239,7 @@ export class MailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Password reset confirmation sent to ${email}`);
+      await this.sendMailWithRetry(mailOptions);
     } catch (error) {
       this.logger.error(
         `Failed to send confirmation email to ${email}:`,
@@ -293,8 +307,7 @@ export class MailService {
     };
 
     try {
-      await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Email update verification sent to ${email}`);
+      await this.sendMailWithRetry(mailOptions);
     } catch (error) {
       this.logger.error(
         `Failed to send email update verification to ${email}:`,
@@ -302,5 +315,47 @@ export class MailService {
       );
       throw error;
     }
+  }
+
+  /**
+   * Send email with retry logic
+   * Attempts to send email up to 3 times with exponential backoff
+   */
+  private async sendMailWithRetry(
+    mailOptions: any,
+    maxRetries: number = 3,
+  ): Promise<void> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        await this.transporter.sendMail(mailOptions);
+        this.logger.log(
+          `Email sent successfully to ${mailOptions.to} (attempt ${attempt + 1})`,
+        );
+        return; // Success - exit
+      } catch (error) {
+        lastError = error as Error;
+        this.logger.warn(
+          `Failed to send email to ${mailOptions.to} (attempt ${attempt + 1}/${maxRetries}): ${lastError.message}`,
+        );
+
+        // If it's the last attempt, don't wait
+        if (attempt < maxRetries - 1) {
+          const delayMs = Math.pow(2, attempt) * 1000; // Exponential backoff: 1s, 2s, 4s
+          this.logger.log(
+            `Retrying email send in ${delayMs}ms... (attempt ${attempt + 2})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+    }
+
+    // All retries failed
+    this.logger.error(
+      `Failed to send email to ${mailOptions.to} after ${maxRetries} attempts: ${lastError?.message}`,
+      lastError,
+    );
+    throw lastError;
   }
 }
