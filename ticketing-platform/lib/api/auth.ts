@@ -33,9 +33,9 @@ export const authApi = {
     );
     
     // Fallback: store refresh token in localStorage if it's in the response
-    if (data.data?.refreshToken) {
+    if (data.data?.data?.refreshToken) {
       try {
-        localStorage.setItem('refresh_token', data.data.refreshToken);
+        localStorage.setItem('refresh_token', data.data.data.refreshToken);
         console.log('✓ Refresh token stored in localStorage');
       } catch (err) {
         console.error('Failed to store refresh token in localStorage:', err);
