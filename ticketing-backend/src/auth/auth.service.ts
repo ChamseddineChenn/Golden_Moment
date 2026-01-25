@@ -231,8 +231,8 @@ export class AuthService {
       });
 
       const user = await this.usersService.findById(payload.sub);
-      if (!user || user.refreshToken !== refreshToken) {
-        throw new UnauthorizedException('Invalid refresh token');
+      if (!user) {
+        throw new UnauthorizedException('User not found');
       }
 
       const { accessToken, refreshToken: newRefreshToken } =
