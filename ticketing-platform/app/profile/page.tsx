@@ -45,7 +45,7 @@ export default function ProfilePage() {
   };
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     setFormData({
       ...formData,
@@ -80,10 +80,10 @@ export default function ProfilePage() {
       const response = await usersApi.updateMyProfile(updates);
       setSuccess(response.message);
       setEditing(false);
-      
+
       // Refresh profile data
       await loadProfile();
-      
+
       // Refresh auth context if email changed
       if (updates.email) {
         await refreshAuth();
@@ -103,7 +103,9 @@ export default function ProfilePage() {
             <div className="flex justify-between items-center h-16 sm:h-20">
               <Link href="/" className="flex items-center gap-2 sm:gap-3">
                 <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-                  <span className="text-white text-base sm:text-lg font-bold">G</span>
+                  <span className="text-white text-base sm:text-lg font-bold">
+                    G
+                  </span>
                 </div>
                 <div>
                   <h1 className="text-base sm:text-xl font-bold text-stone-900 tracking-tight">
@@ -114,9 +116,22 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </Link>
-              <Link href="/" className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900 transition font-medium text-sm">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900 transition font-medium text-sm"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                  />
                 </svg>
                 <span className="hidden sm:inline">Back to Home</span>
                 <span className="sm:hidden">Back</span>
@@ -150,7 +165,9 @@ export default function ProfilePage() {
           <div className="flex justify-between items-center h-16 sm:h-20">
             <Link href="/" className="flex items-center gap-2 sm:gap-3">
               <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-                <span className="text-white text-base sm:text-lg font-bold">G</span>
+                <span className="text-white text-base sm:text-lg font-bold">
+                  G
+                </span>
               </div>
               <div>
                 <h1 className="text-base sm:text-xl font-bold text-stone-900 tracking-tight">
@@ -161,9 +178,22 @@ export default function ProfilePage() {
                 </p>
               </div>
             </Link>
-            <Link href="/" className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900 transition font-medium text-sm">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900 transition font-medium text-sm"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
               </svg>
               <span className="hidden sm:inline">Back to Home</span>
               <span className="sm:hidden">Back</span>
@@ -201,8 +231,18 @@ export default function ProfilePage() {
                     onClick={() => setEditing(true)}
                     className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2 cursor-pointer"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
                     </svg>
                     <span className="hidden sm:inline">Edit Profile</span>
                   </button>
@@ -213,8 +253,18 @@ export default function ProfilePage() {
             {/* Messages */}
             {error && (
               <div className="mx-6 mt-6 sm:mx-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-start gap-3">
-                <svg className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 <span className="text-sm">{error}</span>
               </div>
@@ -222,15 +272,29 @@ export default function ProfilePage() {
 
             {success && (
               <div className="mx-6 mt-6 sm:mx-8 p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl flex items-start gap-3">
-                <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <svg
+                  className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
                 </svg>
                 <span className="text-sm">{success}</span>
               </div>
             )}
 
             {/* Form - Add key prop to force remount */}
-            <form onSubmit={handleSubmit} className="px-6 py-6 sm:px-8 sm:py-8" key={editing ? 'editing' : 'viewing'}>
+            <form
+              onSubmit={handleSubmit}
+              className="px-6 py-6 sm:px-8 sm:py-8"
+              key={editing ? 'editing' : 'viewing'}
+            >
               <div className="space-y-6">
                 {/* Email */}
                 <div key="email-field">
@@ -247,14 +311,27 @@ export default function ProfilePage() {
                       className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-stone-900 bg-white"
                     />
                   ) : (
-                    <p key="email-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                    <p
+                      key="email-display"
+                      className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl"
+                    >
                       {profile.email}
                     </p>
                   )}
                   {!profile.emailVerified && (
                     <p className="mt-2 text-xs text-red-600 flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
                       </svg>
                       Please verify your email address
                     </p>
@@ -278,7 +355,10 @@ export default function ProfilePage() {
                           className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-stone-900 bg-white"
                         />
                       ) : (
-                        <p key="org-name-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                        <p
+                          key="org-name-display"
+                          className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl"
+                        >
                           {profile.organizationName || 'Not set'}
                         </p>
                       )}
@@ -298,7 +378,10 @@ export default function ProfilePage() {
                           className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-stone-900 bg-white"
                         />
                       ) : (
-                        <p key="phone-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                        <p
+                          key="phone-display"
+                          className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl"
+                        >
                           {profile.phone || 'Not set'}
                         </p>
                       )}
@@ -318,7 +401,10 @@ export default function ProfilePage() {
                           className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-stone-900 bg-white"
                         />
                       ) : (
-                        <p key="address-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                        <p
+                          key="address-display"
+                          className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl"
+                        >
                           {profile.address || 'Not set'}
                         </p>
                       )}
@@ -339,7 +425,10 @@ export default function ProfilePage() {
                           placeholder="https://"
                         />
                       ) : (
-                        <p key="website-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                        <p
+                          key="website-display"
+                          className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl"
+                        >
                           {profile.website || 'Not set'}
                         </p>
                       )}
@@ -359,7 +448,10 @@ export default function ProfilePage() {
                           className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition resize-none text-stone-900 bg-white"
                         />
                       ) : (
-                        <p key="description-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl whitespace-pre-wrap">
+                        <p
+                          key="description-display"
+                          className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl whitespace-pre-wrap"
+                        >
                           {profile.description || 'Not set'}
                         </p>
                       )}
@@ -424,9 +516,24 @@ export default function ProfilePage() {
                   >
                     {isSaving ? (
                       <>
-                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        <svg
+                          className="animate-spin h-5 w-5"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                            fill="none"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
                         </svg>
                         <span>Saving...</span>
                       </>

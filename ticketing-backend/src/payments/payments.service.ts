@@ -306,7 +306,23 @@ export class PaymentsService {
       throw new BadRequestException('Invalid payment ID provided');
     }
 
-    const payment = await this.paymentModel.findById(paymentId);
+    // First, try to find by MongoDB ObjectId
+    try {
+      if (Types.ObjectId.isValid(paymentId)) {
+        const payment = await this.paymentModel.findById(paymentId);
+        if (payment) {
+          return payment;
+        }
+      }
+    } catch (err) {
+      // Continue to next check if ObjectId parsing fails
+    }
+
+    // If not found by ObjectId, try to find by Stripe payment intent ID
+    const payment = await this.paymentModel.findOne({
+      stripePaymentIntentId: paymentId,
+    });
+    
     if (!payment) {
       throw new NotFoundException('Payment not found');
     }
