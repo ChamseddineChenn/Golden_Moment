@@ -44,103 +44,162 @@ export class SendGridService {
     customerName: string;
     amount: number;
     purchaseDate: string;
+    eventDate?: string;
+    eventTime?: string;
+    eventLocation?: string;
+    ticketType?: string;
+    seats?: Array<{ sectionId?: string; seatId: string }>;
+    qrCodeDataUrl?: string;
   }): Promise<Buffer | null> {
     try {
       this.logger.log('Generating PDF with PDFKit', SendGridService.name);
 
       const doc = new PDFDocument({
         size: 'A4',
-        margin: 40,
+        margin: 30,
       });
 
-      // Header
+      // Header with checkmark
       doc
-        .fontSize(20)
+        .fontSize(14)
         .font('Helvetica-Bold')
-        .text('TICKET RECEIPT', { align: 'center' })
-        .fontSize(11)
-        .font('Helvetica')
-        .text('Your booking is confirmed', { align: 'center' })
-        .moveDown(0.5);
+        .fillColor(34, 197, 94)
+        .text('✓ Booking Confirmed', { align: 'center' })
+        .moveDown(0.3);
 
-      // Orange divider line
-      doc
-        .strokeColor(217, 119, 6)
-        .moveTo(40, doc.y)
-        .lineTo(555, doc.y)
-        .stroke()
-        .moveDown(1);
-
-      // Customer greeting
+      // Greeting
       doc
         .fontSize(11)
         .font('Helvetica')
         .fillColor(0, 0, 0)
-        .text(`Thank you, ${ticketData.customerName}!`, { align: 'left' })
-        .moveDown(0.5);
+        .text(
+          `Thank you, ${ticketData.customerName}! Your ticket has been successfully purchased and confirmed.`,
+          { align: 'left', width: 535 },
+        )
+        .moveDown(1);
 
-      // Event Section
+      // EVENT DETAILS SECTION
       doc
         .fontSize(11)
         .font('Helvetica-Bold')
         .fillColor(184, 83, 9)
-        .text('EVENT DETAILS', { underline: true })
-        .moveDown(0.3);
+        .text('EVENT DETAILS');
 
       doc
         .fontSize(10)
         .font('Helvetica')
-        .fillColor(0, 0, 0)
-        .text(`Event: ${ticketData.eventName}`)
-        .text(`Ticket Number: ${ticketData.ticketNumber}`)
-        .text(`Purchase Date: ${ticketData.purchaseDate}`)
-        .moveDown(0.5);
+        .fillColor(0, 0, 0);
 
-      // Price Section
+      const eventY = doc.y;
+      doc.text(`Event: ${ticketData.eventName}`, { indent: 10 });
+      if (ticketData.eventDate) doc.text(`Date: ${ticketData.eventDate}`, { indent: 10 });
+      if (ticketData.eventTime) doc.text(`Time: ${ticketData.eventTime}`, { indent: 10 });
+      if (ticketData.eventLocation) doc.text(`Location: ${ticketData.eventLocation}`, { indent: 10 });
+      doc.moveDown(0.5);
+
+      // TICKET INFORMATION SECTION
+      doc
+        .fontSize(11)
+        .font('Helvetica-Bold')
+        .fillColor(184, 83, 9)
+        .text('TICKET INFORMATION');
+
       doc
         .fontSize(10)
         .font('Helvetica')
-        .text('Total Amount:')
-        .moveDown(0.2)
-        .fontSize(28)
+        .fillColor(0, 0, 0);
+
+      doc.text(`Ticket Number: ${ticketData.ticketNumber}`, { indent: 10 });
+      if (ticketData.ticketType)
+        doc.text(`Ticket Type: ${ticketData.ticketType}`, { indent: 10 });
+      doc.text(`Purchase Date: ${ticketData.purchaseDate}`, { indent: 10 });
+      doc.moveDown(0.5);
+
+      // SEATS SECTION
+      if (ticketData.seats && ticketData.seats.length > 0) {
+        doc
+          .fontSize(11)
+          .font('Helvetica-Bold')
+          .fillColor(184, 83, 9)
+          .text('SEATS');
+
+        doc.fontSize(10).font('Helvetica').fillColor(0, 0, 0);
+
+        ticketData.seats.forEach((seat, index) => {
+          const seatLabel = seat.sectionId
+            ? `Seat ${index + 1}: Section ${seat.sectionId} Seat ${seat.seatId}`
+            : `Seat ${index + 1}: ${seat.seatId}`;
+          doc.text(seatLabel, { indent: 10 });
+        });
+        doc.moveDown(0.5);
+      }
+
+      // QR CODE SECTION
+      if (ticketData.qrCodeDataUrl) {
+        try {
+          doc
+            .fontSize(11)
+            .font('Helvetica-Bold')
+            .fillColor(184, 83, 9)
+            .text('QR CODE');
+
+          // Convert data URL to buffer
+          const base64Data = ticketData.qrCodeDataUrl.replace(/^data:image\/png;base64,/, '');
+          const qrBuffer = Buffer.from(base64Data, 'base64');
+
+          // Add QR code image centered
+          const qrX = (595 - 120) / 2; // Center on A4 width
+          doc.image(qrBuffer, qrX, doc.y, { width: 120, height: 120 });
+          doc.moveDown(6);
+
+          doc
+            .fontSize(9)
+            .font('Helvetica')
+            .fillColor(107, 114, 128)
+            .text('SHOW THIS QR CODE AT THE EVENT ENTRANCE', { align: 'center' });
+          doc.moveDown(1);
+        } catch (qrError: any) {
+          this.logger.warn('QR code image embedding failed', SendGridService.name, {
+            error: qrError.message,
+          });
+        }
+      }
+
+      // TOTAL AMOUNT SECTION
+      doc
+        .fontSize(11)
+        .font('Helvetica-Bold')
+        .fillColor(184, 83, 9)
+        .text('TOTAL PAID');
+
+      doc
+        .fontSize(18)
         .font('Helvetica-Bold')
         .fillColor(217, 119, 6)
-        .text(`$${ticketData.amount.toFixed(2)}`)
-        .moveDown(0.8);
+        .text(`$${ticketData.amount.toFixed(2)}`, { indent: 10 });
+      doc.moveDown(1);
 
-      // Reset color
-      doc.fillColor(0, 0, 0);
-
-      // Gray divider line
+      // Important Notice Box
       doc
-        .strokeColor(229, 231, 235)
-        .moveTo(40, doc.y)
-        .lineTo(555, doc.y)
-        .stroke()
-        .moveDown(1);
-
-      // Important Notice
-      doc
-        .fontSize(10)
+        .fontSize(9)
         .font('Helvetica')
         .fillColor(22, 101, 52)
         .text(
-          'IMPORTANT: This is your official ticket. Please keep it safe and bring it to the event entrance.',
+          '✓ Important: This receipt is your official ticket. Please keep it safe for your records and bring it or your ticket number to the event entrance.',
           { align: 'left', width: 515 },
         )
         .moveDown(1);
 
       // Footer
       doc
-        .fillColor(107, 114, 128)
         .fontSize(9)
         .font('Helvetica')
-        .text('Golden Moment Events', { align: 'center' })
+        .fillColor(107, 114, 128)
         .text('Thank you for your purchase!', { align: 'center' })
+        .text('For support, contact support@goldenmoment.com', { align: 'center' })
         .moveDown(0.3)
         .fontSize(8)
-        .fillColor(156, 163, 175)
-        .text(`Generated: ${new Date().toLocaleDateString()}`, { align: 'center' });
+        .text('© Golden Moment Events. All rights reserved.', { align: 'center' });
 
       // Convert stream to buffer
       const chunks: Buffer[] = [];
@@ -471,12 +530,36 @@ export class SendGridService {
       // Generate PDF if requested
       if (options?.attachPdf) {
         try {
+          // Format event date and time
+          let eventDateStr = '';
+          let eventTimeStr = '';
+          if (ticketData.eventDate) {
+            const date = new Date(ticketData.eventDate);
+            eventDateStr = date.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            });
+            eventTimeStr = date.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            });
+          }
+
           const pdfBuffer = await this.generatePdfFromData({
             ticketNumber,
             eventName,
             customerName,
             amount: ticketData.totalAmount,
             purchaseDate: ticketData.purchaseDate,
+            eventDate: eventDateStr,
+            eventTime: eventTimeStr,
+            eventLocation: ticketData.eventLocation,
+            ticketType: ticketData.ticketType,
+            seats: ticketData.seats,
+            qrCodeDataUrl: ticketData.qrCode,
           });
           if (pdfBuffer) {
             attachments.push({
