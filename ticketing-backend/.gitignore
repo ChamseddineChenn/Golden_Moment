@@ -29,10 +29,6 @@ build/
 Thumbs.db
 .DS_Store
 
-# Logs
-logs/
-*.log
-
 # Runtime data
 pids/
 *.pid
