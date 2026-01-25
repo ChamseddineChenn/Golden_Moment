@@ -469,26 +469,28 @@ function EventCard({ event }: { event: Event }) {
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm text-stone-500">Availability</span>
             <span
-              className={`text-sm font-semibold ${isExpired
-                ? 'text-stone-400'
-                : ticketsAvailable === 0
+              className={`text-sm font-semibold ${
+                isExpired
                   ? 'text-stone-400'
-                  : ticketsAvailable < 20
-                    ? 'text-red-600'
-                    : 'text-green-600'
-                }`}
+                  : ticketsAvailable === 0
+                    ? 'text-stone-400'
+                    : ticketsAvailable < 20
+                      ? 'text-red-600'
+                      : 'text-green-600'
+              }`}
             >
               {ticketsAvailable} / {event.totalSeats} seats
             </span>
           </div>
           <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-500 ${soldPercentage < 50
-                ? 'bg-green-500'
-                : soldPercentage < 80
-                  ? 'bg-amber-500'
-                  : 'bg-red-500'
-                }`}
+              className={`h-full transition-all duration-500 ${
+                soldPercentage < 50
+                  ? 'bg-green-500'
+                  : soldPercentage < 80
+                    ? 'bg-amber-500'
+                    : 'bg-red-500'
+              }`}
               style={{ width: `${soldPercentage}%` }}
             ></div>
           </div>
@@ -496,10 +498,11 @@ function EventCard({ event }: { event: Event }) {
 
         {/* CTA */}
         <button
-          className={`w-full mt-6 py-3 rounded-xl font-semibold transition cursor-pointer ${isExpired || ticketsAvailable === 0
-            ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
-            : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20'
-            }`}
+          className={`w-full mt-6 py-3 rounded-xl font-semibold transition cursor-pointer ${
+            isExpired || ticketsAvailable === 0
+              ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+              : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20'
+          }`}
           disabled={isExpired || ticketsAvailable === 0}
         >
           {isExpired

@@ -43,6 +43,12 @@ async function getCurrentUser(request: NextRequest): Promise<UserType | null> {
       return null;
     }
 
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      console.log('Auth check failed: response is not JSON');
+      return null;
+    }
+
     const responseData = await response.json();
 
     const data: AuthMeResponse = responseData.data || responseData;
@@ -59,7 +65,7 @@ async function getCurrentUser(request: NextRequest): Promise<UserType | null> {
 
     return normalized;
   } catch (error) {
-    console.error('Middleware auth check failed:', error);
+    console.error('Middleware auth check error:', error instanceof Error ? error.message : String(error));
     return null;
   }
 }
