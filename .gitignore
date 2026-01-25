@@ -36,9 +36,6 @@ coverage/
 build/
 *.tsbuildinfo
 
-# Logs
-logs/
-*.log
 
 # OS
 Thumbs.db

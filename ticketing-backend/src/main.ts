@@ -45,7 +45,10 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      // Disabled forbidNonWhitelisted to allow nested objects with unknown properties
+      // This is needed for ticketIds array which contains seat objects {sectionId, seatId}
+      // that would otherwise be stripped by the whitelist
+      forbidNonWhitelisted: false,
       transform: true,
       transformOptions: {
         enableImplicitConversion: true,
