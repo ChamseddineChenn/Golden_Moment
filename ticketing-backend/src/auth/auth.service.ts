@@ -311,18 +311,22 @@ export class AuthService {
     accessToken: string,
     refreshToken: string,
   ) {
+    // Determine if we're in production (HTTPS) or development (HTTP)
+    const isProduction = process.env.NODE_ENV === 'production' || 
+                        process.env.BACKEND_URL?.startsWith('https');
+    
     res.cookie('access_token', accessToken, {
       httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
+      secure: isProduction, // true in production (HTTPS), false in development (HTTP)
+      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-domain in production
       maxAge: 15 * 60 * 1000,
       path: '/',
     });
 
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
+      secure: isProduction, // true in production (HTTPS), false in development (HTTP)
+      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-domain in production
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
