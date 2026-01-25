@@ -8,32 +8,51 @@ import { generateReceiptHTML } from './receipt-generator';
 export class EmailService {
   private transporter: nodemailer.Transporter;
   private readonly logger = new AppLogger();
+  private isConfigured = false;
 
   constructor() {
     this.initializeTransporter();
   }
 
   private initializeTransporter() {
+    // Try SMTP_* vars first, then fall back to MAIL_* vars
+    const smtpHost = process.env.SMTP_HOST || process.env.MAIL_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(process.env.SMTP_PORT || process.env.MAIL_PORT || '587');
+    const smtpUser = process.env.SMTP_USER || process.env.MAIL_USER;
+    const smtpPass = process.env.SMTP_PASS || process.env.MAIL_PASSWORD;
+    const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.MAIL_FROM || smtpUser;
+    const fromName = process.env.SMTP_FROM_NAME || 'Golden Moment';
+
     this.logger.log('Initializing email transporter', EmailService.name, {
-      smtpHost: process.env.SMTP_HOST,
-      smtpPort: process.env.SMTP_PORT,
-      smtpUser: process.env.SMTP_USER,
-      fromEmail: process.env.SMTP_FROM_EMAIL,
-      fromName: process.env.SMTP_FROM_NAME,
+      smtpHost,
+      smtpPort,
+      smtpUser: smtpUser ? '***configured***' : 'NOT SET',
+      fromEmail,
+      fromName,
     });
+
+    if (!smtpUser || !smtpPass) {
+      this.logger.warn('Email service not configured - SMTP credentials missing', EmailService.name);
+      this.isConfigured = false;
+      return;
+    }
+
+    this.isConfigured = true;
 
     this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465, // true for 465, false for other ports
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: smtpUser,
+        pass: smtpPass,
       },
+      connectionTimeout: 10000, // 10 seconds
+      socketTimeout: 10000, // 10 seconds
     });
 
-    // Verify connection
-    this.transporter.verify((error, success) => {
+    // Verify connection (non-blocking)
+    this.transporter.verify((error) => {
       if (error) {
         this.logger.error(
           'Email service initialization failed',
@@ -51,25 +70,41 @@ export class EmailService {
 
   /**
    * Generate PDF from HTML
+   * Returns null if Chrome/Puppeteer not available (e.g., on Render free tier)
    */
-  async generatePdfFromHtml(htmlContent: string): Promise<Buffer> {
-    const browser = await puppeteer.launch({
-      headless: true as any, // Cast to any to avoid type issues with newer versions
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-
+  async generatePdfFromHtml(htmlContent: string): Promise<Buffer | null> {
     try {
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle2' });
-
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+      const browser = await puppeteer.launch({
+        headless: true as any,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+        ],
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       });
 
-      return pdfBuffer as Buffer;
-    } finally {
-      await browser.close();
+      try {
+        const page = await browser.newPage();
+        await page.setContent(htmlContent, { waitUntil: 'networkidle2' });
+
+        const pdfBuffer = await page.pdf({
+          format: 'A4',
+          margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+        });
+
+        return pdfBuffer as Buffer;
+      } finally {
+        await browser.close();
+      }
+    } catch (error: any) {
+      this.logger.warn('PDF generation not available', EmailService.name, {
+        error: error.message,
+        hint: 'Chrome/Puppeteer not installed. Emails will be sent without PDF attachment.',
+      });
+      return null;
     }
   }
 
@@ -180,8 +215,25 @@ export class EmailService {
         }
       }
 
+      // Check if email service is configured
+      if (!this.isConfigured) {
+        this.logger.warn(
+          'Email service not configured - skipping email send',
+          EmailService.name,
+          { ticketNumber, email },
+        );
+        return {
+          success: false,
+          message: 'Email service not configured',
+        };
+      }
+
+      // Use fallback values for missing env vars
+      const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || process.env.MAIL_USER || process.env.MAIL_FROM;
+      const fromName = process.env.SMTP_FROM_NAME || 'Golden Moment';
+
       const mailOptions = {
-        from: `${process.env.SMTP_FROM_NAME || 'Golden Moment'} <${process.env.SMTP_USER}>`,
+        from: `${fromName} <${fromEmail}>`,
         to: email,
         subject: `Your Ticket Receipt - ${eventName}`,
         html: htmlContent,
@@ -195,19 +247,42 @@ export class EmailService {
         attachmentCount: attachments.length,
       });
 
-      const info = await this.transporter.sendMail(mailOptions);
+      // Retry logic with exponential backoff
+      let lastError: Error | null = null;
+      const maxRetries = 3;
 
-      this.logger.log('✅ Receipt email sent successfully', EmailService.name, {
-        email,
-        ticketNumber,
-        messageId: info.messageId,
-        response: info.response,
-      });
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          const info = await this.transporter.sendMail(mailOptions);
 
-      return {
-        success: true,
-        message: `Receipt sent to ${email}`,
-      };
+          this.logger.log('✅ Receipt email sent successfully', EmailService.name, {
+            email,
+            ticketNumber,
+            messageId: info.messageId,
+            response: info.response,
+            attempt: attempt + 1,
+          });
+
+          return {
+            success: true,
+            message: `Receipt sent to ${email}`,
+          };
+        } catch (retryError: any) {
+          lastError = retryError;
+          this.logger.warn(
+            `Email send attempt ${attempt + 1}/${maxRetries} failed`,
+            EmailService.name,
+            { error: retryError.message, email, ticketNumber },
+          );
+
+          if (attempt < maxRetries - 1) {
+            const delayMs = Math.pow(2, attempt) * 1000;
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          }
+        }
+      }
+
+      throw lastError;
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -220,9 +295,9 @@ export class EmailService {
         errorMessage,
         errorStack,
         smtpConfig: {
-          host: process.env.SMTP_HOST,
-          port: process.env.SMTP_PORT,
-          user: process.env.SMTP_USER,
+          host: process.env.SMTP_HOST || process.env.MAIL_HOST || 'NOT SET',
+          port: process.env.SMTP_PORT || process.env.MAIL_PORT || 'NOT SET',
+          user: process.env.SMTP_USER || process.env.MAIL_USER ? '***configured***' : 'NOT SET',
         },
       });
 
