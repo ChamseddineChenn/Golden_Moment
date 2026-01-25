@@ -1,4 +1,8 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as QRCode from 'qrcode';
@@ -425,6 +429,12 @@ export class TicketsService {
     this.logger.log('Finding ticket by ID', TicketsService.name, {
       ticketId,
     });
+
+    // Validate ticketId is provided and looks like a valid ObjectId
+    if (!ticketId || ticketId === 'undefined') {
+      throw new BadRequestException('Invalid ticket ID provided');
+    }
+
     const ticket = await this.ticketModel
       .findById(ticketId)
       .populate('eventId')
@@ -1185,16 +1195,22 @@ export class TicketsService {
       this.logger.log('Ticket IDs received for locking:', TicketsService.name, {
         ticketIds,
         count: ticketIds.length,
+        fullData: JSON.stringify(ticketIds),
       });
 
       const seatsWithSection = ticketIds.filter(
         (s) => s && typeof s === 'object' && s.sectionId && s.seatId,
       );
 
-      this.logger.log('Seats to lock:', TicketsService.name, {
-        seatsWithSection,
-        count: seatsWithSection.length,
-      });
+      this.logger.log(
+        'Seats to lock (filtered for section+seatId):',
+        TicketsService.name,
+        {
+          seatsWithSection,
+          count: seatsWithSection.length,
+          fullData: JSON.stringify(seatsWithSection),
+        },
+      );
 
       if (seatsWithSection.length > 0) {
         await this.seatsService.finalizePurchase(
@@ -1220,6 +1236,7 @@ export class TicketsService {
           originalCount: ticketIds.length,
           filteredCount: seatsForTicket.length,
           filteredSeats: JSON.stringify(seatsForTicket),
+          ticketIds: JSON.stringify(ticketIds),
         },
       );
 
@@ -1250,7 +1267,8 @@ export class TicketsService {
       const ticketData = {
         eventId: new (require('mongoose').Types.ObjectId)(eventId),
         paymentId: new (require('mongoose').Types.ObjectId)(paymentId),
-        seats: seatsForTicket.length > 0 ? seatsForTicket : [{ seatId: '' }], // All seats in one ticket
+        // For seating events use actual seats, for non-seating events leave empty
+        seats: seatsForTicket.length > 0 ? seatsForTicket : [],
         buyerEmail,
         buyerName,
         buyerPhoneNumber,
@@ -1263,6 +1281,12 @@ export class TicketsService {
         metadata: { userId },
       };
 
+      this.logger.log('Creating ticket with data:', TicketsService.name, {
+        seatsCount: seatsForTicket.length,
+        seatsData: JSON.stringify(ticketData.seats),
+        ticketNumber,
+      });
+
       const createdTicket = new this.ticketModel(ticketData);
       const savedTicket = await createdTicket.save();
       createdTickets.push(savedTicket);
@@ -1272,6 +1296,7 @@ export class TicketsService {
         ticketNumber,
         paymentId,
         seatsCount: seatsForTicket.length,
+        savedSeats: JSON.stringify(savedTicket.seats),
       });
 
       // Update event stats

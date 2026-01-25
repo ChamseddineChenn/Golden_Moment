@@ -1,9 +1,20 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { authApi } from '../api/auth';
-import { User, AuthContextType, UserType, OrganizerSignupData } from '../types/auth.types';
+import {
+  User,
+  AuthContextType,
+  UserType,
+  OrganizerSignupData,
+} from '../types/auth.types';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -19,20 +30,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = async () => {
     try {
       const currentUser = await authApi.getCurrentUser();
-      console.log('✅ User authenticated:', currentUser);
-      setUser(currentUser);
-    } catch (error: any) {
-      console.log('ℹ️ Not authenticated or invalid token');
-      setUser(null);
-      
-      // If we get 401, clear any stale cookies by calling logout
-      if (error.response?.status === 401) {
-        try {
-          await authApi.logout();
-        } catch (e) {
-          // Ignore logout errors
-        }
+      if (currentUser) {
+        setUser(currentUser);
+      } else {
+        setUser(null);
       }
+    } catch (error: any) {
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -42,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await authApi.login(email, password);
       setUser(response.user);
-      
+
       // Redirect based on user type
       if (response.user.userType === UserType.ADMIN) {
         router.push('/admin/');
@@ -51,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         router.push('/');
       }
-      
+
       router.refresh();
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Login failed');
@@ -76,7 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       router.push('/');
       router.refresh();
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || 'Organizer signup failed');
+      throw new Error(
+        error.response?.data?.message || 'Organizer signup failed',
+      );
     }
   };
 
@@ -98,21 +104,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = () => user?.userType === UserType.ADMIN;
   const isOrganizer = () => user?.userType === UserType.ORGANIZER;
-  const isRegularUser = () => user?.userType === UserType.USER || !user?.userType;
+  const isRegularUser = () =>
+    user?.userType === UserType.USER || !user?.userType;
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      loading, 
-      login, 
-      signup, 
-      signupOrganizer,
-      logout, 
-      refreshAuth,
-      isAdmin,
-      isOrganizer,
-      isRegularUser,
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        signup,
+        signupOrganizer,
+        logout,
+        refreshAuth,
+        isAdmin,
+        isOrganizer,
+        isRegularUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

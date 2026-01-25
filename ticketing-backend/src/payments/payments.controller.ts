@@ -8,10 +8,10 @@ import {
   RawBodyRequest,
   Req,
   BadRequestException,
+  UsePipes,
 } from '@nestjs/common';
 import { Public } from '../auth/decorators/public.decorator';
 import { PaymentsService } from './payments.service';
-import { CreateCheckoutSessionDto } from './dto/create-checkout-session.dto';
 
 @Controller('payments')
 export class PaymentsController {
@@ -21,12 +21,110 @@ export class PaymentsController {
   @Post('create-checkout-session')
   async createCheckoutSession(
     @Request() req,
-    @Body() dto: CreateCheckoutSessionDto,
+    @Req() request: any, // Get raw express request to access body before transformation
   ) {
-    console.log('[PaymentsController] Received checkout request:', dto);
+    // Get the raw body directly from Express request - bypasses class-transformer whitelist
+    const rawBody = request.body;
+
+    console.log('[PaymentsController] ===== CHECKOUT SESSION DEBUG =====');
+    console.log(
+      '[PaymentsController] Raw request.body:',
+      JSON.stringify(rawBody),
+    );
+    console.log(
+      '[PaymentsController] ticketIds:',
+      JSON.stringify(rawBody?.ticketIds),
+    );
+    console.log(
+      '[PaymentsController] ticketIds[0]:',
+      JSON.stringify(rawBody?.ticketIds?.[0]),
+    );
+
+    // Manual validation
+    if (!rawBody?.eventId || typeof rawBody.eventId !== 'string') {
+      throw new BadRequestException('eventId is required');
+    }
+    if (
+      !rawBody?.ticketIds ||
+      !Array.isArray(rawBody.ticketIds) ||
+      rawBody.ticketIds.length === 0
+    ) {
+      throw new BadRequestException('ticketIds array is required');
+    }
+    // totalAmount can be 0 for free tickets, but must be a number
+    if (typeof rawBody?.totalAmount !== 'number') {
+      throw new BadRequestException('totalAmount must be a number');
+    }
+    if (rawBody.totalAmount < 0) {
+      throw new BadRequestException('totalAmount cannot be negative');
+    }
+
+    // Build DTO from raw body - preserving ticketIds exactly as received
+    const dto = {
+      eventId: rawBody.eventId,
+      ticketIds: rawBody.ticketIds, // Preserved without stripping!
+      totalAmount: rawBody.totalAmount,
+      buyerEmail: rawBody.buyerEmail,
+      buyerName: rawBody.buyerName,
+      buyerPhoneNumber: rawBody.buyerPhoneNumber,
+      ticketType: rawBody.ticketType,
+      successUrl: rawBody.successUrl,
+      cancelUrl: rawBody.cancelUrl,
+    };
+
+    console.log(
+      '[PaymentsController] FINAL DTO being sent to service:',
+      JSON.stringify(dto),
+    );
+
     // For unauthenticated users, use a temporary ID based on email or generate one
     const userId = req.user?.id || `guest-${Date.now()}`;
-    return this.paymentsService.createCheckoutSession(userId, dto);
+    return this.paymentsService.createCheckoutSession(userId, dto as any);
+  }
+
+  @Public()
+  @Post('create-free-ticket')
+  async createFreeTicket(@Request() req, @Req() request: any) {
+    // Get raw body - free ticket creation bypasses Stripe
+    const rawBody = request.body;
+
+    console.log('[PaymentsController] ===== CREATE FREE TICKET DEBUG =====');
+    console.log(
+      '[PaymentsController] Raw request.body:',
+      JSON.stringify(rawBody),
+    );
+
+    // Validation
+    if (!rawBody?.eventId || typeof rawBody.eventId !== 'string') {
+      throw new BadRequestException('eventId is required');
+    }
+    if (
+      !rawBody?.ticketIds ||
+      !Array.isArray(rawBody.ticketIds) ||
+      rawBody.ticketIds.length === 0
+    ) {
+      throw new BadRequestException('ticketIds array is required');
+    }
+
+    const dto = {
+      eventId: rawBody.eventId,
+      ticketIds: rawBody.ticketIds,
+      buyerEmail: rawBody.buyerEmail,
+      buyerName: rawBody.buyerName,
+      buyerPhoneNumber: rawBody.buyerPhoneNumber,
+      ticketType: rawBody.ticketType || 'Free',
+    };
+
+    const userId = req.user?.id || `guest-${Date.now()}`;
+    const result = await this.paymentsService.createFreeTicket(
+      userId,
+      dto as any,
+    );
+    console.log(
+      '[PaymentsController] Free ticket creation result:',
+      JSON.stringify(result),
+    );
+    return result;
   }
 
   @Public()
