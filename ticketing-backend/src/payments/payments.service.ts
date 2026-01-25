@@ -389,27 +389,38 @@ export class PaymentsService {
           { paymentId: existingPayment._id.toString() },
         );
 
-        // Get existing tickets for this payment
-        const existingTickets = await this.ticketsService.findByPaymentId(
-          existingPayment._id.toString(),
-        );
+        try {
+          // Get existing tickets for this payment
+          const existingTickets = await this.ticketsService.findByPaymentId(
+            existingPayment._id.toString(),
+          );
 
-        if (existingTickets && existingTickets.length > 0) {
-          const ticketId = existingTickets[0]._id.toString();
-          const ticketNumber = existingTickets[0].ticketNumber;
-          const paymentId = existingPayment._id.toString();
+          if (existingTickets && existingTickets.length > 0) {
+            const ticketId = existingTickets[0]._id.toString();
+            const ticketNumber = existingTickets[0].ticketNumber;
+            const paymentId = existingPayment._id.toString();
 
-          this.logger.log('[PaymentsService] Returning existing free ticket:', {
-            ticketId,
-            ticketNumber,
-            paymentId,
-          });
+            this.logger.log(
+              '[PaymentsService] Returning existing free ticket:',
+              {
+                ticketId,
+                ticketNumber,
+                paymentId,
+              },
+            );
 
-          return {
-            ticketId,
-            ticketNumber,
-            paymentId,
-          };
+            return {
+              ticketId,
+              ticketNumber,
+              paymentId,
+            };
+          }
+        } catch (err) {
+          this.logger.warn(
+            '[PaymentsService] Error fetching existing tickets, proceeding with new creation:',
+            err instanceof Error ? err.message : JSON.stringify(err),
+          );
+          // If we can't fetch existing tickets, proceed with creating new ones
         }
       }
 
