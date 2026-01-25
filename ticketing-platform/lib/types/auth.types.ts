@@ -21,6 +21,10 @@ export interface AuthResponse {
   success: boolean;
   message: string;
   user: User;
+  data?: {
+    accessToken: string;
+    refreshToken: string;
+  };
 }
 
 export interface AuthContextType {
