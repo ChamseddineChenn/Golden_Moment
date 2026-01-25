@@ -35,7 +35,136 @@ export class SendGridService {
   }
 
   /**
-   * Generate PDF from HTML using PDFKit
+   * Generate PDF from structured ticket data using PDFKit
+   * Returns Buffer or null if generation fails
+   */
+  async generatePdfFromData(ticketData: {
+    ticketNumber: string;
+    eventName: string;
+    customerName: string;
+    amount: number;
+    purchaseDate: string;
+  }): Promise<Buffer | null> {
+    try {
+      this.logger.log('Generating PDF with PDFKit', SendGridService.name);
+
+      const doc = new PDFDocument({
+        size: 'A4',
+        margin: 40,
+      });
+
+      // Header
+      doc
+        .fontSize(20)
+        .font('Helvetica-Bold')
+        .text('TICKET RECEIPT', { align: 'center' })
+        .fontSize(11)
+        .font('Helvetica')
+        .text('Your booking is confirmed', { align: 'center' })
+        .moveDown(0.5);
+
+      // Orange divider line
+      doc
+        .strokeColor(217, 119, 6)
+        .moveTo(40, doc.y)
+        .lineTo(555, doc.y)
+        .stroke()
+        .moveDown(1);
+
+      // Customer greeting
+      doc
+        .fontSize(11)
+        .font('Helvetica')
+        .fillColor(0, 0, 0)
+        .text(`Thank you, ${ticketData.customerName}!`, { align: 'left' })
+        .moveDown(0.5);
+
+      // Event Section
+      doc
+        .fontSize(11)
+        .font('Helvetica-Bold')
+        .fillColor(184, 83, 9)
+        .text('EVENT DETAILS', { underline: true })
+        .moveDown(0.3);
+
+      doc
+        .fontSize(10)
+        .font('Helvetica')
+        .fillColor(0, 0, 0)
+        .text(`Event: ${ticketData.eventName}`)
+        .text(`Ticket Number: ${ticketData.ticketNumber}`)
+        .text(`Purchase Date: ${ticketData.purchaseDate}`)
+        .moveDown(0.5);
+
+      // Price Section
+      doc
+        .fontSize(10)
+        .font('Helvetica')
+        .text('Total Amount:')
+        .moveDown(0.2)
+        .fontSize(28)
+        .font('Helvetica-Bold')
+        .fillColor(217, 119, 6)
+        .text(`$${ticketData.amount.toFixed(2)}`)
+        .moveDown(0.8);
+
+      // Reset color
+      doc.fillColor(0, 0, 0);
+
+      // Gray divider line
+      doc
+        .strokeColor(229, 231, 235)
+        .moveTo(40, doc.y)
+        .lineTo(555, doc.y)
+        .stroke()
+        .moveDown(1);
+
+      // Important Notice
+      doc
+        .fontSize(10)
+        .font('Helvetica')
+        .fillColor(22, 101, 52)
+        .text(
+          'IMPORTANT: This is your official ticket. Please keep it safe and bring it to the event entrance.',
+          { align: 'left', width: 515 },
+        )
+        .moveDown(1);
+
+      // Footer
+      doc
+        .fillColor(107, 114, 128)
+        .fontSize(9)
+        .font('Helvetica')
+        .text('Golden Moment Events', { align: 'center' })
+        .text('Thank you for your purchase!', { align: 'center' })
+        .moveDown(0.3)
+        .fontSize(8)
+        .fillColor(156, 163, 175)
+        .text(`Generated: ${new Date().toLocaleDateString()}`, { align: 'center' });
+
+      // Convert stream to buffer
+      const chunks: Buffer[] = [];
+      return new Promise((resolve, reject) => {
+        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', (err) => {
+          this.logger.error('PDF generation failed', SendGridService.name, {
+            error: err.message,
+          });
+          reject(err);
+        });
+        doc.end();
+      });
+    } catch (error: any) {
+      this.logger.warn('PDF generation error', SendGridService.name, {
+        error: error.message,
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Legacy method - generate PDF from HTML (kept for backwards compatibility)
    * Returns Buffer or null if generation fails
    */
   async generatePdfFromHtml(htmlContent: string): Promise<Buffer | null> {
@@ -48,85 +177,102 @@ export class SendGridService {
       });
 
       // Extract key information from HTML
+
       const ticketMatch = htmlContent.match(/Ticket Number[^<]*<[^>]*>([^<]+)</i);
       const ticketNumber = ticketMatch ? ticketMatch[1].trim() : 'N/A';
 
       const eventMatch = htmlContent.match(/Event[^<]*<[^>]*>([^<]+)</i);
       const eventName = eventMatch ? eventMatch[1].trim() : 'Event';
 
-      const amountMatch = htmlContent.match(/Total\s+Amount[^<]*<[^>]*>([^<]+)</i);
+      const customerMatch = htmlContent.match(/Thank you[,\s]+([^<]+[a-zA-Z])/i);
+      const customerName = customerMatch ? customerMatch[1].trim() : 'Valued Customer';
+
+      const amountMatch = htmlContent.match(/Total\s+(?:Amount|Paid)[^<]*<[^>]*>([^<]+)</i);
       const amount = amountMatch ? amountMatch[1].trim() : '$0.00';
+
+      const dateMatch = htmlContent.match(/Purchase Date[^<]*<[^>]*>([^<]+)</i);
+      const purchaseDate = dateMatch ? dateMatch[1].trim() : new Date().toLocaleDateString();
 
       // Header
       doc
-        .fontSize(24)
+        .fontSize(20)
         .font('Helvetica-Bold')
-        .text('🎟️ Ticket Receipt', { align: 'center' })
-        .fontSize(12)
+        .text('TICKET RECEIPT', { align: 'center' })
+        .fontSize(11)
         .font('Helvetica')
         .text('Your booking is confirmed', { align: 'center' })
         .moveDown(0.5);
 
-      // Divider
+      // Orange divider line
       doc
+        .strokeColor(217, 119, 6)
         .moveTo(40, doc.y)
         .lineTo(555, doc.y)
-        .stroke('#d97706')
+        .stroke()
         .moveDown(1);
 
       // Event Section
       doc
-        .fontSize(12)
+        .fontSize(11)
         .font('Helvetica-Bold')
-        .text('Event Details', { underline: true })
+        .fillColor(184, 83, 9)
+        .text('EVENT DETAILS', { underline: true })
         .moveDown(0.3);
 
       doc
         .fontSize(10)
         .font('Helvetica')
+        .fillColor(0, 0, 0)
         .text(`Event: ${eventName}`, { indent: 10 })
-        .text(`Ticket: ${ticketNumber}`, { indent: 10 })
-        .moveDown(0.3);
+        .text(`Ticket Number: ${ticketNumber}`, { indent: 10 })
+        .text(`Purchase Date: ${purchaseDate}`, { indent: 10 })
+        .moveDown(0.5);
 
       // Price Section
       doc
-        .fontSize(11)
-        .font('Helvetica-Bold')
+        .fontSize(10)
+        .font('Helvetica')
         .text('Total Amount:', { indent: 10 })
-        .fontSize(20)
+        .moveDown(0.2)
+        .fontSize(24)
         .font('Helvetica-Bold')
-        .text(amount, { indent: 20, color: '#d97706' })
-        .moveDown(0.5);
+        .fillColor(217, 119, 6)
+        .text(amount, { indent: 20 })
+        .moveDown(0.8);
 
-      // Divider
+      // Reset color
+      doc.fillColor(0, 0, 0);
+
+      // Gray divider line
       doc
+        .strokeColor(229, 231, 235)
         .moveTo(40, doc.y)
         .lineTo(555, doc.y)
-        .stroke('#e5e7eb')
+        .stroke()
         .moveDown(1);
 
       // Important Notice
       doc
         .fontSize(10)
         .font('Helvetica')
+        .fillColor(22, 101, 52)
         .text(
-          '✓ This is your official ticket. Please keep it safe and bring it to the event entrance.',
-          { align: 'left', color: '#166534' },
+          'IMPORTANT: This is your official ticket. Please keep it safe and bring it to the event entrance.',
+          { align: 'left', width: 515 },
         )
         .moveDown(1);
 
       // Footer
       doc
+        .fillColor(107, 114, 128)
         .fontSize(9)
         .font('Helvetica')
-        .text('Golden Moment Events', { align: 'center', color: '#6b7280' })
-        .text('Thank you for your purchase!', { align: 'center', color: '#6b7280' })
-        .moveDown(0.5)
-        .text(`Generated: ${new Date().toLocaleDateString()}`, {
-          align: 'center',
-          color: '#9ca3af',
-          fontSize: 8,
-        });
+        .text('Golden Moment Events', { align: 'center' })
+        .text('Thank you for your purchase!', { align: 'center' })
+        .moveDown(0.3)
+        .fontSize(8)
+        .fillColor(156, 163, 175)
+        .text(`Generated: ${new Date().toLocaleDateString()}`, { align: 'center' });
 
       // Convert stream to buffer
       const chunks: Buffer[] = [];
@@ -325,7 +471,13 @@ export class SendGridService {
       // Generate PDF if requested
       if (options?.attachPdf) {
         try {
-          const pdfBuffer = await this.generatePdfFromHtml(htmlContent);
+          const pdfBuffer = await this.generatePdfFromData({
+            ticketNumber,
+            eventName,
+            customerName,
+            amount: ticketData.totalAmount,
+            purchaseDate: ticketData.purchaseDate,
+          });
           if (pdfBuffer) {
             attachments.push({
               filename: `receipt_${ticketNumber}.pdf`,
