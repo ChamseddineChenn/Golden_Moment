@@ -197,13 +197,12 @@ export default function ProfilePage() {
                 {!editing && (
                   <button
                     onClick={() => setEditing(true)}
-                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2"
+                    className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-medium transition text-sm flex items-center gap-2 cursor-pointer"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                     <span className="hidden sm:inline">Edit Profile</span>
-                    <span className="sm:inline hidden">Edit</span>
                   </button>
                 )}
               </div>
@@ -228,25 +227,25 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="px-6 py-6 sm:px-8 sm:py-8" suppressHydrationWarning>
+            {/* Form - Add key prop to force remount */}
+            <form onSubmit={handleSubmit} className="px-6 py-6 sm:px-8 sm:py-8" key={editing ? 'editing' : 'viewing'}>
               <div className="space-y-6">
                 {/* Email */}
-                <div>
+                <div key="email-field">
                   <label className="block text-sm font-semibold text-stone-900 mb-2">
                     Email Address
                   </label>
                   {editing ? (
                     <input
+                      key="email-input"
                       type="email"
                       name="email"
                       value={formData.email || ''}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
-                      suppressHydrationWarning
+                      className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-stone-900 bg-white"
                     />
                   ) : (
-                    <p className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                    <p key="email-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
                       {profile.email}
                     </p>
                   )}
@@ -263,101 +262,102 @@ export default function ProfilePage() {
                 {/* Organizer Fields */}
                 {isOrganizer && (
                   <>
-                    <div>
+                    <div key="org-name-field">
                       <label className="block text-sm font-semibold text-stone-900 mb-2">
                         Organization Name
                       </label>
                       {editing ? (
                         <input
+                          key="org-name-input"
                           type="text"
                           name="organizationName"
                           value={formData.organizationName || ''}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
-                          suppressHydrationWarning
+                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-stone-900 bg-white"
                         />
                       ) : (
-                        <p className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                        <p key="org-name-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
                           {profile.organizationName || 'Not set'}
                         </p>
                       )}
                     </div>
 
-                    <div>
+                    <div key="phone-field">
                       <label className="block text-sm font-semibold text-stone-900 mb-2">
                         Phone Number
                       </label>
                       {editing ? (
                         <input
+                          key="phone-input"
                           type="tel"
                           name="phone"
                           value={formData.phone || ''}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
-                          suppressHydrationWarning
+                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-stone-900 bg-white"
                         />
                       ) : (
-                        <p className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                        <p key="phone-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
                           {profile.phone || 'Not set'}
                         </p>
                       )}
                     </div>
 
-                    <div>
+                    <div key="address-field">
                       <label className="block text-sm font-semibold text-stone-900 mb-2">
                         Address
                       </label>
                       {editing ? (
                         <input
+                          key="address-input"
                           type="text"
                           name="address"
                           value={formData.address || ''}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
-                          suppressHydrationWarning
+                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-stone-900 bg-white"
                         />
                       ) : (
-                        <p className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                        <p key="address-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
                           {profile.address || 'Not set'}
                         </p>
                       )}
                     </div>
 
-                    <div>
+                    <div key="website-field">
                       <label className="block text-sm font-semibold text-stone-900 mb-2">
                         Website
                       </label>
                       {editing ? (
                         <input
+                          key="website-input"
                           type="url"
                           name="website"
                           value={formData.website || ''}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition text-stone-900 bg-white"
                           placeholder="https://"
-                          suppressHydrationWarning
                         />
                       ) : (
-                        <p className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
+                        <p key="website-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl">
                           {profile.website || 'Not set'}
                         </p>
                       )}
                     </div>
 
-                    <div>
+                    <div key="description-field">
                       <label className="block text-sm font-semibold text-stone-900 mb-2">
                         Description
                       </label>
                       {editing ? (
                         <textarea
+                          key="description-input"
                           name="description"
                           value={formData.description || ''}
                           onChange={handleInputChange}
                           rows={4}
-                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition resize-none"
+                          className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition resize-none text-stone-900 bg-white"
                         />
                       ) : (
-                        <p className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl whitespace-pre-wrap">
+                        <p key="description-display" className="text-stone-700 px-4 py-3 bg-stone-50 rounded-xl whitespace-pre-wrap">
                           {profile.description || 'Not set'}
                         </p>
                       )}
@@ -418,7 +418,7 @@ export default function ProfilePage() {
                   <button
                     type="submit"
                     disabled={isSaving}
-                    className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {isSaving ? (
                       <>
@@ -448,7 +448,7 @@ export default function ProfilePage() {
                         description: profile.description,
                       });
                     }}
-                    className="flex-1 bg-stone-200 text-stone-700 px-6 py-3 rounded-xl font-semibold hover:bg-stone-300 transition"
+                    className="flex-1 cursor-pointer bg-stone-200 text-stone-700 px-6 py-3 rounded-xl font-semibold hover:bg-stone-300 transition"
                   >
                     Cancel
                   </button>

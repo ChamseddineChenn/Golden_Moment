@@ -71,16 +71,17 @@ export default function SeatMap({
   const loadSeatMap = async () => {
     try {
       const response = await seatsAPI.getSeatMap(eventId);
-      setSeatMapData(response.data);
+      const seatData = response.data.data || response.data;
+      setSeatMapData(seatData);
       setLoading(false);
 
       // Log unavailable count
       const unavailableCount =
-        response.data?.seatingLayout?.sections?.reduce(
+        seatData?.seatingLayout?.sections?.reduce(
           (count: number, section: SeatSection) =>
             count +
             section.seats.filter((s) => s.status === 'unavailable').length,
-          0
+          0,
         ) || 0;
       console.log('[SeatMap] Current unavailable seats:', unavailableCount);
     } catch (err) {
@@ -95,15 +96,15 @@ export default function SeatMap({
     if (seat.status !== 'available') return; // Can't select unavailable seats
 
     const isSelected = selectedSeats.some(
-      (s) => s.sectionId === sectionId && s.seatId === seat.seatId
+      (s) => s.sectionId === sectionId && s.seatId === seat.seatId,
     );
 
     if (isSelected) {
       // Deselect
       setSelectedSeats(
         selectedSeats.filter(
-          (s) => !(s.sectionId === sectionId && s.seatId === seat.seatId)
-        )
+          (s) => !(s.sectionId === sectionId && s.seatId === seat.seatId),
+        ),
       );
       console.log('[SeatMap] Deselected seat:', seat.seatId);
     } else {
@@ -128,14 +129,14 @@ export default function SeatMap({
         '[SeatMap] Selected seat:',
         seat.seatId,
         'Total selected:',
-        selectedSeats.length + 1
+        selectedSeats.length + 1,
       );
     }
   };
 
   const isSeatSelected = (sectionId: string, seatId: string) => {
     return selectedSeats.some(
-      (s) => s.sectionId === sectionId && s.seatId === seatId
+      (s) => s.sectionId === sectionId && s.seatId === seatId,
     );
   };
 
@@ -155,7 +156,7 @@ export default function SeatMap({
     );
   }
 
-  if (!seatMapData.seatingLayout.enabled) {
+  if (!seatMapData.seatingLayout || !seatMapData.seatingLayout.enabled) {
     return (
       <div className="text-center py-20">
         <p className="text-stone-600">
@@ -241,7 +242,7 @@ export default function SeatMap({
 
                       {columns.map((col) => {
                         const seat = section.seats.find(
-                          (s) => s.row === row && s.column === col
+                          (s) => s.row === row && s.column === col,
                         );
 
                         if (!seat) {
@@ -252,7 +253,7 @@ export default function SeatMap({
 
                         const isSelected = isSeatSelected(
                           section.id,
-                          seat.seatId
+                          seat.seatId,
                         );
                         const price =
                           seatMapData.event.basePrice +

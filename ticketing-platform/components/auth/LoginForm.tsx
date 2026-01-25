@@ -231,7 +231,7 @@ export function LoginForm() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 text-white px-6 py-3 sm:py-3.5 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
+                  className="w-full cursor-pointer bg-gradient-to-r from-amber-500 to-amber-600 text-white px-6 py-3 sm:py-3.5 rounded-xl font-semibold hover:from-amber-600 hover:to-amber-700 transition shadow-lg shadow-amber-500/25 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
                 >
                   {isLoading ? (
                     <>

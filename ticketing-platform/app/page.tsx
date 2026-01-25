@@ -1,9 +1,15 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { eventsAPI } from "@/lib/api";
-import Link from "next/link";
-import { Header } from "@/components/layout/Header";
+import { useState, useEffect } from 'react';
+import { eventsAPI } from '@/lib/api';
+import { applyFilters, getAvailableTicketTypes } from '@/lib/eventFilters';
+import { EventFilters, FilterState } from '@/components/EventFilters';
+import Link from 'next/link';
+import { Header } from '@/components/layout/Header';
+import { Hero } from '@/components/layout/Hero';
+import { StatsBar } from '@/components/layout/StatsBar';
+import { Footer } from '@/components/layout/Footer';
+import { FAQ } from '@/components/layout/FAQ';
 
 interface Event {
   _id: string;
@@ -33,17 +39,54 @@ function EventCard({ event }: { event: Event }) {
   const isAlmostSoldOut = soldPercentage >= 80;
   const isExpired = eventDate < new Date();
   const isSoldOut = ticketsAvailable <= 0 && totalSeats > 0;
+  const getTicketTypesWithPrices = () => {
+    if (!event.ticketTypes) return [];
 
-  // Get the pricing display text
-  const getPricingText = () => {
-    if (!event.ticketTypes) return null;
+    const types: Array<{
+      name: string;
+      price: number | string;
+      enabled: boolean;
+    }> = [];
 
-    // Check if Free ticket is available
     if (event.ticketTypes.Free?.enabled) {
-      return "Free";
+      types.push({ name: 'Free', price: 'Free', enabled: true });
+    }
+    if (event.ticketTypes.EarlyBird?.enabled) {
+      types.push({
+        name: 'EarlyBird',
+        price: event.ticketTypes.EarlyBird.price ?? 0,
+        enabled: true,
+      });
+    }
+    if (event.ticketTypes.Standard?.enabled) {
+      types.push({
+        name: 'Standard',
+        price: event.ticketTypes.Standard.price ?? 0,
+        enabled: true,
+      });
+    }
+    if (event.ticketTypes.VIP?.enabled) {
+      types.push({
+        name: 'VIP',
+        price: event.ticketTypes.VIP.price ?? 0,
+        enabled: true,
+      });
     }
 
-    // Get minimum price from enabled paid ticket types
+    return types.sort((a, b) => {
+      const aPrice = typeof a.price === 'string' ? 0 : a.price;
+      const bPrice = typeof b.price === 'string' ? 0 : b.price;
+      return aPrice - bPrice;
+    });
+  };
+
+  const allTicketTypes = getTicketTypesWithPrices();
+
+  const getPricingText = () => {
+    if (!event.ticketTypes) return null;
+    if (event.ticketTypes.Free?.enabled) {
+      return 'Free';
+    }
     const enabledPaidTypes = [
       event.ticketTypes.Standard,
       event.ticketTypes.EarlyBird,
@@ -53,10 +96,103 @@ function EventCard({ event }: { event: Event }) {
     if (enabledPaidTypes.length === 0) return null;
 
     const minPrice = Math.min(...enabledPaidTypes.map((t) => t!.price || 0));
-    return minPrice === 0 ? "Free" : `Starting from $${minPrice.toFixed(2)}`;
+    return minPrice === 0 ? 'Free' : `Starting from $${minPrice.toFixed(2)}`;
   };
 
   const pricingText = getPricingText();
+
+  if (isExpired) {
+    return (
+      <div className="group bg-white rounded-2xl overflow-hidden border border-stone-200 opacity-60 cursor-not-allowed">
+        {/* Event Image */}
+        <div className="relative h-48 bg-gradient-to-br from-stone-800 to-stone-900 overflow-hidden">
+          {event.coverImage && (
+            <img
+              src={event.coverImage}
+              alt={event.name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+          <div className="absolute top-4 left-4 bg-white rounded-xl p-3 text-center shadow-lg">
+            <p className="text-xs font-bold text-amber-600 uppercase">
+              {eventDate.toLocaleString('en-US', { month: 'short' })}
+            </p>
+            <p className="text-2xl font-bold text-stone-900 -mt-1">
+              {eventDate.getDate()}
+            </p>
+          </div>
+
+          <div className="absolute top-4 right-4 bg-stone-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
+            Expired
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-4">
+          <h3 className="text-lg font-semibold text-stone-900 mb-2">
+            {event.name}
+          </h3>
+          <p className="text-sm text-stone-600 mb-4 line-clamp-2">
+            {event.description}
+          </p>
+
+          <div className="space-y-3 mb-6">
+            <div className="flex items-center gap-3 text-sm text-stone-700">
+              <svg
+                className="w-4 h-4 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              <span className="truncate">{event.venue}</span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-stone-700">
+              <svg
+                className="w-4 h-4 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span>
+                {eventDate.toLocaleString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            </div>
+          </div>
+
+          {/* Pricing Info */}
+          <div className="pt-4 border-t border-stone-100">
+            <p className="text-sm text-stone-500">
+              {pricingText ? `${pricingText}` : 'Price TBA'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // If sold out, render as div instead of Link to prevent navigation
   if (isSoldOut) {
@@ -76,7 +212,7 @@ function EventCard({ event }: { event: Event }) {
           {/* Date Badge */}
           <div className="absolute top-4 left-4 bg-white rounded-xl p-3 text-center shadow-lg">
             <p className="text-xs font-bold text-amber-600 uppercase">
-              {eventDate.toLocaleString("en-US", { month: "short" })}
+              {eventDate.toLocaleString('en-US', { month: 'short' })}
             </p>
             <p className="text-2xl font-bold text-stone-900 -mt-1">
               {eventDate.getDate()}
@@ -100,10 +236,24 @@ function EventCard({ event }: { event: Event }) {
             </div>
           )}
 
-          {/* Price Badge */}
+          {/* Price Badge - Main Price with All Options */}
           {pricingText && (
-            <div className="absolute bottom-4 right-4 bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
-              {pricingText}
+            <div className="absolute bottom-4 right-4 flex flex-col-reverse items-end gap-1">
+              <div className="bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
+                {pricingText}
+              </div>
+              {allTicketTypes.length > 1 && (
+                <div className="text-xs text-white font-medium space-y-0.5">
+                  {allTicketTypes.slice(1).map((type) => (
+                    <div key={type.name} className="text-right opacity-90">
+                      {type.name}:{' '}
+                      {typeof type.price === 'string'
+                        ? type.price
+                        : `$${type.price.toFixed(2)}`}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -159,9 +309,9 @@ function EventCard({ event }: { event: Event }) {
                 />
               </svg>
               <span>
-                {eventDate.toLocaleString("en-US", {
-                  hour: "2-digit",
-                  minute: "2-digit",
+                {eventDate.toLocaleString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
                 })}
               </span>
             </div>
@@ -209,7 +359,7 @@ function EventCard({ event }: { event: Event }) {
         {/* Date Badge */}
         <div className="absolute top-4 left-4 bg-white rounded-xl p-3 text-center shadow-lg">
           <p className="text-xs font-bold text-amber-600 uppercase">
-            {eventDate.toLocaleString("en-US", { month: "short" })}
+            {eventDate.toLocaleString('en-US', { month: 'short' })}
           </p>
           <p className="text-2xl font-bold text-stone-900 -mt-1">
             {eventDate.getDate()}
@@ -233,10 +383,24 @@ function EventCard({ event }: { event: Event }) {
           </div>
         )}
 
-        {/* Price Badge */}
+        {/* Price Badge - Main Price with All Options */}
         {pricingText && (
-          <div className="absolute bottom-4 right-4 bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
-            {pricingText}
+          <div className="absolute bottom-4 right-4 flex flex-col-reverse items-end gap-1">
+            <div className="bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
+              {pricingText}
+            </div>
+            {allTicketTypes.length > 1 && (
+              <div className="text-xs text-white font-medium space-y-0.5">
+                {allTicketTypes.slice(1).map((type) => (
+                  <div key={type.name} className="text-right opacity-90">
+                    {type.name}:{' '}
+                    {typeof type.price === 'string'
+                      ? type.price
+                      : `$${type.price.toFixed(2)}`}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -292,9 +456,9 @@ function EventCard({ event }: { event: Event }) {
               />
             </svg>
             <span>
-              {eventDate.toLocaleString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
+              {eventDate.toLocaleString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
               })}
             </span>
           </div>
@@ -305,28 +469,26 @@ function EventCard({ event }: { event: Event }) {
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm text-stone-500">Availability</span>
             <span
-              className={`text-sm font-semibold ${
-                isExpired
-                  ? "text-stone-400"
-                  : ticketsAvailable === 0
-                    ? "text-stone-400"
-                    : ticketsAvailable < 20
-                      ? "text-red-600"
-                      : "text-green-600"
-              }`}
+              className={`text-sm font-semibold ${isExpired
+                ? 'text-stone-400'
+                : ticketsAvailable === 0
+                  ? 'text-stone-400'
+                  : ticketsAvailable < 20
+                    ? 'text-red-600'
+                    : 'text-green-600'
+                }`}
             >
               {ticketsAvailable} / {event.totalSeats} seats
             </span>
           </div>
           <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-500 ${
-                soldPercentage < 50
-                  ? "bg-green-500"
-                  : soldPercentage < 80
-                    ? "bg-amber-500"
-                    : "bg-red-500"
-              }`}
+              className={`h-full transition-all duration-500 ${soldPercentage < 50
+                ? 'bg-green-500'
+                : soldPercentage < 80
+                  ? 'bg-amber-500'
+                  : 'bg-red-500'
+                }`}
               style={{ width: `${soldPercentage}%` }}
             ></div>
           </div>
@@ -334,18 +496,17 @@ function EventCard({ event }: { event: Event }) {
 
         {/* CTA */}
         <button
-          className={`w-full mt-6 py-3 rounded-xl font-semibold transition ${
-            isExpired || ticketsAvailable === 0
-              ? "bg-stone-100 text-stone-400 cursor-not-allowed"
-              : "bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20"
-          }`}
+          className={`w-full mt-6 py-3 rounded-xl font-semibold transition cursor-pointer ${isExpired || ticketsAvailable === 0
+            ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+            : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20'
+            }`}
           disabled={isExpired || ticketsAvailable === 0}
         >
           {isExpired
-            ? "Event Expired"
+            ? 'Event Expired'
             : ticketsAvailable === 0
-              ? "Sold Out"
-              : "Get Tickets →"}
+              ? 'Sold Out'
+              : 'Get Tickets →'}
         </button>
       </div>
     </Link>
@@ -356,6 +517,14 @@ export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<FilterState>({
+    searchQuery: '',
+    selectedDate: '',
+    selectedTicketTypes: [],
+    priceFilterType: 'all',
+    minPrice: '',
+    maxPrice: '',
+  });
 
   // Filter out expired events (events where the date has passed)
   const upcomingEvents = events.filter((e) => {
@@ -364,13 +533,19 @@ export default function HomePage() {
     return eventDate.getTime() > now.getTime();
   });
 
+  // Apply filters to upcoming events
+  const filteredUpcomingEvents = applyFilters(upcomingEvents, filters);
+  const availableTicketTypes = getAvailableTicketTypes(upcomingEvents);
+
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         const response = await eventsAPI.getAll();
-        setEvents(response.data);
+        // Extract data from standardized response format { success, statusCode, data, timestamp }
+        const eventsData = response.data.data || response.data;
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
       } catch (err) {
-        setError("Failed to load events");
+        setError('Failed to load events');
         console.error(err);
       } finally {
         setLoading(false);
@@ -387,73 +562,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Use the new Header component */}
       <Header />
-
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900"></div>
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50"></div>
-
-        <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-24 lg:py-32">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-2 rounded-full text-sm font-medium mb-8 border border-amber-500/20">
-              <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-              Premium Event Experiences in Tunisia
-            </div>
-
-            <h2 className="text-4xl md:text-6xl font-bold text-white leading-tight mb-6">
-              Create Memories That Last a{" "}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-500">
-                Lifetime
-              </span>
-            </h2>
-
-            <p className="text-xl text-stone-300 mb-10 leading-relaxed max-w-2xl">
-              Discover and book exclusive tickets to the most extraordinary
-              events. From concerts to conferences, your next unforgettable
-              experience awaits.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              <a
-                href="#events"
-                className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-amber-600 hover:to-amber-700 transition shadow-xl shadow-amber-500/25 text-center"
-              >
-                Explore Events
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* Decorative Elements */}
-        <div className="absolute top-20 right-10 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-10 left-10 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl"></div>
-      </section>
-
-      {/* Stats Bar */}
-      <section className="bg-white border-b border-stone-200">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-stone-900">500+</p>
-              <p className="text-stone-600 text-sm mt-1">Events Hosted</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-stone-900">50K+</p>
-              <p className="text-stone-600 text-sm mt-1">Happy Customers</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-stone-900">99%</p>
-              <p className="text-stone-600 text-sm mt-1">Satisfaction Rate</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-stone-900">24/7</p>
-              <p className="text-stone-600 text-sm mt-1">Support Available</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <Hero />
+      <StatsBar />
 
       {/* Events Section */}
       <section id="events" className="max-w-7xl mx-auto px-6 lg:px-8 py-20">
@@ -466,25 +577,20 @@ export default function HomePage() {
               Discover extraordinary experiences waiting for you
             </p>
           </div>
-          <div className="flex gap-2">
-            <button className="px-4 py-2 bg-stone-900 text-white rounded-lg font-medium text-sm">
-              All Events
-            </button>
-            <button className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium text-sm hover:bg-stone-200 transition">
-              This Week
-            </button>
-            <button className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg font-medium text-sm hover:bg-stone-200 transition">
-              This Month
-            </button>
-          </div>
         </div>
+
+        {/* Event Filters */}
+        <EventFilters
+          onFilterChange={setFilters}
+          ticketTypesAvailable={availableTicketTypes}
+        />
 
         {loading ? (
           <div className="text-center py-20">
             <div className="inline-block w-12 h-12 border-4 border-stone-200 border-t-amber-500 rounded-full animate-spin"></div>
             <p className="text-stone-600 mt-4">Loading events...</p>
           </div>
-        ) : upcomingEvents.length === 0 ? (
+        ) : filteredUpcomingEvents.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-stone-200">
             <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
@@ -502,18 +608,28 @@ export default function HomePage() {
               </svg>
             </div>
             <p className="text-xl font-semibold text-stone-900">
-              No events available
+              {upcomingEvents.length === 0
+                ? 'No events available'
+                : 'No events match your filters'}
             </p>
             <p className="text-stone-500 mt-2">
-              Check back soon for exciting upcoming events!
+              {upcomingEvents.length === 0
+                ? 'Check back soon for exciting upcoming events!'
+                : 'Try adjusting your filters to see more events.'}
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {upcomingEvents.map((event) => (
-              <EventCard key={event._id} event={event} />
-            ))}
-          </div>
+          <>
+            <div className="mb-4 text-sm text-stone-600">
+              Showing {filteredUpcomingEvents.length} of {upcomingEvents.length}{' '}
+              events
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {filteredUpcomingEvents.map((event) => (
+                <EventCard key={event._id} event={event} />
+              ))}
+            </div>
+          </>
         )}
       </section>
 
@@ -542,7 +658,7 @@ export default function HomePage() {
               {events
                 .filter(
                   (e) =>
-                    e.category === "Movies" ||
+                    e.category === 'Movies' ||
                     (e.category === undefined &&
                       events.filter((x) => x.category).length === 0),
                 )
@@ -573,7 +689,7 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {events
-                .filter((e) => e.category === "Theatre")
+                .filter((e) => e.category === 'Theatre')
                 .slice(0, 3)
                 .map((event) => (
                   <EventCard key={event._id} event={event} />
@@ -601,7 +717,7 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {events
-                .filter((e) => e.category === "Concert")
+                .filter((e) => e.category === 'Concert')
                 .slice(0, 3)
                 .map((event) => (
                   <EventCard key={event._id} event={event} />
@@ -629,7 +745,7 @@ export default function HomePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {events
-                .filter((e) => e.category === "Sahra")
+                .filter((e) => e.category === 'Sahra')
                 .slice(0, 3)
                 .map((event) => (
                   <EventCard key={event._id} event={event} />
@@ -638,116 +754,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Q&A Section */}
-      <section className="bg-white border-y border-stone-200 mt-20">
-        <div className="max-w-3xl mx-auto px-6 lg:px-8 py-20">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-stone-900">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-stone-600 mt-3 text-lg">
-              Everything you need to know about booking events
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            {/* FAQ items remain the same... */}
-            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
-              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
-                <span className="text-lg font-semibold text-stone-900">
-                  How do I book tickets?
-                </span>
-                <svg
-                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                  />
-                </svg>
-              </summary>
-              <div className="px-6 py-4 text-stone-600">
-                <p>
-                  Browse through our event listings, select your preferred
-                  event, choose your seats, and complete the checkout process.
-                  You&apos;ll receive your e-ticket instantly via email.
-                </p>
-              </div>
-            </details>
-            {/* Add remaining FAQ items... */}
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-stone-900 text-white">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center">
-                  <span className="text-white text-lg font-bold">G</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold">Golden Moment</h3>
-                  <p className="text-xs text-stone-400">Events & Experiences</p>
-                </div>
-              </div>
-              <p className="text-stone-400 max-w-md">
-                Your premier destination for booking tickets to the most
-                exclusive events in Tunisia. Creating unforgettable moments, one
-                ticket at a time.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-bold text-lg mb-4">Quick Links</h4>
-              <ul className="space-y-3 text-stone-400">
-                <li>
-                  <Link href="/" className="hover:text-amber-400 transition">
-                    Events
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/about"
-                    className="hover:text-amber-400 transition"
-                  >
-                    About Us
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/contact"
-                    className="hover:text-amber-400 transition"
-                  >
-                    Contact
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-bold text-lg mb-4">Contact</h4>
-              <ul className="space-y-3 text-stone-400">
-                <li>support@goldenmoment.tn</li>
-                <li>+216 71 000 000</li>
-                <li>Tunis, Tunisia</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-stone-800 mt-12 pt-8 text-center text-stone-500 text-sm">
-            <p>© 2026 Golden Moment Events. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <FAQ />
+      <Footer />
     </div>
   );
 }

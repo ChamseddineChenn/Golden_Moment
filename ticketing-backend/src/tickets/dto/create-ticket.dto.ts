@@ -5,6 +5,7 @@ export class CreateTicketDto {
   seats: Array<{ sectionId?: string; seatId: string }>;
   buyerEmail?: string;
   buyerName?: string;
+  buyerPhoneNumber?: string;
   ticketType?: 'Free' | 'Standard' | 'EarlyBird' | 'VIP';
   metadata?: Record<string, any>;
 }

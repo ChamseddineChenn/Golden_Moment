@@ -17,10 +17,15 @@ interface Event {
   soldTickets: number;
   totalSeats?: number;
   ticketTypes?: {
-    Free: { enabled: boolean; price?: number };
-    Standard: { enabled: boolean; price?: number };
-    EarlyBird: { enabled: boolean; price?: number; limit?: number };
-    VIP: { enabled: boolean; price?: number };
+    Free: { enabled: boolean; price?: number; description?: string };
+    Standard: { enabled: boolean; price?: number; description?: string };
+    EarlyBird: {
+      enabled: boolean;
+      price?: number;
+      limit?: number;
+      description?: string;
+    };
+    VIP: { enabled: boolean; price?: number; description?: string };
   };
   earlyBirdCount?: number;
   category?: string;
@@ -58,6 +63,7 @@ export default function EventDetailPage() {
   const [formData, setFormData] = useState({
     buyerName: '',
     buyerEmail: '',
+    buyerPhoneNumber: '',
     selectedTicketType: 'Free',
   });
 
@@ -72,6 +78,7 @@ export default function EventDetailPage() {
       enabled: boolean;
       price: number;
       limit?: number;
+      description?: string;
     }> = [];
     for (const [type, config] of Object.entries(event.ticketTypes)) {
       if (config.enabled) {
@@ -80,6 +87,7 @@ export default function EventDetailPage() {
           enabled: true,
           price: config.price || 0,
           limit: type === 'EarlyBird' ? (config as any).limit : undefined,
+          description: (config as any).description,
         });
       }
     }
@@ -104,7 +112,11 @@ export default function EventDetailPage() {
     const fetchEvent = async () => {
       try {
         const response = await eventsAPI.getById(eventId);
-        setEvent(response.data);
+
+        // Extract data from standardized response format { success, statusCode, data, timestamp }
+        const eventData = response.data.data || response.data;
+
+        setEvent(eventData);
       } catch (err) {
         setError('Failed to load event details');
         console.error(err);
@@ -121,8 +133,8 @@ export default function EventDetailPage() {
     // Users can navigate away without unreserving - seats remain available for others
   }, [eventId]);
 
-  // Update selected ticket type when event loads to use first available type
   useEffect(() => {
+    // Update selected ticket type when event loads to use first available type
     if (event) {
       const availableTypes = getAvailableTicketTypes();
       if (availableTypes.length > 0) {
@@ -156,11 +168,18 @@ export default function EventDetailPage() {
       setSubmitting(true);
       setError(null);
 
+      // Validate required fields
+      if (!formData.buyerEmail || !formData.buyerName) {
+        setError('Please provide your name and email address');
+        setSubmitting(false);
+        return;
+      }
+
       // Validate selected ticket type is available
       const availableTypes = getAvailableTicketTypes();
       if (!availableTypes.find((t) => t.type === formData.selectedTicketType)) {
         setError(
-          `Ticket type "${formData.selectedTicketType}" is not available for this event`
+          `Ticket type "${formData.selectedTicketType}" is not available for this event`,
         );
         setSubmitting(false);
         return;
@@ -173,83 +192,57 @@ export default function EventDetailPage() {
         return;
       }
 
-      // If visual seating is enabled, atomically finalize the selected seats at purchase time
+      // Get ticket IDs (seat IDs or auto-assigned)
+      let ticketIds: any[] = [];
       if (event.seatingLayout?.enabled && selectedSeats.length > 0) {
-        console.log(
-          '[EventDetail] Finalizing purchase for seats:',
-          selectedSeats.map((s) => s.seatId)
-        );
+        // Pass full seat objects with sectionId and seatId for locking seats
+        ticketIds = selectedSeats.map((s) => ({
+          sectionId: s.sectionId,
+          seatId: s.seatId,
+        }));
 
-        // Call the atomic finalizePurchase endpoint
-        // This will lock seats and prevent double-booking
-        const purchaseData = {
-          eventId: event._id,
-          seats: selectedSeats.map((seat) => ({
-            sectionId: seat.sectionId,
-            seatId: seat.seatId,
-          })),
-          buyerName: formData.buyerName,
-          buyerEmail: formData.buyerEmail,
-          ticketType: formData.selectedTicketType,
-        };
-
-        const response = await seatsAPI.finalizePurchase(purchaseData);
-        const ticket: Ticket = response.data;
-
-        console.log(
-          '[EventDetail] Purchase finalized successfully:',
-          ticket._id
-        );
-        router.push(`/receipt/${ticket._id}`);
+        // RESERVE SEATS TEMPORARILY (5 minutes)
+        try {
+          await seatsAPI.reserveSeats(event._id, ticketIds);
+          console.log('[EventDetail] Seats reserved successfully');
+        } catch (reserveError) {
+          console.error('[EventDetail] Failed to reserve seats:', reserveError);
+          setError(
+            reserveError instanceof Error
+              ? reserveError.message
+              : 'Failed to reserve seats. Some seats may have been taken. Please try again.',
+          );
+          setSubmitting(false);
+          return;
+        }
       } else {
-        // No visual seating or no seats selected - auto-assign seats
-        const ticketData = {
-          eventId: event._id,
-          seats: [],
-          buyerName: formData.buyerName,
-          buyerEmail: formData.buyerEmail,
-          ticketType: formData.selectedTicketType,
-        };
-
-        const response = await ticketsAPI.create(ticketData);
-        const ticket: Ticket = response.data;
-
-        router.push(`/receipt/${ticket._id}`);
-      }
-    } catch (err: any) {
-      // Extract error message from various possible locations
-      let errorMessage = 'Failed to purchase ticket. Please try again.';
-
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
-      } else if (typeof err.response?.data === 'string') {
-        errorMessage = err.response.data;
-      } else if (err.message) {
-        errorMessage = err.message;
+        // For non-seating events, generate a placeholder ticket ID
+        ticketIds = ['auto-assigned'];
       }
 
-      // Handle specific error cases
-      if (err.response?.status === 409 || errorMessage.includes('just sold')) {
-        setError(
-          'One or more seats were just purchased by another user. Please select different seats and try again.'
-        );
-        // Reload the seat map to show current availability
-        window.location.reload();
-      } else if (err.response?.status === 400) {
-        setError(errorMessage || 'Invalid seat selection. Please try again.');
-      } else if (
-        errorMessage.includes('not available') ||
-        errorMessage.includes('Early Bird')
-      ) {
-        // Ticket type validation errors
-        setError(errorMessage);
-      } else {
-        setError(errorMessage);
-      }
-      console.error('[EventDetail] Purchase failed:', err);
-    } finally {
+      // Calculate total amount
+      const pricePerTicket = getTicketTypePrice();
+      const totalAmount = (selectedSeats.length || 1) * pricePerTicket;
+
+      // Build checkout URL with parameters
+      const checkoutParams = new URLSearchParams({
+        eventId: event._id,
+        eventName: event.name,
+        ticketIds: JSON.stringify(ticketIds),
+        totalAmount: totalAmount.toString(),
+        buyerEmail: formData.buyerEmail,
+        buyerName: formData.buyerName,
+        buyerPhoneNumber: formData.buyerPhoneNumber,
+        ticketType: formData.selectedTicketType,
+      });
+
+      // Redirect to checkout page
+      router.push(`/checkout?${checkoutParams.toString()}`);
+    } catch (err) {
+      console.error('[EventDetail] Checkout redirect failed:', err);
+      setError(
+        err instanceof Error ? err.message : 'Failed to proceed to checkout',
+      );
       setSubmitting(false);
     }
   };
@@ -402,7 +395,93 @@ export default function EventDetailPage() {
     );
   }
 
+  // Check if event is expired
   const eventDate = new Date(event.date);
+  const isExpired = eventDate < new Date();
+
+  if (isExpired) {
+    return (
+      <div className="min-h-screen bg-stone-50">
+        <header className="bg-white border-b border-stone-200">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <Link
+              href="/"
+              className="text-amber-600 hover:text-amber-700 font-medium flex items-center gap-2"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Back to Events
+            </Link>
+          </div>
+        </header>
+        <div className="max-w-7xl mx-auto px-6 py-16">
+          <div className="max-w-lg mx-auto text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg
+                className="w-8 h-8 text-red-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </div>
+            <h1 className="text-3xl font-bold text-stone-900 mb-3">
+              Event Expired
+            </h1>
+            <p className="text-stone-600 mb-4 text-lg">
+              This event has already taken place.
+            </p>
+            <p className="text-stone-500 mb-8">
+              &quot;{event.name}&quot; was scheduled for{' '}
+              {eventDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}{' '}
+              and is no longer available for ticket purchases.
+            </p>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-lg font-semibold transition"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Back to Browse Events
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -686,6 +765,98 @@ export default function EventDetailPage() {
                 {/* Visual Seat Selection */}
                 {event.seatingLayout?.enabled ? (
                   <div className="space-y-6">
+                    {/* Ticket Type Selection - BEFORE Seat Map */}
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                        Select Ticket Type
+                      </label>
+                      {getAvailableTicketTypes().length > 1 ? (
+                        <div className="space-y-3">
+                          {getAvailableTicketTypes().map((ticketType) => {
+                            const isEarlyBirdAndSoldOut =
+                              ticketType.type === 'EarlyBird' &&
+                              isEarlyBirdSoldOut();
+                            return (
+                              <label
+                                key={ticketType.type}
+                                className={`flex items-center gap-3 p-3 border rounded-xl transition ${
+                                  isEarlyBirdAndSoldOut
+                                    ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
+                                    : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="ticketType"
+                                  value={ticketType.type}
+                                  checked={
+                                    formData.selectedTicketType ===
+                                    ticketType.type
+                                  }
+                                  onChange={(e) =>
+                                    setFormData({
+                                      ...formData,
+                                      selectedTicketType: e.target.value,
+                                    })
+                                  }
+                                  disabled={isEarlyBirdAndSoldOut}
+                                  className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer disabled:cursor-not-allowed"
+                                />
+                                <div className="flex-1">
+                                  <p className="font-semibold text-stone-900">
+                                    {ticketType.type}
+                                  </p>
+                                  <p className="text-sm text-stone-600">
+                                    {ticketType.price === 0
+                                      ? 'Free'
+                                      : `$${ticketType.price.toFixed(2)}`}
+                                  </p>
+                                  {ticketType.description && (
+                                    <p className="text-xs text-stone-500 mt-1">
+                                      {ticketType.description}
+                                    </p>
+                                  )}
+                                  {ticketType.type === 'EarlyBird' &&
+                                    ticketType.limit && (
+                                      <p
+                                        className={`text-xs ${
+                                          isEarlyBirdAndSoldOut
+                                            ? 'text-red-700'
+                                            : 'text-amber-700'
+                                        }`}
+                                      >
+                                        {event?.earlyBirdCount || 0}/
+                                        {ticketType.limit}{' '}
+                                        {isEarlyBirdAndSoldOut
+                                          ? 'sold out'
+                                          : 'sold'}
+                                      </p>
+                                    )}
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
+                          <p className="font-semibold text-stone-900">
+                            {getAvailableTicketTypes()[0]?.type}
+                          </p>
+                          <p className="text-sm text-stone-600">
+                            {getTicketTypePrice() === 0
+                              ? 'Free'
+                              : `$${getTicketTypePrice().toFixed(2)}`}
+                          </p>
+                          {getAvailableTicketTypes()[0]?.description && (
+                            <p className="text-xs text-stone-500 mt-1">
+                              {getAvailableTicketTypes()[0].description}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Seat Map */}
                     <SeatMap
                       eventId={eventId}
                       selectedTicketType={formData.selectedTicketType}
@@ -702,86 +873,6 @@ export default function EventDetailPage() {
                           Complete Your Booking
                         </h3>
                         <form onSubmit={handleBuyTicket} className="space-y-6">
-                          <div>
-                            <label className="block text-sm font-semibold text-stone-700 mb-2">
-                              Ticket Type
-                            </label>
-                            {getAvailableTicketTypes().length > 1 ? (
-                              <div className="space-y-3">
-                                {getAvailableTicketTypes().map((ticketType) => {
-                                  const isEarlyBirdAndSoldOut =
-                                    ticketType.type === 'EarlyBird' &&
-                                    isEarlyBirdSoldOut();
-                                  return (
-                                    <label
-                                      key={ticketType.type}
-                                      className={`flex items-center gap-3 p-3 border rounded-xl transition ${
-                                        isEarlyBirdAndSoldOut
-                                          ? 'border-stone-200 bg-stone-100 cursor-not-allowed opacity-60'
-                                          : 'border-stone-200 cursor-pointer hover:border-amber-500 hover:bg-amber-50'
-                                      }`}
-                                    >
-                                      <input
-                                        type="radio"
-                                        name="ticketType"
-                                        value={ticketType.type}
-                                        checked={
-                                          formData.selectedTicketType ===
-                                          ticketType.type
-                                        }
-                                        onChange={(e) =>
-                                          setFormData({
-                                            ...formData,
-                                            selectedTicketType: e.target.value,
-                                          })
-                                        }
-                                        disabled={isEarlyBirdAndSoldOut}
-                                        className="w-4 h-4 rounded border-stone-300 text-amber-600 cursor-pointer cursor-pointer"
-                                      />
-                                      <div className="flex-1">
-                                        <p className="font-semibold text-stone-900">
-                                          {ticketType.type}
-                                        </p>
-                                        <p className="text-sm text-stone-600">
-                                          {ticketType.price === 0
-                                            ? 'Free'
-                                            : `$${ticketType.price.toFixed(2)}`}
-                                        </p>
-                                        {ticketType.type === 'EarlyBird' &&
-                                          ticketType.limit && (
-                                            <p
-                                              className={`text-xs ${
-                                                isEarlyBirdAndSoldOut
-                                                  ? 'text-red-700'
-                                                  : 'text-amber-700'
-                                              }`}
-                                            >
-                                              {event?.earlyBirdCount || 0}/
-                                              {ticketType.limit}{' '}
-                                              {isEarlyBirdAndSoldOut
-                                                ? 'sold out'
-                                                : 'sold'}
-                                            </p>
-                                          )}
-                                      </div>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="p-3 border border-stone-200 rounded-xl bg-stone-50">
-                                <p className="font-semibold text-stone-900">
-                                  {getAvailableTicketTypes()[0]?.type}
-                                </p>
-                                <p className="text-sm text-stone-600">
-                                  {getTicketTypePrice() === 0
-                                    ? 'Free'
-                                    : `$${getTicketTypePrice().toFixed(2)}`}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
                           <div>
                             <label className="block text-sm font-semibold text-stone-700 mb-2">
                               Full Name
@@ -820,6 +911,28 @@ export default function EventDetailPage() {
                             />
                             <p className="text-xs text-stone-500 mt-2">
                               Your e-ticket will be sent to this address
+                            </p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-semibold text-stone-700 mb-2">
+                              Phone Number
+                            </label>
+                            <input
+                              type="tel"
+                              placeholder="+1 (555) 123-4567"
+                              value={formData.buyerPhoneNumber}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  buyerPhoneNumber: e.target.value,
+                                })
+                              }
+                              className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                              required
+                            />
+                            <p className="text-xs text-stone-500 mt-2">
+                              Required for event entry and communication
                             </p>
                           </div>
 
@@ -934,6 +1047,11 @@ export default function EventDetailPage() {
                                   <p className="text-sm text-stone-600">
                                     ${ticketType.price.toFixed(2)}
                                   </p>
+                                  {ticketType.description && (
+                                    <p className="text-xs text-stone-500 mt-1">
+                                      {ticketType.description}
+                                    </p>
+                                  )}
                                   {ticketType.type === 'EarlyBird' &&
                                     ticketType.limit && (
                                       <p
@@ -1005,6 +1123,28 @@ export default function EventDetailPage() {
                       />
                       <p className="text-xs text-stone-500 mt-2">
                         Your e-ticket will be sent to this address
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                        Phone Number
+                      </label>
+                      <input
+                        type="tel"
+                        placeholder="+1 (555) 123-4567"
+                        value={formData.buyerPhoneNumber}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            buyerPhoneNumber: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-3 border border-stone-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-stone-900"
+                        required
+                      />
+                      <p className="text-xs text-stone-500 mt-2">
+                        Required for event entry and communication
                       </p>
                     </div>
 

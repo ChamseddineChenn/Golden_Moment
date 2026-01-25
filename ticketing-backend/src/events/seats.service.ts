@@ -4,22 +4,31 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { Event, Seat, SeatSection } from './event.schema';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { AppLogger } from '../common/utils/logger';
 
 @Injectable()
 export class SeatsService {
+  private readonly logger = new AppLogger(SeatsService.name);
+
   constructor(@InjectModel(Event.name) private eventModel: Model<Event>) {}
 
-  // Get seat map for an event - returns current seat statuses
   async getSeatMap(eventId: string) {
+    this.logger.log('Getting seat map', SeatsService.name, { eventId });
+
     const event = await this.eventModel.findById(eventId);
     if (!event) {
+      this.logger.warn('Event not found for seat map', SeatsService.name, {
+        eventId,
+      });
       throw new BadRequestException('Event not found');
     }
 
     if (!event.seatingLayout?.enabled) {
+      this.logger.log('Event has no seating layout', SeatsService.name, {
+        eventId,
+      });
       return {
         event: {
           id: event._id,
@@ -35,22 +44,18 @@ export class SeatsService {
       };
     }
 
-    // Log the seat statuses for debugging
-    const reservingSeats = event.seatingLayout.sections.flatMap((section) =>
-      section.seats
-        .filter((s) => s.status === 'reserving')
-        .map((s) => `${section.id}/${s.seatId}`),
-    );
     const unavailableSeats = event.seatingLayout.sections.flatMap((section) =>
-      section.seats
+      (section.seats && Array.isArray(section.seats) ? section.seats : [])
         .filter((s) => s.status === 'unavailable')
         .map((s) => `${section.id}/${s.seatId}`),
     );
-    console.log(
-      `[SeatsService] getSeatMap: reserving=${reservingSeats.length} [${reservingSeats.join(', ')}], unavailable=${unavailableSeats.length}`,
-    );
 
-    // Return the seating layout with current seat statuses
+    this.logger.log('Returning seat map', SeatsService.name, {
+      eventId,
+      sections: event.seatingLayout.sections.length,
+      unavailable: unavailableSeats.length,
+    });
+
     return {
       event: {
         id: event._id,
@@ -68,7 +73,10 @@ export class SeatsService {
           id: section.id,
           name: section.name,
           priceModifier: section.priceModifier || 0,
-          seats: section.seats.map((seat) => {
+          seats: (section.seats && Array.isArray(section.seats)
+            ? section.seats
+            : []
+          ).map((seat) => {
             const basePrice =
               event.ticketTypes?.Free?.price ||
               event.ticketTypes?.Standard?.price ||
@@ -86,31 +94,53 @@ export class SeatsService {
     };
   }
 
-  // Initialize seats for an event when seating is created
-  async initializeSeats(eventId: string, sections: SeatSection[]) {
+  async initializeSeats(eventId: string, sections?: SeatSection[]) {
+    this.logger.log('Initializing seats for event', SeatsService.name, {
+      eventId,
+      sections: sections?.length,
+    });
+
     const event = await this.eventModel.findById(eventId);
     if (!event) {
+      this.logger.warn(
+        'Event not found for seat initialization',
+        SeatsService.name,
+        {
+          eventId,
+        },
+      );
       throw new BadRequestException('Event not found');
     }
 
-    // Generate seat matrix for each section using section index (S1, S2, S3, etc.)
-    const initializedSections = sections.map((section, sectionIndex) => ({
-      id: section.id,
-      name: section.name,
-      priceModifier: section.priceModifier,
-      accessibility: section.accessibility,
-      seats: this.generateSeatMatrix(section, sectionIndex + 1),
-    }));
+    // If sections not provided, get them from the event
+    const sectionsToInitialize =
+      sections || event.seatingLayout?.sections || [];
 
-    // Update event with initialized seating
+    const initializedSections = sectionsToInitialize.map(
+      (section, sectionIndex) => ({
+        id: section.id,
+        name: section.name,
+        columns: section.columns,
+        rows: section.rows,
+        orientation: section.orientation,
+        priceModifier: section.priceModifier,
+        accessibility: section.accessibility,
+        seats: this.generateSeatMatrix(section, sectionIndex + 1),
+      }),
+    );
+
     await this.eventModel.findByIdAndUpdate(eventId, {
       'seatingLayout.sections': initializedSections,
+    });
+
+    this.logger.log('Seats initialized successfully', SeatsService.name, {
+      eventId,
+      totalSections: initializedSections.length,
     });
 
     return initializedSections;
   }
 
-  // Helper function to generate a seat matrix
   private generateSeatMatrix(section: any, sectionNumber: number) {
     const seats: Seat[] = [];
     const rows = section.rows || 10;
@@ -120,7 +150,6 @@ export class SeatsService {
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < columns; col++) {
-        // Format: S1-A1, S1-A2, etc. (Section-Letter+Number)
         seats.push({
           seatId: `S${sectionNumber}-${String.fromCharCode(startCol.charCodeAt(0) + col)}${startRow + row}`,
           row: startRow + row,
@@ -134,106 +163,66 @@ export class SeatsService {
     return seats;
   }
 
-  // DEPRECATED: Live reservation removed - seats only locked at payment
-  async reserveSeats(
-    eventId: string,
-    seatIds: { sectionId: string; seatId: string }[],
-  ) {
-    console.log(
-      '[SeatsService] reserveSeats is DEPRECATED - live reservation disabled',
-    );
-    throw new BadRequestException(
-      'Live reservation disabled. Seats are locked only at payment time. Please proceed to checkout to finalize your seats.',
-    );
-  }
-
-  // DEPRECATED: Unreserve is no longer needed since live reservation is disabled
-  async unreserveSeats(
-    eventId: string,
-    seatIds: { sectionId: string; seatId: string }[],
-  ) {
-    console.log(
-      '[SeatsService] unreserveSeats is DEPRECATED - live reservation disabled',
-    );
-    throw new BadRequestException(
-      'Unreserve is no longer available. Seats are only locked at payment time.',
-    );
-  }
-
-  // ATOMIC PAYMENT-BASED SEAT LOCKING
-  // SECURITY: Uses MongoDB atomic operations with race condition detection
-  // If any seat is no longer 'available' when we try to buy it, rejects with 409 Conflict
   async finalizePurchase(
     eventId: string,
     seatIds: { sectionId: string; seatId: string }[],
   ) {
-    console.log('='.repeat(80));
-    console.log('[SeatsService] ========== FINALIZE PURCHASE START ==========');
-    console.log('[SeatsService] EventID:', eventId);
-    console.log(
-      '[SeatsService] Seats to lock:',
-      seatIds.map((s) => `${s.sectionId}/${s.seatId}`).join(', '),
-    );
+    this.logger.log('Finalizing seat purchase', SeatsService.name, {
+      eventId,
+      seatsCount: seatIds.length,
+    });
 
     const event = await this.eventModel.findById(eventId);
     if (!event) {
-      console.error('[SeatsService] ERROR: Event not found!');
+      this.logger.warn('Event not found for seat purchase', SeatsService.name, {
+        eventId,
+      });
       throw new BadRequestException('Event not found');
     }
 
-    // SECURITY CHECK #1: Pre-verify all seats are still available
-    console.log(
-      '[SeatsService] SECURITY CHECK #1: Verifying all seats are available...',
-    );
     for (const seatRequest of seatIds) {
       const section = event.seatingLayout.sections.find(
         (s) => s.id === seatRequest.sectionId,
       );
       if (!section) {
-        console.error(
-          `[SeatsService] ERROR: Section ${seatRequest.sectionId} not found!`,
-        );
+        this.logger.warn('Section not found', SeatsService.name, {
+          eventId,
+          sectionId: seatRequest.sectionId,
+        });
         throw new BadRequestException(
           `Section ${seatRequest.sectionId} not found`,
         );
       }
 
-      const seat = section.seats.find((s) => s.seatId === seatRequest.seatId);
+      const seat =
+        section.seats && Array.isArray(section.seats)
+          ? section.seats.find((s) => s.seatId === seatRequest.seatId)
+          : undefined;
       if (!seat) {
-        console.error(
-          `[SeatsService] ERROR: Seat ${seatRequest.seatId} not found in section!`,
-        );
+        this.logger.warn('Seat not found', SeatsService.name, {
+          eventId,
+          sectionId: seatRequest.sectionId,
+          seatId: seatRequest.seatId,
+        });
         throw new BadRequestException(
           `Seat ${seatRequest.seatId} not found in section ${seatRequest.sectionId}`,
         );
       }
 
       if (seat.status !== 'available') {
-        console.error(
-          `[SeatsService] ❌ RACE CONDITION DETECTED: Seat ${seatRequest.seatId} already ${seat.status}!`,
-        );
+        this.logger.warn('Seat already taken', SeatsService.name, {
+          eventId,
+          sectionId: seatRequest.sectionId,
+          seatId: seatRequest.seatId,
+          status: seat.status,
+        });
         throw new ConflictException(
           `Seat ${seatRequest.seatId} is no longer available (status: ${seat.status})`,
         );
       }
-      console.log(
-        `[SeatsService]   ✅ Seat ${seatRequest.seatId} is available`,
-      );
     }
 
-    // SECURITY CHECK #2: Atomically mark ALL seats as unavailable
-    // This uses MongoDB's arrayFilters to target specific seats
-    // If the query condition fails (seat is no longer available), modifiedCount will be 0
-    console.log(
-      '[SeatsService] SECURITY CHECK #2: Atomically locking seats via MongoDB...',
-    );
-
     for (const seatRequest of seatIds) {
-      console.log(
-        `[SeatsService]   Locking seat: ${seatRequest.sectionId}/${seatRequest.seatId}`,
-      );
-
-      // Atomic update: Only mark as unavailable IF it's still available
       const updateResult = await this.eventModel.updateOne(
         {
           _id: eventId,
@@ -252,65 +241,45 @@ export class SeatsService {
             {
               'seatToLock.seatId': seatRequest.seatId,
               'seatToLock.status': 'available',
-            }, // CONDITION: only update if available
+            },
           ],
         },
       );
 
-      console.log(
-        `[SeatsService]   MongoDB updateOne result - matchedCount: ${updateResult.matchedCount}, modifiedCount: ${updateResult.modifiedCount}`,
-      );
-
-      // If modifiedCount is 0, another customer bought this seat during checkout!
       if (updateResult.modifiedCount === 0) {
-        console.error(
-          `[SeatsService] ❌ CRITICAL: RACE CONDITION DETECTED - Seat ${seatRequest.seatId} was sold by another customer!`,
-        );
-        console.error(
-          `[SeatsService] This means two customers tried to buy the same seat simultaneously.`,
+        this.logger.warn(
+          'Seat sold by concurrent customer',
+          SeatsService.name,
+          {
+            eventId,
+            sectionId: seatRequest.sectionId,
+            seatId: seatRequest.seatId,
+          },
         );
         throw new ConflictException(
           `Seat ${seatRequest.seatId} was just sold by another customer. Please try selecting different seats.`,
         );
       }
-
-      console.log(
-        `[SeatsService]   ✅ Seat ${seatRequest.seatId} ATOMICALLY LOCKED (unavailable)`,
-      );
     }
 
-    // Verify final state in database
-    const verifyEvent = await this.eventModel.findById(eventId);
-    if (verifyEvent) {
-      const finalUnavailableSeats = verifyEvent.seatingLayout.sections.flatMap(
-        (section) =>
-          section.seats
-            .filter((s) => s.status === 'unavailable')
-            .map((s) => `${section.id}/${s.seatId}`),
-      );
-      console.log(
-        '[SeatsService] Final verification - Total unavailable seats in DB:',
-        finalUnavailableSeats.length,
-        `[${finalUnavailableSeats.join(', ')}]`,
-      );
-    }
+    this.logger.log('Seats locked successfully', SeatsService.name, {
+      eventId,
+      lockedCount: seatIds.length,
+    });
 
-    console.log(
-      '[SeatsService] ========== FINALIZE PURCHASE SUCCESS ==========',
-    );
-    console.log('='.repeat(80));
     return { soldSeats: seatIds };
   }
 
-  // Mark a seat as available (used when deleting a ticket)
   async markSeatAvailable(
     eventId: string,
     sectionId: string,
     seatId: string,
   ): Promise<void> {
-    console.log(
-      `[SeatsService] markSeatAvailable: Marking ${sectionId}/${seatId} as available`,
-    );
+    this.logger.log('Marking seat as available', SeatsService.name, {
+      eventId,
+      sectionId,
+      seatId,
+    });
 
     const result = await this.eventModel.updateOne(
       { _id: eventId },
@@ -329,17 +298,174 @@ export class SeatsService {
     );
 
     if (result.modifiedCount === 0) {
-      console.warn(
-        `[SeatsService] WARNING: Seat ${sectionId}/${seatId} not found or already available`,
-      );
+      this.logger.warn('Failed to mark seat as available', SeatsService.name, {
+        eventId,
+        sectionId,
+        seatId,
+      });
     } else {
-      console.log(
-        `[SeatsService] ✅ Seat marked available: ${sectionId}/${seatId}`,
-      );
+      this.logger.log('Seat marked as available', SeatsService.name, {
+        eventId,
+        sectionId,
+        seatId,
+      });
     }
   }
 
-  // NO LONGER NEEDED: Cron job for expired reservations is removed
-  // Since live reservations are disabled, there's nothing to expire
-  // All seats are either 'available' or 'unavailable' (sold)
+  // Reserve seats temporarily (for 5 minutes)
+  async reserveSeats(
+    eventId: string,
+    seatIds: { sectionId: string; seatId: string }[],
+  ) {
+    this.logger.log('Reserving seats', SeatsService.name, {
+      eventId,
+      seatsCount: seatIds.length,
+    });
+
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new BadRequestException('Event not found');
+    }
+
+    const reservationExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+
+    for (const seatRequest of seatIds) {
+      const section = event.seatingLayout.sections.find(
+        (s) => s.id === seatRequest.sectionId,
+      );
+      if (!section) {
+        throw new BadRequestException(
+          `Section ${seatRequest.sectionId} not found`,
+        );
+      }
+
+      const seat =
+        section.seats && Array.isArray(section.seats)
+          ? section.seats.find((s) => s.seatId === seatRequest.seatId)
+          : undefined;
+      if (!seat) {
+        throw new BadRequestException(
+          `Seat ${seatRequest.seatId} not found in section ${seatRequest.sectionId}`,
+        );
+      }
+
+      if (seat.status !== 'available') {
+        throw new ConflictException(
+          `Seat ${seatRequest.seatId} is no longer available`,
+        );
+      }
+
+      // Mark seat as reserved
+      const updateResult = await this.eventModel.updateOne(
+        { _id: eventId },
+        {
+          $set: {
+            'seatingLayout.sections.$[section].seats.$[seatToReserve].status':
+              'reserving',
+            'seatingLayout.sections.$[section].seats.$[seatToReserve].reservingUntil':
+              reservationExpiry,
+          },
+        },
+        {
+          arrayFilters: [
+            { 'section.id': seatRequest.sectionId },
+            {
+              'seatToReserve.seatId': seatRequest.seatId,
+              'seatToReserve.status': 'available',
+            },
+          ],
+        },
+      );
+
+      if (updateResult.modifiedCount === 0) {
+        throw new ConflictException(
+          `Failed to reserve seat ${seatRequest.seatId} - it may have been reserved already`,
+        );
+      }
+    }
+
+    this.logger.log('Seats reserved successfully', SeatsService.name, {
+      eventId,
+      seatsCount: seatIds.length,
+      expiryTime: reservationExpiry,
+    });
+
+    return { reservationExpiry };
+  }
+
+  // Release reservation (if payment cancelled or failed)
+  async releaseReservation(
+    eventId: string,
+    seatIds: { sectionId: string; seatId: string }[],
+  ) {
+    this.logger.log('Releasing seat reservation', SeatsService.name, {
+      eventId,
+      seatsCount: seatIds.length,
+    });
+
+    const event = await this.eventModel.findById(eventId);
+    if (!event) {
+      throw new BadRequestException('Event not found');
+    }
+
+    for (const seatRequest of seatIds) {
+      // Mark seat as available again
+      await this.eventModel.updateOne(
+        { _id: eventId },
+        {
+          $set: {
+            'seatingLayout.sections.$[section].seats.$[seatToRelease].status':
+              'available',
+            'seatingLayout.sections.$[section].seats.$[seatToRelease].reservingUntil':
+              null,
+          },
+        },
+        {
+          arrayFilters: [
+            { 'section.id': seatRequest.sectionId },
+            { 'seatToRelease.seatId': seatRequest.seatId },
+          ],
+        },
+      );
+    }
+
+    this.logger.log('Seat reservation released', SeatsService.name, {
+      eventId,
+      seatsCount: seatIds.length,
+    });
+  }
+
+  // Cleanup expired reservations (call periodically or before critical operations)
+  async cleanupExpiredReservations(eventId: string) {
+    const now = new Date();
+
+    const result = await this.eventModel.updateMany(
+      { _id: eventId },
+      {
+        $set: {
+          'seatingLayout.sections.$[].seats.$[expiredReservation].status':
+            'available',
+          'seatingLayout.sections.$[].seats.$[expiredReservation].reservingUntil':
+            null,
+        },
+      },
+      {
+        arrayFilters: [
+          {
+            'expiredReservation.status': 'reserving',
+            'expiredReservation.reservingUntil': { $lt: now },
+          },
+        ],
+      },
+    );
+
+    if (result.modifiedCount > 0) {
+      this.logger.log('Cleaned up expired reservations', SeatsService.name, {
+        eventId,
+        count: result.modifiedCount,
+      });
+    }
+
+    return result.modifiedCount;
+  }
 }
