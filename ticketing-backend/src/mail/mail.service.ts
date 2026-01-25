@@ -15,7 +15,7 @@ export class MailService {
     const mailUser = this.configService.get<string>('mail.user');
     const mailPassword = this.configService.get<string>('mail.password');
     
-    this.logger.log(`Initializing mail service with host: ${mailHost}:${mailPort}`);
+    this.logger.log(`Initializing mail service with host: ${mailHost}:${mailPort}, user: ${mailUser ? '***configured***' : 'NOT SET'}`);
     
     this.transporter = nodemailer.createTransport({
       host: mailHost,
@@ -25,13 +25,12 @@ export class MailService {
         user: mailUser,
         pass: mailPassword,
       },
-      connectionTimeout: 10000, // 10 seconds - longer timeout for Render
-      socketTimeout: 10000, // 10 seconds
-      pool: {
-        maxConnections: 1,
-        maxMessages: 100,
-        rateDelta: 1000,
-        rateLimit: 5,
+      connectionTimeout: 15000, // 15 seconds - longer timeout for Render
+      socketTimeout: 15000, // 15 seconds
+      // TLS options for Gmail compatibility on Render
+      tls: {
+        rejectUnauthorized: false, // Allow self-signed certs
+        minVersion: 'TLSv1.2',
       },
       logger: true,
       debug: process.env.NODE_ENV !== 'production',

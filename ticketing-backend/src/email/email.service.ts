@@ -47,8 +47,13 @@ export class EmailService {
         user: smtpUser,
         pass: smtpPass,
       },
-      connectionTimeout: 10000, // 10 seconds
-      socketTimeout: 10000, // 10 seconds
+      connectionTimeout: 15000, // 15 seconds
+      socketTimeout: 15000, // 15 seconds
+      // TLS options for Gmail compatibility on Render
+      tls: {
+        rejectUnauthorized: false, // Allow self-signed certs
+        minVersion: 'TLSv1.2',
+      },
     });
 
     // Verify connection (non-blocking)
