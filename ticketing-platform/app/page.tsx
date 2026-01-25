@@ -6,6 +6,10 @@ import { applyFilters, getAvailableTicketTypes } from '@/lib/eventFilters';
 import { EventFilters, FilterState } from '@/components/EventFilters';
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
+import { Hero } from '@/components/layout/Hero';
+import { StatsBar } from '@/components/layout/StatsBar';
+import { Footer } from '@/components/layout/Footer';
+import { FAQ } from '@/components/layout/FAQ';
 
 interface Event {
   _id: string;
@@ -35,8 +39,6 @@ function EventCard({ event }: { event: Event }) {
   const isAlmostSoldOut = soldPercentage >= 80;
   const isExpired = eventDate < new Date();
   const isSoldOut = ticketsAvailable <= 0 && totalSeats > 0;
-
-  // Get all available ticket types with prices
   const getTicketTypesWithPrices = () => {
     if (!event.ticketTypes) return [];
 
@@ -80,16 +82,11 @@ function EventCard({ event }: { event: Event }) {
 
   const allTicketTypes = getTicketTypesWithPrices();
 
-  // Get the pricing display text
   const getPricingText = () => {
     if (!event.ticketTypes) return null;
-
-    // Check if Free ticket is available
     if (event.ticketTypes.Free?.enabled) {
       return 'Free';
     }
-
-    // Get minimum price from enabled paid ticket types
     const enabledPaidTypes = [
       event.ticketTypes.Standard,
       event.ticketTypes.EarlyBird,
@@ -104,7 +101,6 @@ function EventCard({ event }: { event: Event }) {
 
   const pricingText = getPricingText();
 
-  // If expired, render as div instead of Link to prevent navigation
   if (isExpired) {
     return (
       <div className="group bg-white rounded-2xl overflow-hidden border border-stone-200 opacity-60 cursor-not-allowed">
@@ -118,8 +114,6 @@ function EventCard({ event }: { event: Event }) {
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-
-          {/* Date Badge */}
           <div className="absolute top-4 left-4 bg-white rounded-xl p-3 text-center shadow-lg">
             <p className="text-xs font-bold text-amber-600 uppercase">
               {eventDate.toLocaleString('en-US', { month: 'short' })}
@@ -129,7 +123,6 @@ function EventCard({ event }: { event: Event }) {
             </p>
           </div>
 
-          {/* Status Badge */}
           <div className="absolute top-4 right-4 bg-stone-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
             Expired
           </div>
@@ -476,28 +469,26 @@ function EventCard({ event }: { event: Event }) {
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm text-stone-500">Availability</span>
             <span
-              className={`text-sm font-semibold ${
-                isExpired
+              className={`text-sm font-semibold ${isExpired
+                ? 'text-stone-400'
+                : ticketsAvailable === 0
                   ? 'text-stone-400'
-                  : ticketsAvailable === 0
-                    ? 'text-stone-400'
-                    : ticketsAvailable < 20
-                      ? 'text-red-600'
-                      : 'text-green-600'
-              }`}
+                  : ticketsAvailable < 20
+                    ? 'text-red-600'
+                    : 'text-green-600'
+                }`}
             >
               {ticketsAvailable} / {event.totalSeats} seats
             </span>
           </div>
           <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-500 ${
-                soldPercentage < 50
-                  ? 'bg-green-500'
-                  : soldPercentage < 80
-                    ? 'bg-amber-500'
-                    : 'bg-red-500'
-              }`}
+              className={`h-full transition-all duration-500 ${soldPercentage < 50
+                ? 'bg-green-500'
+                : soldPercentage < 80
+                  ? 'bg-amber-500'
+                  : 'bg-red-500'
+                }`}
               style={{ width: `${soldPercentage}%` }}
             ></div>
           </div>
@@ -505,11 +496,10 @@ function EventCard({ event }: { event: Event }) {
 
         {/* CTA */}
         <button
-          className={`w-full mt-6 py-3 rounded-xl font-semibold transition cursor-pointer ${
-            isExpired || ticketsAvailable === 0
-              ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
-              : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20'
-          }`}
+          className={`w-full mt-6 py-3 rounded-xl font-semibold transition cursor-pointer ${isExpired || ticketsAvailable === 0
+            ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
+            : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20'
+            }`}
           disabled={isExpired || ticketsAvailable === 0}
         >
           {isExpired
@@ -572,73 +562,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Use the new Header component */}
       <Header />
-
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900"></div>
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-50"></div>
-
-        <div className="relative max-w-7xl mx-auto px-6 lg:px-8 py-24 lg:py-32">
-          <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 bg-amber-500/10 text-amber-400 px-4 py-2 rounded-full text-sm font-medium mb-8 border border-amber-500/20">
-              <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></span>
-              Premium Event Experiences in Tunisia
-            </div>
-
-            <h2 className="text-4xl md:text-6xl font-bold text-white leading-tight mb-6">
-              Create Memories That Last a{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-500">
-                Lifetime
-              </span>
-            </h2>
-
-            <p className="text-xl text-stone-300 mb-10 leading-relaxed max-w-2xl">
-              Discover and book exclusive tickets to the most extraordinary
-              events. From concerts to conferences, your next unforgettable
-              experience awaits.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4">
-              <a
-                href="#events"
-                className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:from-amber-600 hover:to-amber-700 transition shadow-xl shadow-amber-500/25 text-center"
-              >
-                Explore Events
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* Decorative Elements */}
-        <div className="absolute top-20 right-10 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-10 left-10 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl"></div>
-      </section>
-
-      {/* Stats Bar */}
-      <section className="bg-white border-b border-stone-200">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-stone-900">500+</p>
-              <p className="text-stone-600 text-sm mt-1">Events Hosted</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-stone-900">50K+</p>
-              <p className="text-stone-600 text-sm mt-1">Happy Customers</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-stone-900">99%</p>
-              <p className="text-stone-600 text-sm mt-1">Satisfaction Rate</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-stone-900">24/7</p>
-              <p className="text-stone-600 text-sm mt-1">Support Available</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <Hero />
+      <StatsBar />
 
       {/* Events Section */}
       <section id="events" className="max-w-7xl mx-auto px-6 lg:px-8 py-20">
@@ -828,116 +754,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Q&A Section */}
-      <section className="bg-white border-y border-stone-200 mt-20">
-        <div className="max-w-3xl mx-auto px-6 lg:px-8 py-20">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-stone-900">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-stone-600 mt-3 text-lg">
-              Everything you need to know about booking events
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            {/* FAQ items remain the same... */}
-            <details className="group border border-stone-200 rounded-lg overflow-hidden hover:border-amber-300 transition">
-              <summary className="flex cursor-pointer items-center justify-between p-6 bg-stone-50 group-open:bg-amber-50 transition">
-                <span className="text-lg font-semibold text-stone-900">
-                  How do I book tickets?
-                </span>
-                <svg
-                  className="w-5 h-5 text-stone-600 group-open:rotate-180 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                  />
-                </svg>
-              </summary>
-              <div className="px-6 py-4 text-stone-600">
-                <p>
-                  Browse through our event listings, select your preferred
-                  event, choose your seats, and complete the checkout process.
-                  You&apos;ll receive your e-ticket instantly via email.
-                </p>
-              </div>
-            </details>
-            {/* Add remaining FAQ items... */}
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-stone-900 text-white">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-16">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
-            <div className="md:col-span-2">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center">
-                  <span className="text-white text-lg font-bold">G</span>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold">Golden Moment</h3>
-                  <p className="text-xs text-stone-400">Events & Experiences</p>
-                </div>
-              </div>
-              <p className="text-stone-400 max-w-md">
-                Your premier destination for booking tickets to the most
-                exclusive events in Tunisia. Creating unforgettable moments, one
-                ticket at a time.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-bold text-lg mb-4">Quick Links</h4>
-              <ul className="space-y-3 text-stone-400">
-                <li>
-                  <Link href="/" className="hover:text-amber-400 transition">
-                    Events
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/about"
-                    className="hover:text-amber-400 transition"
-                  >
-                    About Us
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/contact"
-                    className="hover:text-amber-400 transition"
-                  >
-                    Contact
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-bold text-lg mb-4">Contact</h4>
-              <ul className="space-y-3 text-stone-400">
-                <li>support@goldenmoment.tn</li>
-                <li>+216 71 000 000</li>
-                <li>Tunis, Tunisia</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-stone-800 mt-12 pt-8 text-center text-stone-500 text-sm">
-            <p>© 2026 Golden Moment Events. All rights reserved.</p>
-          </div>
-        </div>
-      </footer>
+      <FAQ />
+      <Footer />
     </div>
   );
 }
