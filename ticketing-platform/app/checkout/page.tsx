@@ -258,12 +258,49 @@ export default function CheckoutPage() {
         const buyerPhoneNumber = searchParams.get('buyerPhoneNumber');
         const ticketType = searchParams.get('ticketType');
 
-        if (!eventId || !ticketIds || !totalAmount) {
+        // Note: totalAmount can be 0 for free tickets
+        if (
+          !eventId ||
+          !ticketIds ||
+          totalAmount === null ||
+          totalAmount === undefined
+        ) {
           setError(
             'Missing checkout information. Please start from the event page.',
           );
           setLoading(false);
           return;
+        }
+
+        // If free ticket (totalAmount 0), bypass Stripe and issue directly
+        const totalAmountNum = parseFloat(totalAmount);
+        if (totalAmountNum === 0) {
+          try {
+            console.log(
+              '[Checkout] Free ticket detected, creating directly...',
+            );
+            const response = await paymentsAPI.createFreeTicket({
+              eventId,
+              ticketIds: JSON.parse(ticketIds),
+              buyerEmail,
+              buyerName,
+              buyerPhoneNumber,
+              ticketType,
+            });
+            console.log('[Checkout] Free ticket created:', response.data);
+            // Redirect to receipt/confirmation
+            router.push(`/receipt/${response.data.data.ticketId}`);
+            return;
+          } catch (err) {
+            console.error('[Checkout] Failed to create free ticket:', err);
+            setError(
+              err instanceof Error
+                ? err.message
+                : 'Failed to create free ticket. Please try again.',
+            );
+            setLoading(false);
+            return;
+          }
         }
 
         // Store event ID for cleanup
@@ -275,9 +312,17 @@ export default function CheckoutPage() {
           | { sectionId: string; seatId: string }
         )[] = [];
         try {
+          console.log(
+            '[Checkout] Raw ticketIds from search params:',
+            ticketIds,
+          );
           parsedTicketIds = JSON.parse(ticketIds);
+          console.log('[Checkout] Parsed ticketIds:', parsedTicketIds);
         } catch {
           // Fallback: treat as comma-separated string
+          console.log(
+            '[Checkout] JSON.parse failed, treating as comma-separated',
+          );
           parsedTicketIds = ticketIds.split(',');
         }
 
@@ -285,6 +330,7 @@ export default function CheckoutPage() {
         const seatedTickets = parsedTicketIds.filter(
           (t) => typeof t === 'object' && t.sectionId && t.seatId,
         );
+        console.log('[Checkout] Filtered seatedTickets:', seatedTickets);
         if (seatedTickets.length > 0) {
           setReservedSeats(
             seatedTickets as { sectionId: string; seatId: string }[],
@@ -292,6 +338,23 @@ export default function CheckoutPage() {
         }
 
         // Create checkout session with backend
+        console.log('[Checkout] Sending ticketIds to backend:', {
+          parsedTicketIds,
+          count: Array.isArray(parsedTicketIds) ? parsedTicketIds.length : 1,
+          type: typeof parsedTicketIds,
+          isArray: Array.isArray(parsedTicketIds),
+          stringified: JSON.stringify(parsedTicketIds),
+          items: Array.isArray(parsedTicketIds)
+            ? parsedTicketIds.map((item, idx) => ({
+                index: idx,
+                type: typeof item,
+                value: JSON.stringify(item),
+                isObject: typeof item === 'object',
+                hasSection: item?.sectionId ? 'yes' : 'no',
+                hasSeat: item?.seatId ? 'yes' : 'no',
+              }))
+            : [],
+        });
         const response = await paymentsAPI.createCheckoutSession({
           eventId,
           ticketIds: parsedTicketIds,

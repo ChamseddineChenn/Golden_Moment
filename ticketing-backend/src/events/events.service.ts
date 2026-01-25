@@ -41,7 +41,27 @@ export class EventsService {
         eventData.date = new Date(eventData.date);
       }
 
-      // Calculate totalSeats from seating layout if not provided
+      // For non-visual seating (seatingEnabled: false), create a default "general" section
+      if (eventData.seatingEnabled === false) {
+        if (!eventData.seatingLayout || !eventData.seatingLayout.sections) {
+          eventData.seatingLayout = {
+            enabled: false,
+            sections: [
+              {
+                id: 'general',
+                name: 'General Admission',
+                seatType: 'auto-assigned',
+                rows: 0,
+                columns: 0,
+                orientation: 'horizontal',
+                priceModifier: 0,
+                accessibility: false,
+                seats: [], // Will be populated with auto-assigned seats as needed
+              },
+            ],
+          };
+        }
+      }
       if (!eventData.totalSeats && eventData.seatingLayout?.sections) {
         eventData.totalSeats = eventData.seatingLayout.sections.reduce(
           (total: number, section: any) => {
