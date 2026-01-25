@@ -11,7 +11,7 @@ import { Ticket, TicketStatus } from './ticket.schema';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { EventsService } from '../events/events.service';
 import { SeatsService } from '../events/seats.service';
-import { EmailService } from '../email/email.service';
+import { SendGridService } from '../email/sendgrid.service';
 import { LogsService } from '../logs/logs.service';
 import { LogAction } from '../logs/log.schema';
 import { AppLogger } from '../common/utils/logger';
@@ -35,7 +35,7 @@ export class TicketsService {
     @InjectModel(Ticket.name) private ticketModel: Model<Ticket>,
     private readonly eventsService: EventsService,
     private readonly seatsService: SeatsService,
-    private readonly emailService: EmailService,
+    private readonly sendGridService: SendGridService,
     private readonly logsService: LogsService,
   ) {}
 
@@ -563,7 +563,7 @@ export class TicketsService {
         </html>
       `;
 
-      await this.emailService.sendTicketReceipt(
+      await this.sendGridService.sendTicketReceipt(
         {
           email: ticket.buyerEmail,
           ticketNumber: ticket.ticketNumber,
@@ -619,7 +619,7 @@ export class TicketsService {
       const qrCode = ticket.qrCode;
 
       this.logger.log(
-        'Calling emailService.sendTicketReceipt',
+        'Calling sendGridService.sendTicketReceipt',
         TicketsService.name,
         {
           email: ticket.buyerEmail,
@@ -631,7 +631,7 @@ export class TicketsService {
         },
       );
 
-      await this.emailService.sendTicketReceipt(
+      await this.sendGridService.sendTicketReceipt(
         {
           email: ticket.buyerEmail,
           ticketNumber: ticket.ticketNumber,
