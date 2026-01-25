@@ -505,7 +505,7 @@ function EventCard({ event }: { event: Event }) {
 
         {/* CTA */}
         <button
-          className={`w-full mt-6 py-3 rounded-xl font-semibold transition ${
+          className={`w-full mt-6 py-3 rounded-xl font-semibold transition cursor-pointer ${
             isExpired || ticketsAvailable === 0
               ? 'bg-stone-100 text-stone-400 cursor-not-allowed'
               : 'bg-gradient-to-r from-amber-500 to-amber-600 text-white hover:from-amber-600 hover:to-amber-700 shadow-lg shadow-amber-500/20'
