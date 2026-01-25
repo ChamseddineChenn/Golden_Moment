@@ -19,6 +19,7 @@ interface Ticket {
   seats: Array<{ sectionId?: string; seatId: string }>;
   buyerName: string;
   buyerEmail: string;
+  buyerPhoneNumber: string;
   purchaseDate: string;
   totalPrice?: number;
   status: 'valid' | 'used' | 'expired';
@@ -37,7 +38,9 @@ export default function BackOfficeTicketPage() {
       try {
         setLoading(true);
         const response = await ticketsAPI.getById(ticketId);
-        setTicket(response.data);
+        // Extract data from response wrapper { success, statusCode, data, timestamp }
+        const ticketData = response.data.data || response.data;
+        setTicket(ticketData);
       } catch (err) {
         setError('Failed to load ticket details');
         console.error(err);
@@ -324,6 +327,18 @@ export default function BackOfficeTicketPage() {
                   </p>
                 </div>
 
+                <div>
+                  <p className="text-sm text-stone-500 mb-1">Phone Number</p>
+                  <p className="text-stone-700">
+                    <a
+                      href={`tel:${ticket.buyerPhoneNumber}`}
+                      className="text-amber-600 hover:text-amber-700 font-medium"
+                    >
+                      {ticket.buyerPhoneNumber}
+                    </a>
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t border-stone-100">
                   <div>
                     <p className="text-sm text-stone-500 mb-1">Seat(s)</p>
@@ -441,8 +456,8 @@ export default function BackOfficeTicketPage() {
                   ticket.status === 'valid'
                     ? 'bg-green-50 border border-green-200'
                     : ticket.status === 'used'
-                    ? 'bg-stone-50 border border-stone-200'
-                    : 'bg-red-50 border border-red-200'
+                      ? 'bg-stone-50 border border-stone-200'
+                      : 'bg-red-50 border border-red-200'
                 }`}
               >
                 <div
@@ -450,22 +465,22 @@ export default function BackOfficeTicketPage() {
                     ticket.status === 'valid'
                       ? 'text-green-700'
                       : ticket.status === 'used'
-                      ? 'text-stone-700'
-                      : 'text-red-700'
+                        ? 'text-stone-700'
+                        : 'text-red-700'
                   }`}
                 >
                   {ticket.status === 'valid'
                     ? 'Entry Allowed'
                     : ticket.status === 'used'
-                    ? 'Entry Completed'
-                    : 'Entry Denied'}
+                      ? 'Entry Completed'
+                      : 'Entry Denied'}
                 </div>
                 <p className="text-xs text-stone-600">
                   {ticket.status === 'valid'
                     ? 'This ticket has not been used yet'
                     : ticket.status === 'used'
-                    ? 'This ticket has been scanned'
-                    : 'This ticket is no longer valid'}
+                      ? 'This ticket has been scanned'
+                      : 'This ticket is no longer valid'}
                 </p>
               </div>
 

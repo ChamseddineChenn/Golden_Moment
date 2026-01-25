@@ -32,4 +32,9 @@ export default () => ({
     emailVerificationExpiration: process.env.EMAIL_VERIFICATION_EXPIRATION,
     passwordResetExpiration: process.env.PASSWORD_RESET_EXPIRATION,
   },
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY,
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+  },
 });

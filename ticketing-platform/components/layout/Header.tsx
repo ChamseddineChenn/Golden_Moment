@@ -93,7 +93,7 @@ export function Header() {
                 {/* Dashboard Links */}
                 {user.userType === 'Admin' && (
                   <Link
-                    href="/admin/dashboard"
+                    href="/admin"
                     className="text-stone-600 hover:text-amber-600 transition text-sm"
                   >
                     Admin Dashboard
@@ -101,7 +101,7 @@ export function Header() {
                 )}
                 {user.userType === 'Organizer' && (
                   <Link
-                    href="/organizer/dashboard"
+                    href="/admin"
                     className="text-stone-600 hover:text-amber-600 transition text-sm"
                   >
                     Organizer Dashboard
@@ -153,7 +153,7 @@ export function Header() {
                             setIsDropdownOpen(false);
                             logout();
                           }}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition cursor-pointer"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -291,7 +291,7 @@ export function Header() {
                     setIsMobileMenuOpen(false);
                     logout();
                   }}
-                  className="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition mx-4"
+                  className="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition mx-4 cursor-pointer"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

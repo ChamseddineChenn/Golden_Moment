@@ -76,35 +76,3 @@ nest g controller modules/example
 ```bash
 nest g service modules/example
 ```
-
-### Mongoose Schema Example
-```ts
-@Schema()
-export class Example {
-  @Prop()
-  name: string;
-}
-```
-
----
-
-## 4. Project Overview & UML
-
-### Entities
-- User
-- Event
-- Ticket
-- Payment
-
-### Relationships
-```
-User 1 ── * Ticket
-Event 1 ── * Ticket
-Ticket 1 ── 1 Payment
-User 1 ── * Payment
-```
-
-### Business Rules
-- Tickets cannot be oversold
-- Payments are transactional
-- Ownership is finalized after payment confirmation

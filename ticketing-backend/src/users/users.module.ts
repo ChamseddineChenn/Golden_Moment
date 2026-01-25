@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { LoginAttemptsService } from './login-attempts.service';
+import { LogsModule } from '../logs/logs.module';
 import { User, UserSchema } from './schemas/user.schema';
 import { OrganizerSchema } from './schemas/organizer.schema';
 import { AdminSchema } from './schemas/admin.schema';
@@ -12,6 +13,7 @@ import {
   LoginAttemptSchema,
 } from './schemas/login-attempt.schema';
 import { UserType } from './enums/user-type.enum';
+
 
 @Module({
   imports: [
@@ -33,6 +35,7 @@ import { UserType } from './enums/user-type.enum';
     MongooseModule.forFeature([
       { name: LoginAttempt.name, schema: LoginAttemptSchema },
     ]),
+    LogsModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, LoginAttemptsService],

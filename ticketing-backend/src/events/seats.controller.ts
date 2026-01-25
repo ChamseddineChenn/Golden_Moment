@@ -20,6 +20,7 @@ export class SeatsController {
     @Inject(forwardRef(() => TicketsService))
     private readonly ticketsService: TicketsService,
   ) {}
+
   @Public()
   @Get('event/:eventId')
   async getSeatMap(@Param('eventId') eventId: string) {
@@ -27,16 +28,9 @@ export class SeatsController {
   }
 
   @Public()
-  @Post('reserve')
-  @HttpCode(HttpStatus.OK)
-  async reserveSeats(
-    @Body()
-    body: {
-      eventId: string;
-      seats: { sectionId: string; seatId: string }[];
-    },
-  ) {
-    return this.seatsService.reserveSeats(body.eventId, body.seats);
+  @Post('event/:eventId/initialize')
+  async initializeSeats(@Param('eventId') eventId: string) {
+    return this.seatsService.initializeSeats(eventId);
   }
 
   // ATOMIC PAYMENT-BASED SEAT LOCKING
@@ -45,7 +39,7 @@ export class SeatsController {
   // 2. Marks seats as unavailable
   // 3. Creates and returns the ticket
   // 4. Detects and rejects if any seat was sold by another customer (race condition)
-   @Public()
+  @Public()
   @Post('finalize-purchase')
   @HttpCode(HttpStatus.CREATED)
   async finalizePurchase(
@@ -55,16 +49,10 @@ export class SeatsController {
       seats: { sectionId: string; seatId: string }[];
       buyerName: string;
       buyerEmail: string;
+      buyerPhoneNumber: string;
       ticketType?: string;
     },
   ) {
-    console.log('[SeatsController] finalizePurchase called:', {
-      eventId: body.eventId,
-      seatCount: body.seats.length,
-      buyerName: body.buyerName,
-      ticketType: body.ticketType,
-    });
-
     // Delegate to TicketsService which handles:
     // - Atomic seat locking
     // - Race condition detection (409 Conflict if seat sold)
@@ -74,6 +62,7 @@ export class SeatsController {
       seats: body.seats,
       buyerName: body.buyerName,
       buyerEmail: body.buyerEmail,
+      buyerPhoneNumber: body.buyerPhoneNumber,
       ticketType: (body.ticketType || 'Free') as
         | 'Free'
         | 'Standard'
@@ -81,16 +70,33 @@ export class SeatsController {
         | 'VIP',
     });
   }
+
   @Public()
-  @Post('unreserve')
+  @Post('event/:eventId/reserve')
   @HttpCode(HttpStatus.OK)
-  async unreserveSeats(
-    @Body()
-    body: {
-      eventId: string;
-      seats: { sectionId: string; seatId: string }[];
-    },
+  async reserveSeats(
+    @Param('eventId') eventId: string,
+    @Body() body: { seats: { sectionId: string; seatId: string }[] },
   ) {
-    return this.seatsService.unreserveSeats(body.eventId, body.seats);
+    return this.seatsService.reserveSeats(eventId, body.seats);
+  }
+
+  @Public()
+  @Post('event/:eventId/release')
+  @HttpCode(HttpStatus.OK)
+  async releaseReservation(
+    @Param('eventId') eventId: string,
+    @Body() body: { seats: { sectionId: string; seatId: string }[] },
+  ) {
+    await this.seatsService.releaseReservation(eventId, body.seats);
+    return { success: true };
+  }
+
+  @Public()
+  @Post('event/:eventId/cleanup-expired')
+  @HttpCode(HttpStatus.OK)
+  async cleanupExpiredReservations(@Param('eventId') eventId: string) {
+    const count = await this.seatsService.cleanupExpiredReservations(eventId);
+    return { cleanedUp: count };
   }
 }

@@ -1,115 +1,20 @@
-import axios from 'axios';
-
-// Dynamic API URL that works on both localhost and mobile via local network
-const getAPIBaseURL = () => {
-  if (typeof window === 'undefined') {
-    // Server-side rendering
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-  }
-
-  // Client-side: replace localhost with the actual host
-  let baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
-
-  if (baseURL.includes('localhost') || baseURL.includes('127.0.0.1')) {
-    // Replace localhost/127.0.0.1 with actual hostname for mobile compatibility
-    const hostname = window.location.hostname;
-    const port = 3002; // Backend port
-    baseURL = `http://${hostname}:${port}`;
-  }
-
-  return baseURL;
-};
-
-const API_BASE_URL = getAPIBaseURL();
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  // Disable caching for all requests
-  params: {
-    // Add a timestamp to all requests to prevent caching
-  },
-});
-
-// Add error interceptor to log errors
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('[API] Error response:', {
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message,
-    });
-    return Promise.reject(error);
-  }
-);
-
-// Add response interceptor to log seat data requests
-apiClient.interceptors.response.use((response) => {
-  if (response.config.url?.includes('/seats/')) {
-    const unavailableCount =
-      response.data?.seatingLayout?.sections?.reduce(
-        (count: number, section: any) =>
-          count +
-          section.seats.filter((s: any) => s.status === 'unavailable').length,
-        0
-      ) || 0;
-    const reservingCount =
-      response.data?.seatingLayout?.sections?.reduce(
-        (count: number, section: any) =>
-          count +
-          section.seats.filter((s: any) => s.status === 'reserving').length,
-        0
-      ) || 0;
-    console.log(
-      `[API] getSeatMap response: ${unavailableCount} unavailable, ${reservingCount} reserving`
-    );
-  }
-  return response;
-});
+import apiClient from './api/axios';
 
 // Events API
 export const eventsAPI = {
   create: (eventData: any) => {
-    console.log(
-      '[API] POST /events with data:',
-      JSON.stringify(eventData, null, 2)
-    );
     return apiClient.post('/events', eventData);
   },
   getAll: () => {
-    const response = apiClient.get('/events');
-    response
-      .then((res) => {
-        console.log(
-          '[API] GET /events response:',
-          JSON.stringify(res.data.slice(0, 1), null, 2)
-        );
-      })
-      .catch(() => {});
-    return response;
+    return apiClient.get('/events');
   }, // Public - published only
   getAllAdmin: () => {
-    const response = apiClient.get('/events/admin/all');
-    response
-      .then((res) => {
-        console.log(
-          '[API] GET /events/admin/all response:',
-          JSON.stringify(res.data.slice(0, 1), null, 2)
-        );
-      })
-      .catch(() => {});
-    return response;
+    return apiClient.get('/events/admin/all');
   }, // Admin - all events including drafts
-  getById: (id: string) => apiClient.get(`/events/${id}`),
+  getById: (id: string) => {
+    return apiClient.get(`/events/${id}`);
+  },
   update: (id: string, eventData: any) => {
-    console.log(
-      '[API] PUT /events/:id with data:',
-      JSON.stringify(eventData, null, 2)
-    );
     return apiClient.put(`/events/${id}`, eventData);
   },
   delete: (id: string) => apiClient.delete(`/events/${id}`),
@@ -129,9 +34,12 @@ export const uploadImage = async (file: File) => {
     },
   });
 
+  // Extract data from standardized response format { success, statusCode, data, timestamp }
+  const uploadData = response.data.data || response.data;
+
   return {
-    secure_url: response.data.secure_url,
-    public_id: response.data.public_id,
+    secure_url: uploadData.secure_url,
+    public_id: uploadData.public_id,
   };
 };
 
@@ -140,6 +48,8 @@ export const ticketsAPI = {
   create: (ticketData: any) => apiClient.post('/tickets', ticketData),
   getAll: () => apiClient.get('/tickets'),
   getById: (id: string) => apiClient.get(`/tickets/${id}`),
+  getByPaymentId: (paymentId: string) =>
+    apiClient.get(`/tickets/by-payment/${paymentId}`),
   getByEventId: (eventId: string) => apiClient.get(`/tickets/event/${eventId}`),
   getByTicketNumber: (ticketNumber: string) =>
     apiClient.get(`/tickets/by-number/${ticketNumber}`),
@@ -157,44 +67,42 @@ export const seatsAPI = {
     apiClient.get(`/seats/event/${eventId}`, {
       params: { _t: Date.now() }, // Cache busting
     }),
-  // Live reservation is now DEPRECATED - seats are only locked at payment
-  reserveSeats: (data: {
-    eventId: string;
-    seats: { sectionId: string; seatId: string }[];
-  }) => {
-    console.log(
-      '[seatsAPI] reserveSeats called - DEPRECATED (live reservation disabled)',
-      data
-    );
-    return apiClient.post('/seats/reserve', data);
+  // Reserve seats temporarily (5 minutes) when user clicks Purchase button
+  reserveSeats: (
+    eventId: string,
+    seats: { sectionId: string; seatId: string }[],
+  ) => {
+    return apiClient.post(`/seats/event/${eventId}/reserve`, { seats });
   },
-  unreserveSeats: (data: {
-    eventId: string;
-    seats: { sectionId: string; seatId: string }[];
-  }) => {
-    console.log(
-      '[seatsAPI] unreserveSeats called - DEPRECATED (live reservation disabled)',
-      data
-    );
-    return apiClient.post('/seats/unreserve', data);
+  // Release reservation if payment cancelled, failed, or timeout
+  releaseReservation: (
+    eventId: string,
+    seats: { sectionId: string; seatId: string }[],
+  ) => {
+    return apiClient.post(`/seats/event/${eventId}/release`, { seats });
   },
-  // NEW: Atomic payment-based seat locking with race condition detection
-  finalizePurchase: (data: {
-    eventId: string;
-    seats: { sectionId: string; seatId: string }[];
-    buyerName: string;
-    buyerEmail: string;
-    ticketType?: string;
-  }) => {
-    console.log('[seatsAPI] finalizePurchase called with:', {
-      eventId: data.eventId,
-      seats: data.seats,
-      buyerName: data.buyerName,
-      buyerEmail: data.buyerEmail,
-      ticketType: data.ticketType,
-    });
-    return apiClient.post('/seats/finalize-purchase', data);
+  // Clean up expired reservations (auto-run periodically)
+  cleanupExpiredReservations: (eventId: string) => {
+    return apiClient.post(`/seats/event/${eventId}/cleanup-expired`);
   },
+};
+
+// Logs API
+export const logsAPI = {
+  getAll: (limit: number = 100, skip: number = 0) =>
+    apiClient.get('/logs', { params: { limit, skip } }),
+  getByAction: (action: string, limit: number = 100, skip: number = 0) =>
+    apiClient.get('/logs/action', { params: { type: action, limit, skip } }),
+  getForEvent: (eventId: string, limit: number = 100, skip: number = 0) =>
+    apiClient.get(`/logs/event/${eventId}`, { params: { limit, skip } }),
+};
+
+// Payments API
+export const paymentsAPI = {
+  createCheckoutSession: (paymentData: any) =>
+    apiClient.post('/payments/create-checkout-session', paymentData),
+  getPayment: (paymentId: string) => apiClient.get(`/payments/${paymentId}`),
+  getUserPayments: () => apiClient.get('/payments/user/payments'),
 };
 
 export default apiClient;
