@@ -274,6 +274,14 @@ export class SeatsService {
         continue;
       }
 
+      this.logger.log('ATTEMPTING TO LOCK SEAT', SeatsService.name, {
+        eventId,
+        sectionId: seatRequest.sectionId,
+        seatId: seatRequest.seatId,
+        sectionIdType: typeof seatRequest.sectionId,
+        seatIdType: typeof seatRequest.seatId,
+      });
+
       const updateResult = await this.eventModel.updateOne(
         {
           _id: eventId,
@@ -297,14 +305,34 @@ export class SeatsService {
         },
       );
 
+      this.logger.log('SEAT LOCK UPDATE RESULT', SeatsService.name, {
+        eventId,
+        sectionId: seatRequest.sectionId,
+        seatId: seatRequest.seatId,
+        matchedCount: updateResult.matchedCount,
+        modifiedCount: updateResult.modifiedCount,
+        acknowledged: updateResult.acknowledged,
+      });
+
       if (updateResult.modifiedCount === 0) {
+        // Check if seat is already unavailable (already sold)
+        const checkEvent = await this.eventModel.findById(eventId);
+        const checkSection = checkEvent?.seatingLayout?.sections?.find(
+          (s) => s.id === seatRequest.sectionId,
+        );
+        const checkSeat = checkSection?.seats?.find(
+          (s) => s.seatId === seatRequest.seatId,
+        );
         this.logger.warn(
-          'Seat sold by concurrent customer',
+          'Seat lock failed - checking current status',
           SeatsService.name,
           {
             eventId,
             sectionId: seatRequest.sectionId,
             seatId: seatRequest.seatId,
+            currentSeatStatus: checkSeat?.status || 'SEAT_NOT_FOUND',
+            sectionExists: !!checkSection,
+            seatExists: !!checkSeat,
           },
         );
         throw new ConflictException(

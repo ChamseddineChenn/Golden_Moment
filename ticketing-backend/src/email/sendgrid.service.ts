@@ -56,143 +56,127 @@ export class SendGridService {
 
       const doc = new PDFDocument({
         size: 'A4',
-        margin: 35,
-        bufferPages: true,
+        margin: 50,
       });
 
-      const pageWidth = doc.page.width;
-      const pageHeight = doc.page.height;
-      const margin = 35;
+      const pageWidth = 595.28;
+      const contentWidth = pageWidth - 100;
 
-      // HEADER BACKGROUND - Green
-      doc.rect(0, 0, pageWidth, 80).fill('#10b981');
+      // ======== HEADER - Green Background ========
+      doc.rect(0, 0, pageWidth, 90).fill('#10b981');
 
-      // Reset to start adding text
-      doc.moveTo(0, 0);
-
-      // Checkmark and title
       doc
-        .fontSize(24)
         .font('Helvetica-Bold')
+        .fontSize(26)
         .fillColor('#ffffff')
-        .text('✓ Booking Confirmed', {
-          x: margin,
-          y: 20,
-          width: pageWidth - margin * 2,
+        .text('Booking Confirmed', 50, 35, {
+          width: contentWidth,
           align: 'center',
         });
 
-      // Move down after header
-      doc.y = 85;
-
-      // Customer greeting
+      // ======== GREETING ========
       doc
-        .fontSize(11)
         .font('Helvetica')
-        .fillColor(0, 0, 0)
+        .fontSize(12)
+        .fillColor('#1f2937')
         .text(
           `Thank you, ${ticketData.customerName}! Your ticket has been successfully purchased and confirmed.`,
-          {
-            width: pageWidth - margin * 2,
-            align: 'left',
-          },
-        )
-        .moveDown(0.8);
+          50,
+          110,
+          { width: contentWidth, align: 'left' },
+        );
 
-      // EVENT DETAILS SECTION with background
-      const eventY = doc.y;
-      const sectionHeight = 85;
-      doc.rect(margin, eventY - 5, pageWidth - margin * 2, sectionHeight).fill('#fffbeb');
+      let yPos = 150;
 
+      // ======== EVENT DETAILS SECTION ========
+      // Section background
+      doc.rect(50, yPos - 10, contentWidth, 90).fill('#fffbeb');
+
+      // Section header
       doc
-        .fontSize(11)
         .font('Helvetica-Bold')
-        .fillColor(217, 119, 6)
-        .text('EVENT DETAILS', { x: margin + 10, y: eventY });
+        .fontSize(12)
+        .fillColor('#d97706')
+        .text('EVENT DETAILS', 60, yPos);
+
+      yPos += 20;
+      doc.font('Helvetica').fontSize(10).fillColor('#374151');
+      doc.text(`Event: ${ticketData.eventName}`, 60, yPos);
+      yPos += 15;
+      if (ticketData.eventDate) {
+        doc.text(`Date: ${ticketData.eventDate}`, 60, yPos);
+        yPos += 15;
+      }
+      if (ticketData.eventTime) {
+        doc.text(`Time: ${ticketData.eventTime}`, 60, yPos);
+        yPos += 15;
+      }
+      if (ticketData.eventLocation) {
+        doc.text(`Location: ${ticketData.eventLocation}`, 60, yPos);
+        yPos += 15;
+      }
+
+      yPos += 20;
+
+      // ======== TICKET INFORMATION SECTION ========
+      doc.rect(50, yPos - 10, contentWidth, 70).fill('#f3f4f6');
 
       doc
-        .fontSize(10)
-        .font('Helvetica')
-        .fillColor(0, 0, 0)
-        .text(`Event: ${ticketData.eventName}`, {
-          x: margin + 15,
-          y: doc.y + 5,
-        });
-
-      if (ticketData.eventDate)
-        doc.text(`Date: ${ticketData.eventDate}`, { x: margin + 15 });
-      if (ticketData.eventTime)
-        doc.text(`Time: ${ticketData.eventTime}`, { x: margin + 15 });
-      if (ticketData.eventLocation)
-        doc.text(`Location: ${ticketData.eventLocation}`, { x: margin + 15 });
-
-      doc.y = eventY + sectionHeight + 5;
-      doc.moveDown(0.5);
-
-      // TICKET INFORMATION SECTION with background
-      const ticketY = doc.y;
-      const ticketHeight = 65;
-      doc.rect(margin, ticketY - 5, pageWidth - margin * 2, ticketHeight).fill('#f3f4f6');
-
-      doc
-        .fontSize(11)
         .font('Helvetica-Bold')
-        .fillColor(217, 119, 6)
-        .text('TICKET INFORMATION', { x: margin + 10, y: ticketY });
+        .fontSize(12)
+        .fillColor('#d97706')
+        .text('TICKET INFORMATION', 60, yPos);
 
-      doc
-        .fontSize(10)
-        .font('Helvetica')
-        .fillColor(0, 0, 0)
-        .text(`Ticket Number: ${ticketData.ticketNumber}`, {
-          x: margin + 15,
-          y: doc.y + 5,
-        });
-      if (ticketData.ticketType)
-        doc.text(`Ticket Type: ${ticketData.ticketType}`, { x: margin + 15 });
-      doc.text(`Purchase Date: ${ticketData.purchaseDate}`, { x: margin + 15 });
+      yPos += 20;
+      doc.font('Helvetica').fontSize(10).fillColor('#374151');
+      doc.text(`Ticket Number: ${ticketData.ticketNumber}`, 60, yPos);
+      yPos += 15;
+      if (ticketData.ticketType) {
+        doc.text(`Ticket Type: ${ticketData.ticketType}`, 60, yPos);
+        yPos += 15;
+      }
+      doc.text(`Purchase Date: ${ticketData.purchaseDate}`, 60, yPos);
 
-      doc.y = ticketY + ticketHeight + 5;
-      doc.moveDown(0.5);
+      yPos += 30;
 
-      // SEATS SECTION
+      // ======== SEATS SECTION ========
       if (ticketData.seats && ticketData.seats.length > 0) {
-        const seatsY = doc.y;
-        const seatsHeight = 15 + ticketData.seats.length * 15;
-        doc.rect(margin, seatsY - 5, pageWidth - margin * 2, seatsHeight).fill('#fef3c7');
+        const seatsHeight = 25 + ticketData.seats.length * 15;
+        doc.rect(50, yPos - 10, contentWidth, seatsHeight).fill('#fef3c7');
 
         doc
-          .fontSize(11)
           .font('Helvetica-Bold')
-          .fillColor(217, 119, 6)
-          .text('SEATS', { x: margin + 10, y: seatsY });
+          .fontSize(12)
+          .fillColor('#d97706')
+          .text('SEATS', 60, yPos);
 
-        doc.fontSize(9).font('Helvetica').fillColor(0, 0, 0);
+        yPos += 20;
+        doc.font('Helvetica').fontSize(10).fillColor('#374151');
 
         ticketData.seats.forEach((seat) => {
           const seatLabel = seat.sectionId
             ? `Section ${seat.sectionId} - Seat ${seat.seatId}`
             : seat.seatId;
-          doc.text(seatLabel, { x: margin + 15 });
+          doc.text(seatLabel, 60, yPos);
+          yPos += 15;
         });
 
-        doc.y = seatsY + seatsHeight + 5;
-        doc.moveDown(0.5);
+        yPos += 15;
       }
 
-      // QR CODE SECTION
+      // ======== QR CODE SECTION ========
       if (ticketData.qrCodeDataUrl) {
-        const qrY = doc.y;
-        const qrBoxHeight = 170;
-        doc.rect(margin, qrY - 5, pageWidth - margin * 2, qrBoxHeight).fill('#f9fafb');
-
-        doc
-          .fontSize(11)
-          .font('Helvetica-Bold')
-          .fillColor(217, 119, 6)
-          .text('QR CODE', { x: margin + 10, y: qrY });
-
         try {
+          doc.rect(50, yPos - 10, contentWidth, 180).fill('#f9fafb');
+
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(12)
+            .fillColor('#d97706')
+            .text('QR CODE', 60, yPos);
+
+          yPos += 15;
+
           // Convert data URL to buffer
           const base64Data = ticketData.qrCodeDataUrl.replace(
             /^data:image\/png;base64,/,
@@ -200,94 +184,88 @@ export class SendGridService {
           );
           const qrBuffer = Buffer.from(base64Data, 'base64');
 
-          // Add QR code image centered
+          // Center the QR code
           const qrSize = 120;
-          const qrX = margin + (pageWidth - margin * 2 - qrSize) / 2;
-          doc.image(qrBuffer, qrX, doc.y + 15, { width: qrSize, height: qrSize });
-          doc.y = qrY + qrBoxHeight - 30;
+          const qrX = (pageWidth - qrSize) / 2;
+          doc.image(qrBuffer, qrX, yPos, { width: qrSize, height: qrSize });
+
+          yPos += qrSize + 10;
 
           doc
-            .fontSize(9)
             .font('Helvetica-Bold')
-            .fillColor(78, 82, 86)
-            .text('SHOW THIS QR CODE AT THE EVENT ENTRANCE', {
+            .fontSize(9)
+            .fillColor('#6b7280')
+            .text('SHOW THIS QR CODE AT THE EVENT ENTRANCE', 50, yPos, {
+              width: contentWidth,
               align: 'center',
-              width: pageWidth - margin * 2,
             });
+
+          yPos += 30;
         } catch (qrError: any) {
-          this.logger.warn('QR code image embedding failed', SendGridService.name, {
+          this.logger.warn('QR code embedding failed', SendGridService.name, {
             error: qrError.message,
           });
+          yPos += 20;
         }
-
-        doc.moveDown(0.5);
       }
 
-      // TOTAL PAID SECTION with orange background
-      const totalY = doc.y;
-      const totalHeight = 60;
-      doc.rect(margin, totalY - 5, pageWidth - margin * 2, totalHeight).fill('#fed7aa');
+      // ======== TOTAL PAID SECTION ========
+      doc.rect(50, yPos - 10, contentWidth, 65).fill('#fed7aa');
 
       doc
-        .fontSize(11)
         .font('Helvetica-Bold')
-        .fillColor(217, 119, 6)
-        .text('TOTAL PAID', { x: margin + 10, y: totalY });
+        .fontSize(12)
+        .fillColor('#d97706')
+        .text('TOTAL PAID', 60, yPos);
 
+      yPos += 20;
       doc
+        .font('Helvetica-Bold')
         .fontSize(28)
-        .font('Helvetica-Bold')
-        .fillColor(220, 88, 19)
-        .text(`$${ticketData.amount.toFixed(2)}`, {
-          x: margin + 15,
-          y: doc.y + 5,
-          align: 'left',
-        });
+        .fillColor('#ea580c')
+        .text(`$${ticketData.amount.toFixed(2)}`, 60, yPos);
 
-      doc.y = totalY + totalHeight + 10;
-      doc.moveDown(0.5);
+      yPos += 50;
 
-      // Important Notice Box with green background
-      const noticeY = doc.y;
-      const noticeHeight = 55;
-      doc.rect(margin, noticeY - 5, pageWidth - margin * 2, noticeHeight).fill('#dcfce7');
+      // ======== IMPORTANT NOTICE ========
+      doc.rect(50, yPos - 10, contentWidth, 50).fill('#dcfce7');
 
       doc
+        .font('Helvetica')
         .fontSize(9)
-        .font('Helvetica-Bold')
-        .fillColor(22, 101, 52)
+        .fillColor('#166534')
         .text(
-          '✓ Important: This receipt is your official ticket. Please keep it safe for your records and bring it or your ticket number to the event entrance.',
-          {
-            x: margin + 10,
-            y: noticeY,
-            width: pageWidth - margin * 2 - 20,
-            align: 'left',
-          },
+          'Important: This receipt is your official ticket. Please keep it safe for your records and bring it or your ticket number to the event entrance.',
+          60,
+          yPos,
+          { width: contentWidth - 20, align: 'left' },
         );
 
-      doc.y = noticeY + noticeHeight + 10;
-      doc.moveDown(1);
+      yPos += 60;
 
-      // Footer
+      // ======== FOOTER ========
       doc
-        .fontSize(9)
         .font('Helvetica')
-        .fillColor(107, 114, 128)
-        .text('Thank you for your purchase!', {
+        .fontSize(9)
+        .fillColor('#6b7280')
+        .text('Thank you for your purchase!', 50, yPos, {
+          width: contentWidth,
           align: 'center',
-          width: pageWidth - margin * 2,
-        })
-        .text('For support, contact support@goldenmoment.com', {
-          align: 'center',
-          width: pageWidth - margin * 2,
-        })
-        .moveDown(0.3)
+        });
+
+      yPos += 15;
+      doc.text('For support, contact support@goldenmoment.com', 50, yPos, {
+        width: contentWidth,
+        align: 'center',
+      });
+
+      yPos += 15;
+      doc
         .fontSize(8)
-        .fillColor(156, 163, 175)
-        .text('© Golden Moment Events. All rights reserved.', {
+        .fillColor('#9ca3af')
+        .text('Golden Moment Events. All rights reserved.', 50, yPos, {
+          width: contentWidth,
           align: 'center',
-          width: pageWidth - margin * 2,
         });
 
       // Convert stream to buffer
