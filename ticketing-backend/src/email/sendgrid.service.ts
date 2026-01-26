@@ -56,150 +56,239 @@ export class SendGridService {
 
       const doc = new PDFDocument({
         size: 'A4',
-        margin: 30,
+        margin: 35,
+        bufferPages: true,
       });
 
-      // Header with checkmark
-      doc
-        .fontSize(14)
-        .font('Helvetica-Bold')
-        .fillColor(34, 197, 94)
-        .text('✓ Booking Confirmed', { align: 'center' })
-        .moveDown(0.3);
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      const margin = 35;
 
-      // Greeting
+      // HEADER BACKGROUND - Green
+      doc.rect(0, 0, pageWidth, 80).fill('#10b981');
+
+      // Reset to start adding text
+      doc.moveTo(0, 0);
+
+      // Checkmark and title
+      doc
+        .fontSize(24)
+        .font('Helvetica-Bold')
+        .fillColor('#ffffff')
+        .text('✓ Booking Confirmed', {
+          x: margin,
+          y: 20,
+          width: pageWidth - margin * 2,
+          align: 'center',
+        });
+
+      // Move down after header
+      doc.y = 85;
+
+      // Customer greeting
       doc
         .fontSize(11)
         .font('Helvetica')
         .fillColor(0, 0, 0)
         .text(
           `Thank you, ${ticketData.customerName}! Your ticket has been successfully purchased and confirmed.`,
-          { align: 'left', width: 535 },
+          {
+            width: pageWidth - margin * 2,
+            align: 'left',
+          },
         )
-        .moveDown(1);
+        .moveDown(0.8);
 
-      // EVENT DETAILS SECTION
+      // EVENT DETAILS SECTION with background
+      const eventY = doc.y;
+      const sectionHeight = 85;
+      doc.rect(margin, eventY - 5, pageWidth - margin * 2, sectionHeight).fill('#fffbeb');
+
       doc
         .fontSize(11)
         .font('Helvetica-Bold')
-        .fillColor(184, 83, 9)
-        .text('EVENT DETAILS');
+        .fillColor(217, 119, 6)
+        .text('EVENT DETAILS', { x: margin + 10, y: eventY });
 
       doc
         .fontSize(10)
         .font('Helvetica')
-        .fillColor(0, 0, 0);
+        .fillColor(0, 0, 0)
+        .text(`Event: ${ticketData.eventName}`, {
+          x: margin + 15,
+          y: doc.y + 5,
+        });
 
-      const eventY = doc.y;
-      doc.text(`Event: ${ticketData.eventName}`, { indent: 10 });
-      if (ticketData.eventDate) doc.text(`Date: ${ticketData.eventDate}`, { indent: 10 });
-      if (ticketData.eventTime) doc.text(`Time: ${ticketData.eventTime}`, { indent: 10 });
-      if (ticketData.eventLocation) doc.text(`Location: ${ticketData.eventLocation}`, { indent: 10 });
+      if (ticketData.eventDate)
+        doc.text(`Date: ${ticketData.eventDate}`, { x: margin + 15 });
+      if (ticketData.eventTime)
+        doc.text(`Time: ${ticketData.eventTime}`, { x: margin + 15 });
+      if (ticketData.eventLocation)
+        doc.text(`Location: ${ticketData.eventLocation}`, { x: margin + 15 });
+
+      doc.y = eventY + sectionHeight + 5;
       doc.moveDown(0.5);
 
-      // TICKET INFORMATION SECTION
+      // TICKET INFORMATION SECTION with background
+      const ticketY = doc.y;
+      const ticketHeight = 65;
+      doc.rect(margin, ticketY - 5, pageWidth - margin * 2, ticketHeight).fill('#f3f4f6');
+
       doc
         .fontSize(11)
         .font('Helvetica-Bold')
-        .fillColor(184, 83, 9)
-        .text('TICKET INFORMATION');
+        .fillColor(217, 119, 6)
+        .text('TICKET INFORMATION', { x: margin + 10, y: ticketY });
 
       doc
         .fontSize(10)
         .font('Helvetica')
-        .fillColor(0, 0, 0);
-
-      doc.text(`Ticket Number: ${ticketData.ticketNumber}`, { indent: 10 });
+        .fillColor(0, 0, 0)
+        .text(`Ticket Number: ${ticketData.ticketNumber}`, {
+          x: margin + 15,
+          y: doc.y + 5,
+        });
       if (ticketData.ticketType)
-        doc.text(`Ticket Type: ${ticketData.ticketType}`, { indent: 10 });
-      doc.text(`Purchase Date: ${ticketData.purchaseDate}`, { indent: 10 });
+        doc.text(`Ticket Type: ${ticketData.ticketType}`, { x: margin + 15 });
+      doc.text(`Purchase Date: ${ticketData.purchaseDate}`, { x: margin + 15 });
+
+      doc.y = ticketY + ticketHeight + 5;
       doc.moveDown(0.5);
 
       // SEATS SECTION
       if (ticketData.seats && ticketData.seats.length > 0) {
+        const seatsY = doc.y;
+        const seatsHeight = 15 + ticketData.seats.length * 15;
+        doc.rect(margin, seatsY - 5, pageWidth - margin * 2, seatsHeight).fill('#fef3c7');
+
         doc
           .fontSize(11)
           .font('Helvetica-Bold')
-          .fillColor(184, 83, 9)
-          .text('SEATS');
+          .fillColor(217, 119, 6)
+          .text('SEATS', { x: margin + 10, y: seatsY });
 
-        doc.fontSize(10).font('Helvetica').fillColor(0, 0, 0);
+        doc.fontSize(9).font('Helvetica').fillColor(0, 0, 0);
 
-        ticketData.seats.forEach((seat, index) => {
+        ticketData.seats.forEach((seat) => {
           const seatLabel = seat.sectionId
-            ? `Seat ${index + 1}: Section ${seat.sectionId} Seat ${seat.seatId}`
-            : `Seat ${index + 1}: ${seat.seatId}`;
-          doc.text(seatLabel, { indent: 10 });
+            ? `Section ${seat.sectionId} - Seat ${seat.seatId}`
+            : seat.seatId;
+          doc.text(seatLabel, { x: margin + 15 });
         });
+
+        doc.y = seatsY + seatsHeight + 5;
         doc.moveDown(0.5);
       }
 
       // QR CODE SECTION
       if (ticketData.qrCodeDataUrl) {
-        try {
-          doc
-            .fontSize(11)
-            .font('Helvetica-Bold')
-            .fillColor(184, 83, 9)
-            .text('QR CODE');
+        const qrY = doc.y;
+        const qrBoxHeight = 170;
+        doc.rect(margin, qrY - 5, pageWidth - margin * 2, qrBoxHeight).fill('#f9fafb');
 
+        doc
+          .fontSize(11)
+          .font('Helvetica-Bold')
+          .fillColor(217, 119, 6)
+          .text('QR CODE', { x: margin + 10, y: qrY });
+
+        try {
           // Convert data URL to buffer
-          const base64Data = ticketData.qrCodeDataUrl.replace(/^data:image\/png;base64,/, '');
+          const base64Data = ticketData.qrCodeDataUrl.replace(
+            /^data:image\/png;base64,/,
+            '',
+          );
           const qrBuffer = Buffer.from(base64Data, 'base64');
 
           // Add QR code image centered
-          const qrX = (595 - 120) / 2; // Center on A4 width
-          doc.image(qrBuffer, qrX, doc.y, { width: 120, height: 120 });
-          doc.moveDown(6);
+          const qrSize = 120;
+          const qrX = margin + (pageWidth - margin * 2 - qrSize) / 2;
+          doc.image(qrBuffer, qrX, doc.y + 15, { width: qrSize, height: qrSize });
+          doc.y = qrY + qrBoxHeight - 30;
 
           doc
             .fontSize(9)
-            .font('Helvetica')
-            .fillColor(107, 114, 128)
-            .text('SHOW THIS QR CODE AT THE EVENT ENTRANCE', { align: 'center' });
-          doc.moveDown(1);
+            .font('Helvetica-Bold')
+            .fillColor(78, 82, 86)
+            .text('SHOW THIS QR CODE AT THE EVENT ENTRANCE', {
+              align: 'center',
+              width: pageWidth - margin * 2,
+            });
         } catch (qrError: any) {
           this.logger.warn('QR code image embedding failed', SendGridService.name, {
             error: qrError.message,
           });
         }
+
+        doc.moveDown(0.5);
       }
 
-      // TOTAL AMOUNT SECTION
+      // TOTAL PAID SECTION with orange background
+      const totalY = doc.y;
+      const totalHeight = 60;
+      doc.rect(margin, totalY - 5, pageWidth - margin * 2, totalHeight).fill('#fed7aa');
+
       doc
         .fontSize(11)
         .font('Helvetica-Bold')
-        .fillColor(184, 83, 9)
-        .text('TOTAL PAID');
+        .fillColor(217, 119, 6)
+        .text('TOTAL PAID', { x: margin + 10, y: totalY });
 
       doc
-        .fontSize(18)
+        .fontSize(28)
         .font('Helvetica-Bold')
-        .fillColor(217, 119, 6)
-        .text(`$${ticketData.amount.toFixed(2)}`, { indent: 10 });
-      doc.moveDown(1);
+        .fillColor(220, 88, 19)
+        .text(`$${ticketData.amount.toFixed(2)}`, {
+          x: margin + 15,
+          y: doc.y + 5,
+          align: 'left',
+        });
 
-      // Important Notice Box
+      doc.y = totalY + totalHeight + 10;
+      doc.moveDown(0.5);
+
+      // Important Notice Box with green background
+      const noticeY = doc.y;
+      const noticeHeight = 55;
+      doc.rect(margin, noticeY - 5, pageWidth - margin * 2, noticeHeight).fill('#dcfce7');
+
       doc
         .fontSize(9)
-        .font('Helvetica')
+        .font('Helvetica-Bold')
         .fillColor(22, 101, 52)
         .text(
           '✓ Important: This receipt is your official ticket. Please keep it safe for your records and bring it or your ticket number to the event entrance.',
-          { align: 'left', width: 515 },
-        )
-        .moveDown(1);
+          {
+            x: margin + 10,
+            y: noticeY,
+            width: pageWidth - margin * 2 - 20,
+            align: 'left',
+          },
+        );
+
+      doc.y = noticeY + noticeHeight + 10;
+      doc.moveDown(1);
 
       // Footer
       doc
         .fontSize(9)
         .font('Helvetica')
         .fillColor(107, 114, 128)
-        .text('Thank you for your purchase!', { align: 'center' })
-        .text('For support, contact support@goldenmoment.com', { align: 'center' })
+        .text('Thank you for your purchase!', {
+          align: 'center',
+          width: pageWidth - margin * 2,
+        })
+        .text('For support, contact support@goldenmoment.com', {
+          align: 'center',
+          width: pageWidth - margin * 2,
+        })
         .moveDown(0.3)
         .fontSize(8)
-        .text('© Golden Moment Events. All rights reserved.', { align: 'center' });
+        .fillColor(156, 163, 175)
+        .text('© Golden Moment Events. All rights reserved.', {
+          align: 'center',
+          width: pageWidth - margin * 2,
+        });
 
       // Convert stream to buffer
       const chunks: Buffer[] = [];
