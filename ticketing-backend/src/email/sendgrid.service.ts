@@ -251,7 +251,7 @@ export class SendGridService {
           .lineWidth(1)
           .stroke();
 
-        yPos += 20;
+        yPos += 15;
 
         doc
           .font('Helvetica-Bold')
@@ -259,18 +259,32 @@ export class SendGridService {
           .fillColor(colors.amber600)
           .text('SEAT ASSIGNMENT', marginLeft, yPos);
 
-        yPos += 20;
+        yPos += 15;
         doc.font('Helvetica').fontSize(10).fillColor(colors.stone800);
 
         ticketData.seats.forEach((seat, index) => {
-          const seatLabel = seat.sectionId
-            ? `Section ${seat.sectionId} • Seat ${seat.seatId}`
-            : `Seat ${seat.seatId}`;
+          // Parse seatId format (e.g., S2-D4 -> Section 2, Seat D4)
+          const seatIdStr = seat.seatId || '';
+          let sectionNum = '';
+          let seatNum = '';
+          
+          if (seatIdStr.includes('-')) {
+            const parts = seatIdStr.split('-');
+            // Extract section number from S2 -> 2
+            sectionNum = parts[0].replace('S', '') || 'General';
+            seatNum = parts[1] || '';
+          } else {
+            seatNum = seatIdStr;
+          }
+          
+          const seatLabel = sectionNum && seatNum 
+            ? `Section ${sectionNum} • Seat ${seatNum} (${seatIdStr})`
+            : `Seat ${seatIdStr}`;
           doc.text(`${index + 1}. ${seatLabel}`, marginLeft + 10, yPos);
-          yPos += 18;
+          yPos += 16;
         });
 
-        yPos += 10;
+        yPos += 5;
       }
 
       // ======== QR CODE SECTION - Large and prominent ========
@@ -284,7 +298,7 @@ export class SendGridService {
             .lineWidth(1)
             .stroke();
 
-          yPos += 30;
+          yPos += 15;
 
           // QR Code label
           doc
@@ -296,7 +310,7 @@ export class SendGridService {
               align: 'center',
             });
 
-          yPos += 25;
+          yPos += 18;
 
           // Convert data URL to buffer
           const base64Data = ticketData.qrCodeDataUrl.replace(
@@ -321,7 +335,7 @@ export class SendGridService {
 
           doc.image(qrBuffer, qrX, yPos, { width: qrSize, height: qrSize });
 
-          yPos += qrSize + 25;
+          yPos += qrSize + 15;
 
           // Scan instruction
           doc
@@ -333,57 +347,57 @@ export class SendGridService {
               align: 'center',
             });
 
-          yPos += 40;
+          yPos += 20;
+
+          // Separator line before footer
+          doc
+            .moveTo(marginLeft, yPos)
+            .lineTo(marginLeft + contentWidth, yPos)
+            .strokeColor(colors.stone200)
+            .lineWidth(1)
+            .stroke();
+
+          yPos += 15;
+
+          // Footer content
+          doc
+            .font('Helvetica')
+            .fontSize(9)
+            .fillColor(colors.stone600)
+            .text(
+              'Keep this receipt safe. This is your official ticket confirmation.',
+              marginLeft,
+              yPos,
+              { width: contentWidth, align: 'center' },
+            );
+
+          yPos += 12;
+          doc
+            .fontSize(9)
+            .fillColor(colors.stone400)
+            .text(
+              'Questions? Contact support@goldenmoment.com',
+              marginLeft,
+              yPos,
+              { width: contentWidth, align: 'center' },
+            );
+
+          yPos += 12;
+          doc
+            .fontSize(8)
+            .fillColor(colors.stone400)
+            .text(
+              '© Golden Moment Events. All rights reserved.',
+              marginLeft,
+              yPos,
+              { width: contentWidth, align: 'center' },
+            );
         } catch (qrError: any) {
           this.logger.warn('QR code embedding failed', SendGridService.name, {
             error: qrError.message,
           });
-          yPos += 20;
         }
       }
-
-      // ======== FOOTER ========
-      // Position footer at bottom of page
-      const footerY = pageHeight - 80;
-
-      // Separator line
-      doc
-        .moveTo(marginLeft, footerY - 20)
-        .lineTo(marginLeft + contentWidth, footerY - 20)
-        .strokeColor(colors.stone200)
-        .lineWidth(1)
-        .stroke();
-
-      doc
-        .font('Helvetica')
-        .fontSize(9)
-        .fillColor(colors.stone600)
-        .text(
-          'Keep this receipt safe. This is your official ticket confirmation.',
-          marginLeft,
-          footerY,
-          { width: contentWidth, align: 'center' },
-        );
-
-      doc
-        .fontSize(9)
-        .fillColor(colors.stone400)
-        .text(
-          'Questions? Contact support@goldenmoment.com',
-          marginLeft,
-          footerY + 15,
-          { width: contentWidth, align: 'center' },
-        );
-
-      doc
-        .fontSize(8)
-        .fillColor(colors.stone400)
-        .text(
-          '© Golden Moment Events. All rights reserved.',
-          marginLeft,
-          footerY + 30,
-          { width: contentWidth, align: 'center' },
-        );
 
       // Convert stream to buffer
       const chunks: Buffer[] = [];
