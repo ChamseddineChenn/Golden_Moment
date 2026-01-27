@@ -122,6 +122,7 @@ function CheckoutForm({
 
       if (paymentIntent?.status === 'succeeded') {
         // Payment successful - fetch the payment document ID from backend
+        setPaymentSucceeded(true); // Mark payment as succeeded to prevent seat release on unmount
         try {
           const backendUrl =
             process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
@@ -233,12 +234,20 @@ function CheckoutContent() {
     { sectionId: string; seatId: string }[] | null
   >(null);
   const [eventId, setEventId] = useState<string | null>(null);
+  const [paymentSucceeded, setPaymentSucceeded] = useState(false);
 
   // Release reservation if user leaves checkout or payment fails/cancels
+  // BUT NOT if payment succeeded (seats already locked on backend)
   useEffect(() => {
     return () => {
       // Cleanup on unmount - release reserved seats if user navigates away
-      if (eventId && reservedSeats && reservedSeats.length > 0) {
+      // UNLESS payment already succeeded (in which case seats are already finalized)
+      if (
+        !paymentSucceeded &&
+        eventId &&
+        reservedSeats &&
+        reservedSeats.length > 0
+      ) {
         // Send release request (don't await - best effort)
         seatsAPI
           .releaseReservation(eventId, reservedSeats)
@@ -247,7 +256,7 @@ function CheckoutContent() {
           });
       }
     };
-  }, [eventId, reservedSeats]);
+  }, [eventId, reservedSeats, paymentSucceeded]);
 
   useEffect(() => {
     const initializeCheckout = async () => {
