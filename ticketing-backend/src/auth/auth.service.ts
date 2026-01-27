@@ -58,11 +58,15 @@ export class AuthService {
     });
 
     const verificationToken = (user as any).plainVerificationToken;
-    
+
     // Send verification email in background (don't await - don't block signup)
-    this.sendGridService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
-      this.logger.warn(`Failed to send verification email to ${user.email}: ${err.message}`);
-    });
+    this.sendGridService
+      .sendVerificationEmail(user.email, verificationToken)
+      .catch((err) => {
+        this.logger.warn(
+          `Failed to send verification email to ${user.email}: ${err.message}`,
+        );
+      });
 
     // Use the userType from DTO or default to USER
     const userType = signupDto.userType || UserType.USER;
@@ -96,11 +100,15 @@ export class AuthService {
     const user = await this.usersService.createOrganizer(signupOrganizerDto);
 
     const verificationToken = (user as any).plainVerificationToken;
-    
+
     // Send verification email in background (don't await - don't block signup)
-    this.sendGridService.sendVerificationEmail(user.email, verificationToken).catch((err) => {
-      this.logger.warn(`Failed to send verification email to ${user.email}: ${err.message}`);
-    });
+    this.sendGridService
+      .sendVerificationEmail(user.email, verificationToken)
+      .catch((err) => {
+        this.logger.warn(
+          `Failed to send verification email to ${user.email}: ${err.message}`,
+        );
+      });
 
     const { accessToken, refreshToken } = this.generateTokens(
       user.id,
@@ -303,14 +311,15 @@ export class AuthService {
     const token = await this.usersService.resendVerificationEmail(
       resendVerificationDto.email,
     );
-    
+
     // Send verification email in background
-    this.sendGridService.sendVerificationEmail(
-      resendVerificationDto.email,
-      token,
-    ).catch((err) => {
-      this.logger.warn(`Failed to send verification email to ${resendVerificationDto.email}: ${err.message}`);
-    });
+    this.sendGridService
+      .sendVerificationEmail(resendVerificationDto.email, token)
+      .catch((err) => {
+        this.logger.warn(
+          `Failed to send verification email to ${resendVerificationDto.email}: ${err.message}`,
+        );
+      });
 
     return {
       success: true,
@@ -325,14 +334,15 @@ export class AuthService {
       const token = await this.usersService.createPasswordResetToken(
         forgotPasswordDto.email,
       );
-      
+
       // Send password reset email in background
-      this.sendGridService.sendPasswordResetEmail(
-        forgotPasswordDto.email,
-        token,
-      ).catch((err) => {
-        this.logger.warn(`Failed to send password reset email to ${forgotPasswordDto.email}: ${err.message}`);
-      });
+      this.sendGridService
+        .sendPasswordResetEmail(forgotPasswordDto.email, token)
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to send password reset email to ${forgotPasswordDto.email}: ${err.message}`,
+          );
+        });
 
       return {
         success: true,
@@ -356,10 +366,13 @@ export class AuthService {
     );
 
     // Send password reset confirmation in background
-    this.sendGridService.sendPasswordResetConfirmation(user.email).catch((err) => {
-      this.logger.warn(`Failed to send password reset confirmation to ${user.email}: ${err.message}`);
-    });
-
+    this.sendGridService
+      .sendPasswordResetConfirmation(user.email)
+      .catch((err) => {
+        this.logger.warn(
+          `Failed to send password reset confirmation to ${user.email}: ${err.message}`,
+        );
+      });
 
     return {
       success: true,

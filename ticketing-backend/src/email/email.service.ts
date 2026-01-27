@@ -16,11 +16,15 @@ export class EmailService {
 
   private initializeTransporter() {
     // Try SMTP_* vars first, then fall back to MAIL_* vars
-    const smtpHost = process.env.SMTP_HOST || process.env.MAIL_HOST || 'smtp.gmail.com';
-    const smtpPort = parseInt(process.env.SMTP_PORT || process.env.MAIL_PORT || '587');
+    const smtpHost =
+      process.env.SMTP_HOST || process.env.MAIL_HOST || 'smtp.gmail.com';
+    const smtpPort = parseInt(
+      process.env.SMTP_PORT || process.env.MAIL_PORT || '587',
+    );
     const smtpUser = process.env.SMTP_USER || process.env.MAIL_USER;
     const smtpPass = process.env.SMTP_PASS || process.env.MAIL_PASSWORD;
-    const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.MAIL_FROM || smtpUser;
+    const fromEmail =
+      process.env.SMTP_FROM_EMAIL || process.env.MAIL_FROM || smtpUser;
     const fromName = process.env.SMTP_FROM_NAME || 'Golden Moment';
 
     this.logger.log('Initializing email transporter', EmailService.name, {
@@ -32,7 +36,10 @@ export class EmailService {
     });
 
     if (!smtpUser || !smtpPass) {
-      this.logger.warn('Email service not configured - SMTP credentials missing', EmailService.name);
+      this.logger.warn(
+        'Email service not configured - SMTP credentials missing',
+        EmailService.name,
+      );
       this.isConfigured = false;
       return;
     }
@@ -234,7 +241,11 @@ export class EmailService {
       }
 
       // Use fallback values for missing env vars
-      const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || process.env.MAIL_USER || process.env.MAIL_FROM;
+      const fromEmail =
+        process.env.SMTP_FROM_EMAIL ||
+        process.env.SMTP_USER ||
+        process.env.MAIL_USER ||
+        process.env.MAIL_FROM;
       const fromName = process.env.SMTP_FROM_NAME || 'Golden Moment';
 
       const mailOptions = {
@@ -260,13 +271,17 @@ export class EmailService {
         try {
           const info = await this.transporter.sendMail(mailOptions);
 
-          this.logger.log('✅ Receipt email sent successfully', EmailService.name, {
-            email,
-            ticketNumber,
-            messageId: info.messageId,
-            response: info.response,
-            attempt: attempt + 1,
-          });
+          this.logger.log(
+            '✅ Receipt email sent successfully',
+            EmailService.name,
+            {
+              email,
+              ticketNumber,
+              messageId: info.messageId,
+              response: info.response,
+              attempt: attempt + 1,
+            },
+          );
 
           return {
             success: true,
@@ -302,7 +317,10 @@ export class EmailService {
         smtpConfig: {
           host: process.env.SMTP_HOST || process.env.MAIL_HOST || 'NOT SET',
           port: process.env.SMTP_PORT || process.env.MAIL_PORT || 'NOT SET',
-          user: process.env.SMTP_USER || process.env.MAIL_USER ? '***configured***' : 'NOT SET',
+          user:
+            process.env.SMTP_USER || process.env.MAIL_USER
+              ? '***configured***'
+              : 'NOT SET',
         },
       });
 

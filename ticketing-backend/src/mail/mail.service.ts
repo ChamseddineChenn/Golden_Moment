@@ -10,13 +10,16 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
 
   constructor(private configService: ConfigService) {
-    const mailHost = this.configService.get<string>('mail.host') || 'smtp.gmail.com';
+    const mailHost =
+      this.configService.get<string>('mail.host') || 'smtp.gmail.com';
     const mailPort = this.configService.get<number>('mail.port') || 587;
     const mailUser = this.configService.get<string>('mail.user');
     const mailPassword = this.configService.get<string>('mail.password');
-    
-    this.logger.log(`Initializing mail service with host: ${mailHost}:${mailPort}, user: ${mailUser ? '***configured***' : 'NOT SET'}`);
-    
+
+    this.logger.log(
+      `Initializing mail service with host: ${mailHost}:${mailPort}, user: ${mailUser ? '***configured***' : 'NOT SET'}`,
+    );
+
     this.transporter = nodemailer.createTransport({
       host: mailHost,
       port: mailPort,

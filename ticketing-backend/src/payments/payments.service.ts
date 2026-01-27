@@ -248,15 +248,12 @@ export class PaymentsService {
           })),
         });
 
-        this.logger.log(
-          'ABOUT TO CALL createTicketsFromPayment with:',
-          {
-            paymentId: payment._id.toString(),
-            eventId: payment.eventId.toString(),
-            ticketIdsCount: parsedTicketIds.length,
-            ticketIds: JSON.stringify(parsedTicketIds),
-          },
-        );
+        this.logger.log('ABOUT TO CALL createTicketsFromPayment with:', {
+          paymentId: payment._id.toString(),
+          eventId: payment.eventId.toString(),
+          ticketIdsCount: parsedTicketIds.length,
+          ticketIds: JSON.stringify(parsedTicketIds),
+        });
 
         const createdTickets =
           await this.ticketsService.createTicketsFromPayment(
