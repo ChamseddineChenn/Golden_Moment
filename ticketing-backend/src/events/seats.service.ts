@@ -473,6 +473,7 @@ export class SeatsService {
   }
 
   // Release reservation (if payment cancelled or failed)
+  // IMPORTANT: Only releases seats that are in 'reserving' status - NOT already sold ('unavailable') seats
   async releaseReservation(
     eventId: string,
     seatIds: { sectionId: string; seatId: string }[],
@@ -487,9 +488,13 @@ export class SeatsService {
       throw new BadRequestException('Event not found');
     }
 
+    let releasedCount = 0;
+    let skippedCount = 0;
+
     for (const seatRequest of seatIds) {
-      // Mark seat as available again
-      await this.eventModel.updateOne(
+      // CRITICAL: Only release seats that are still in 'reserving' status
+      // Do NOT release seats that are 'unavailable' (already sold/finalized)
+      const result = await this.eventModel.updateOne(
         { _id: eventId },
         {
           $set: {
@@ -502,15 +507,31 @@ export class SeatsService {
         {
           arrayFilters: [
             { 'section.id': seatRequest.sectionId },
-            { 'seatToRelease.seatId': seatRequest.seatId },
+            { 
+              'seatToRelease.seatId': seatRequest.seatId,
+              'seatToRelease.status': 'reserving',  // Only release if still reserving!
+            },
           ],
         },
       );
+
+      if (result.modifiedCount > 0) {
+        releasedCount++;
+      } else {
+        skippedCount++;
+        this.logger.log('Seat not released (already sold or not reserving)', SeatsService.name, {
+          eventId,
+          sectionId: seatRequest.sectionId,
+          seatId: seatRequest.seatId,
+        });
+      }
     }
 
-    this.logger.log('Seat reservation released', SeatsService.name, {
+    this.logger.log('Seat reservation release completed', SeatsService.name, {
       eventId,
-      seatsCount: seatIds.length,
+      requestedCount: seatIds.length,
+      releasedCount,
+      skippedCount,
     });
   }
 
