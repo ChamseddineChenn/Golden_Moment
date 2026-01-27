@@ -133,9 +133,7 @@ export class SendGridService {
       yPos += 40;
 
       // ======== TICKET NUMBER - Prominent Display ========
-      doc
-        .rect(marginLeft, yPos, contentWidth, 50)
-        .fill(colors.stone100);
+      doc.rect(marginLeft, yPos, contentWidth, 50).fill(colors.stone100);
 
       doc
         .font('Helvetica')
@@ -170,12 +168,17 @@ export class SendGridService {
       doc
         .font('Helvetica-Bold')
         .fillColor(colors.stone800)
-        .text(ticketData.eventName, marginLeft, yPos + 12, { width: colWidth - 10 });
+        .text(ticketData.eventName, marginLeft, yPos + 12, {
+          width: colWidth - 10,
+        });
 
       yPos += 35;
 
       if (ticketData.eventDate) {
-        doc.font('Helvetica').fillColor(colors.stone600).text('Date', marginLeft, yPos);
+        doc
+          .font('Helvetica')
+          .fillColor(colors.stone600)
+          .text('Date', marginLeft, yPos);
         doc
           .font('Helvetica-Bold')
           .fillColor(colors.stone800)
@@ -184,7 +187,10 @@ export class SendGridService {
       }
 
       if (ticketData.eventTime) {
-        doc.font('Helvetica').fillColor(colors.stone600).text('Time', marginLeft, yPos);
+        doc
+          .font('Helvetica')
+          .fillColor(colors.stone600)
+          .text('Time', marginLeft, yPos);
         doc
           .font('Helvetica-Bold')
           .fillColor(colors.stone800)
@@ -193,11 +199,16 @@ export class SendGridService {
       }
 
       if (ticketData.eventLocation) {
-        doc.font('Helvetica').fillColor(colors.stone600).text('Venue', marginLeft, yPos);
+        doc
+          .font('Helvetica')
+          .fillColor(colors.stone600)
+          .text('Venue', marginLeft, yPos);
         doc
           .font('Helvetica-Bold')
           .fillColor(colors.stone800)
-          .text(ticketData.eventLocation, marginLeft, yPos + 12, { width: colWidth - 10 });
+          .text(ticketData.eventLocation, marginLeft, yPos + 12, {
+            width: colWidth - 10,
+          });
         yPos += 35;
       }
 
@@ -224,14 +235,20 @@ export class SendGridService {
         rightY += 35;
       }
 
-      doc.font('Helvetica').fillColor(colors.stone600).text('Purchase Date', rightColX, rightY);
+      doc
+        .font('Helvetica')
+        .fillColor(colors.stone600)
+        .text('Purchase Date', rightColX, rightY);
       doc
         .font('Helvetica-Bold')
         .fillColor(colors.stone800)
         .text(ticketData.purchaseDate, rightColX, rightY + 12);
       rightY += 35;
 
-      doc.font('Helvetica').fillColor(colors.stone600).text('Amount Paid', rightColX, rightY);
+      doc
+        .font('Helvetica')
+        .fillColor(colors.stone600)
+        .text('Amount Paid', rightColX, rightY);
       doc
         .font('Helvetica-Bold')
         .fontSize(16)
@@ -267,7 +284,7 @@ export class SendGridService {
           const seatIdStr = seat.seatId || '';
           let sectionNum = '';
           let seatNum = '';
-          
+
           if (seatIdStr.includes('-')) {
             const parts = seatIdStr.split('-');
             // Extract section number from S2 -> 2
@@ -276,10 +293,11 @@ export class SendGridService {
           } else {
             seatNum = seatIdStr;
           }
-          
-          const seatLabel = sectionNum && seatNum 
-            ? `Section ${sectionNum} • Seat ${seatNum} (${seatIdStr})`
-            : `Seat ${seatIdStr}`;
+
+          const seatLabel =
+            sectionNum && seatNum
+              ? `Section ${sectionNum} • Seat ${seatNum} (${seatIdStr})`
+              : `Seat ${seatIdStr}`;
           doc.text(`${index + 1}. ${seatLabel}`, marginLeft + 10, yPos);
           yPos += 16;
         });
@@ -287,30 +305,26 @@ export class SendGridService {
         yPos += 5;
       }
 
-      // ======== QR CODE SECTION - Large and prominent ========
+      // ======== QR CODE SECTION - Large and prominent (ALWAYS on Page 2) ========
       if (ticketData.qrCodeDataUrl) {
         try {
-          // Separator line
-          doc
-            .moveTo(marginLeft, yPos)
-            .lineTo(marginLeft + contentWidth, yPos)
-            .strokeColor(colors.stone200)
-            .lineWidth(1)
-            .stroke();
+          // Force page break - QR code always starts on page 2
+          doc.addPage();
 
-          yPos += 15;
+          // Reset position for new page
+          let page2Pos = marginLeft;
 
           // QR Code label
           doc
             .font('Helvetica-Bold')
             .fontSize(11)
             .fillColor(colors.amber600)
-            .text('YOUR ENTRY QR CODE', marginLeft, yPos, {
+            .text('YOUR ENTRY QR CODE', marginLeft, page2Pos, {
               width: contentWidth,
               align: 'center',
             });
 
-          yPos += 18;
+          page2Pos += 25;
 
           // Convert data URL to buffer
           const base64Data = ticketData.qrCodeDataUrl.replace(
@@ -325,39 +339,44 @@ export class SendGridService {
 
           // QR code with subtle border
           doc
-            .rect(qrX - 10, yPos - 5, qrSize + 20, qrSize + 20)
+            .rect(qrX - 10, page2Pos - 5, qrSize + 20, qrSize + 20)
             .fill(colors.white);
           doc
-            .rect(qrX - 10, yPos - 5, qrSize + 20, qrSize + 20)
+            .rect(qrX - 10, page2Pos - 5, qrSize + 20, qrSize + 20)
             .strokeColor(colors.stone200)
             .lineWidth(1)
             .stroke();
 
-          doc.image(qrBuffer, qrX, yPos, { width: qrSize, height: qrSize });
+          doc.image(qrBuffer, qrX, page2Pos, { width: qrSize, height: qrSize });
 
-          yPos += qrSize + 15;
+          page2Pos += qrSize + 20;
 
           // Scan instruction
           doc
             .font('Helvetica-Bold')
             .fontSize(10)
             .fillColor(colors.stone800)
-            .text('Present this QR code at the event entrance', marginLeft, yPos, {
-              width: contentWidth,
-              align: 'center',
-            });
+            .text(
+              'Present this QR code at the event entrance',
+              marginLeft,
+              page2Pos,
+              {
+                width: contentWidth,
+                align: 'center',
+              },
+            );
 
-          yPos += 20;
+          page2Pos += 25;
 
           // Separator line before footer
           doc
-            .moveTo(marginLeft, yPos)
-            .lineTo(marginLeft + contentWidth, yPos)
+            .moveTo(marginLeft, page2Pos)
+            .lineTo(marginLeft + contentWidth, page2Pos)
             .strokeColor(colors.stone200)
             .lineWidth(1)
             .stroke();
 
-          yPos += 15;
+          page2Pos += 15;
 
           // Footer content
           doc
@@ -367,29 +386,29 @@ export class SendGridService {
             .text(
               'Keep this receipt safe. This is your official ticket confirmation.',
               marginLeft,
-              yPos,
+              page2Pos,
               { width: contentWidth, align: 'center' },
             );
 
-          yPos += 12;
+          page2Pos += 12;
           doc
             .fontSize(9)
             .fillColor(colors.stone400)
             .text(
               'Questions? Contact support@goldenmoment.com',
               marginLeft,
-              yPos,
+              page2Pos,
               { width: contentWidth, align: 'center' },
             );
 
-          yPos += 12;
+          page2Pos += 12;
           doc
             .fontSize(8)
             .fillColor(colors.stone400)
             .text(
               '© Golden Moment Events. All rights reserved.',
               marginLeft,
-              yPos,
+              page2Pos,
               { width: contentWidth, align: 'center' },
             );
         } catch (qrError: any) {
@@ -435,20 +454,30 @@ export class SendGridService {
 
       // Extract key information from HTML
 
-      const ticketMatch = htmlContent.match(/Ticket Number[^<]*<[^>]*>([^<]+)</i);
+      const ticketMatch = htmlContent.match(
+        /Ticket Number[^<]*<[^>]*>([^<]+)</i,
+      );
       const ticketNumber = ticketMatch ? ticketMatch[1].trim() : 'N/A';
 
       const eventMatch = htmlContent.match(/Event[^<]*<[^>]*>([^<]+)</i);
       const eventName = eventMatch ? eventMatch[1].trim() : 'Event';
 
-      const customerMatch = htmlContent.match(/Thank you[,\s]+([^<]+[a-zA-Z])/i);
-      const customerName = customerMatch ? customerMatch[1].trim() : 'Valued Customer';
+      const customerMatch = htmlContent.match(
+        /Thank you[,\s]+([^<]+[a-zA-Z])/i,
+      );
+      const customerName = customerMatch
+        ? customerMatch[1].trim()
+        : 'Valued Customer';
 
-      const amountMatch = htmlContent.match(/Total\s+(?:Amount|Paid)[^<]*<[^>]*>([^<]+)</i);
+      const amountMatch = htmlContent.match(
+        /Total\s+(?:Amount|Paid)[^<]*<[^>]*>([^<]+)</i,
+      );
       const amount = amountMatch ? amountMatch[1].trim() : '$0.00';
 
       const dateMatch = htmlContent.match(/Purchase Date[^<]*<[^>]*>([^<]+)</i);
-      const purchaseDate = dateMatch ? dateMatch[1].trim() : new Date().toLocaleDateString();
+      const purchaseDate = dateMatch
+        ? dateMatch[1].trim()
+        : new Date().toLocaleDateString();
 
       // Header
       doc
@@ -529,7 +558,9 @@ export class SendGridService {
         .moveDown(0.3)
         .fontSize(8)
         .fillColor(156, 163, 175)
-        .text(`Generated: ${new Date().toLocaleDateString()}`, { align: 'center' });
+        .text(`Generated: ${new Date().toLocaleDateString()}`, {
+          align: 'center',
+        });
 
       // Convert stream to buffer
       const chunks: Buffer[] = [];
@@ -557,7 +588,10 @@ export class SendGridService {
    */
   private extractTextFromHtml(html: string): string {
     // Remove script and style tags
-    let text = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+    let text = html.replace(
+      /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+      '',
+    );
     text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
     // Remove HTML tags
     text = text.replace(/<[^>]*>/g, '');
@@ -639,9 +673,13 @@ export class SendGridService {
 
       await sgMail.send(msg as any);
 
-      this.logger.log('Verification email sent successfully', SendGridService.name, {
-        email,
-      });
+      this.logger.log(
+        'Verification email sent successfully',
+        SendGridService.name,
+        {
+          email,
+        },
+      );
 
       return {
         success: true,
@@ -695,12 +733,16 @@ export class SendGridService {
     try {
       const { email, ticketNumber, eventName, customerName } = ticketData;
 
-      this.logger.log('Sending ticket receipt via SendGrid', SendGridService.name, {
-        email,
-        ticketNumber,
-        eventName,
-        attachPdf: options?.attachPdf,
-      });
+      this.logger.log(
+        'Sending ticket receipt via SendGrid',
+        SendGridService.name,
+        {
+          email,
+          ticketNumber,
+          eventName,
+          attachPdf: options?.attachPdf,
+        },
+      );
 
       const htmlContent = generateReceiptHTML(
         {
@@ -799,11 +841,11 @@ export class SendGridService {
         message: `Receipt sent to ${email}`,
       };
     } catch (error: any) {
-      this.logger.error(
-        'Failed to send receipt email',
-        SendGridService.name,
-        { ticketNumber: ticketData.ticketNumber, email: ticketData.email, error: error.message },
-      );
+      this.logger.error('Failed to send receipt email', SendGridService.name, {
+        ticketNumber: ticketData.ticketNumber,
+        email: ticketData.email,
+        error: error.message,
+      });
       throw error;
     }
   }
@@ -881,9 +923,13 @@ export class SendGridService {
 
       await sgMail.send(msg as any);
 
-      this.logger.log('Password reset email sent successfully', SendGridService.name, {
-        email,
-      });
+      this.logger.log(
+        'Password reset email sent successfully',
+        SendGridService.name,
+        {
+          email,
+        },
+      );
 
       return {
         success: true,
@@ -965,9 +1011,13 @@ export class SendGridService {
 
       await sgMail.send(msg as any);
 
-      this.logger.log('Password reset confirmation sent successfully', SendGridService.name, {
-        email,
-      });
+      this.logger.log(
+        'Password reset confirmation sent successfully',
+        SendGridService.name,
+        {
+          email,
+        },
+      );
 
       return {
         success: true,

@@ -1236,15 +1236,14 @@ export class TicketsService {
             },
           );
         } catch (lockError) {
-          this.logger.error(
-            'finalizePurchase FAILED',
-            TicketsService.name,
-            {
-              eventId,
-              error: lockError instanceof Error ? lockError.message : String(lockError),
-              stack: lockError instanceof Error ? lockError.stack : 'no stack',
-            },
-          );
+          this.logger.error('finalizePurchase FAILED', TicketsService.name, {
+            eventId,
+            error:
+              lockError instanceof Error
+                ? lockError.message
+                : String(lockError),
+            stack: lockError instanceof Error ? lockError.stack : 'no stack',
+          });
           throw lockError;
         }
       } else {
