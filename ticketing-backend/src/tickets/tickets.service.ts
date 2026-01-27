@@ -1213,9 +1213,49 @@ export class TicketsService {
       );
 
       if (seatsWithSection.length > 0) {
-        await this.seatsService.finalizePurchase(
-          eventId,
-          seatsWithSection as { sectionId: string; seatId: string }[],
+        this.logger.log(
+          'CALLING finalizePurchase with seats',
+          TicketsService.name,
+          {
+            eventId,
+            seatCount: seatsWithSection.length,
+            seats: JSON.stringify(seatsWithSection),
+          },
+        );
+        try {
+          const result = await this.seatsService.finalizePurchase(
+            eventId,
+            seatsWithSection as { sectionId: string; seatId: string }[],
+          );
+          this.logger.log(
+            'finalizePurchase completed successfully',
+            TicketsService.name,
+            {
+              eventId,
+              result,
+            },
+          );
+        } catch (lockError) {
+          this.logger.error(
+            'finalizePurchase FAILED',
+            TicketsService.name,
+            {
+              eventId,
+              error: lockError instanceof Error ? lockError.message : String(lockError),
+              stack: lockError instanceof Error ? lockError.stack : 'no stack',
+            },
+          );
+          throw lockError;
+        }
+      } else {
+        this.logger.warn(
+          'NO SEATS WITH SECTION FOUND - seats will NOT be locked',
+          TicketsService.name,
+          {
+            eventId,
+            totalTicketIds: ticketIds.length,
+            ticketIds: JSON.stringify(ticketIds),
+          },
         );
       }
 

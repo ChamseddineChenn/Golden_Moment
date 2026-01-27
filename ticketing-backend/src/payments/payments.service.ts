@@ -239,7 +239,24 @@ export class PaymentsService {
         this.logger.log('FINAL PARSED ticketIds after filtering:', {
           count: parsedTicketIds.length,
           data: JSON.stringify(parsedTicketIds),
+          eachItem: parsedTicketIds.map((item, idx) => ({
+            index: idx,
+            type: typeof item,
+            value: JSON.stringify(item),
+            hasSectionId: item?.sectionId ? 'yes' : 'no',
+            hasSeatId: item?.seatId ? 'yes' : 'no',
+          })),
         });
+
+        this.logger.log(
+          'ABOUT TO CALL createTicketsFromPayment with:',
+          {
+            paymentId: payment._id.toString(),
+            eventId: payment.eventId.toString(),
+            ticketIdsCount: parsedTicketIds.length,
+            ticketIds: JSON.stringify(parsedTicketIds),
+          },
+        );
 
         const createdTickets =
           await this.ticketsService.createTicketsFromPayment(
