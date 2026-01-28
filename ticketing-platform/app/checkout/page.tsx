@@ -156,15 +156,15 @@ function CheckoutForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
-        <div className="space-y-2 mb-4 border-b pb-4">
-          <div className="flex justify-between">
-            <span>Event:</span>
+      <div className="bg-white p-6 rounded-lg shadow border border-stone-200">
+        <h2 className="text-xl font-semibold mb-4 text-stone-900">Order Summary</h2>
+        <div className="space-y-2 mb-4 border-b pb-4 border-stone-200">
+          <div className="flex justify-between text-stone-900">
+            <span className="font-medium">Event:</span>
             <span className="font-medium">{eventName}</span>
           </div>
-          <div className="flex justify-between">
-            <span>Tickets:</span>
+          <div className="flex justify-between text-stone-900">
+            <span className="font-medium">Tickets:</span>
             <span className="font-medium">{ticketCount}</span>
           </div>
         </div>
@@ -174,8 +174,8 @@ function CheckoutForm({
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Payment Details</h2>
+      <div className="bg-white p-6 rounded-lg shadow border border-stone-200">
+        <h2 className="text-xl font-semibold mb-4 text-stone-900">Payment Details</h2>
         <PaymentElement />
       </div>
 
@@ -461,11 +461,11 @@ function CheckoutContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-stone-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Checkout</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-stone-900">Checkout</h1>
+          <p className="text-stone-700 mt-2 font-medium">
             Complete your payment to book your tickets
           </p>
         </div>

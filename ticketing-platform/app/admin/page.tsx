@@ -1983,24 +1983,24 @@ export default function AdminPage() {
                 <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-stone-50 border-b border-stone-200">
+                      <thead className="bg-stone-800 border-b border-stone-200">
                         <tr>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Event
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Category
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Date
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Tickets
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Attendance
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Actions
                           </th>
                         </tr>
@@ -2076,7 +2076,7 @@ export default function AdminPage() {
                                   {event.category || 'N/A'}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 text-stone-700">
+                              <td className="px-6 py-4 text-stone-900 font-medium">
                                 {new Date(event.date).toLocaleDateString(
                                   'en-US',
                                   {
@@ -2406,27 +2406,27 @@ export default function AdminPage() {
                 <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead className="bg-stone-50 border-b border-stone-200">
+                      <thead className="bg-stone-800 border-b border-stone-200">
                         <tr>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Ticket #
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Event
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Buyer
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Seat
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Status
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Actions
                           </th>
-                          <th className="px-6 py-4 text-left text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-white uppercase tracking-wider">
                             Delete
                           </th>
                         </tr>
@@ -2447,7 +2447,7 @@ export default function AdminPage() {
                                   {ticket.ticketNumber}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 text-stone-700">
+                              <td className="px-6 py-4 text-stone-900 font-medium">
                                 {eventInfo?.name || 'Unknown'}
                               </td>
                               <td className="px-6 py-4">
@@ -2458,7 +2458,7 @@ export default function AdminPage() {
                                   {ticket.buyerEmail}
                                 </p>
                               </td>
-                              <td className="px-6 py-4 text-stone-700">
+                              <td className="px-6 py-4 text-stone-900 font-medium">
                                 {ticket.seats
                                   ?.map((s) => s.seatId)
                                   .join(', ') || 'N/A'}
