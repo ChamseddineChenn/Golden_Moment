@@ -869,12 +869,45 @@ export default function AdminPage() {
           // Validate the ticket via API using encrypted token
           const { getAPIBaseURL } = await import('@/lib/api/axios');
           const apiUrl = getAPIBaseURL();
+          
+          // Debug: Log the API URL being used (visible in remote debugging)
+          console.log('[QR Debug] API URL:', apiUrl);
+          console.log('[QR Debug] Full endpoint:', `${apiUrl}/tickets/validate-qr`);
+          
           const response = await fetch(`${apiUrl}/tickets/validate-qr`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ encryptedToken }),
           });
+          
+          console.log('[QR Debug] Response status:', response.status);
+          console.log('[QR Debug] Response ok:', response.ok);
+          
+          // Handle non-OK responses
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[QR Debug] Error response:', errorText);
+            
+            let errorMessage = 'Server returned an error';
+            try {
+              const errorJson = JSON.parse(errorText);
+              errorMessage = errorJson.message || errorJson.error || errorMessage;
+            } catch {
+              // Response wasn't JSON, use text
+              errorMessage = errorText || `Server error: ${response.status}`;
+            }
+            
+            setScanResult({
+              success: false,
+              message: errorMessage,
+            });
+            setScanning(false);
+            setTimeout(() => { scanProcessing = false; }, 500);
+            return;
+          }
+          
           const responseData = await response.json();
+          console.log('[QR Debug] Response data:', responseData);
 
           // Extract data from wrapped response format { success, statusCode, data, timestamp }
           const scanData = responseData.data || responseData;
@@ -890,10 +923,23 @@ export default function AdminPage() {
             closeCameraScanner();
           }, 1000);
         } catch (apiErr: unknown) {
-          console.error('API validation error:', apiErr);
+          const errorMessage = apiErr instanceof Error ? apiErr.message : 'Unknown error';
+          console.error('[QR Debug] Fetch error:', errorMessage);
+          console.error('[QR Debug] Full error:', apiErr);
+          
+          // Provide more specific error message
+          let userMessage = 'Failed to validate ticket. ';
+          if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+            userMessage += 'Network error - check internet connection or backend may be down.';
+          } else if (errorMessage.includes('CORS')) {
+            userMessage += 'CORS error - backend not configured for this domain.';
+          } else {
+            userMessage += errorMessage;
+          }
+          
           setScanResult({
             success: false,
-            message: 'Failed to validate ticket. Server error.',
+            message: userMessage,
           });
           setScanning(false);
           
@@ -2595,6 +2641,12 @@ export default function AdminPage() {
                           </button>
                         </div>
                         <div className="p-6">
+                          {/* Debug info for mobile - shows API URL */}
+                          <div className="mb-4 p-3 bg-stone-100 rounded-lg text-xs font-mono break-all">
+                            <span className="text-stone-500">API: </span>
+                            <span className="text-stone-800">{typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002') : 'loading...'}</span>
+                          </div>
+                          
                           {/* Camera Scanner */}
                           <div id="qr-reader" style={{ width: '100%' }}></div>
                           <p className="text-sm text-stone-500 mt-4 text-center">
