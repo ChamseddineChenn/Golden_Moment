@@ -507,9 +507,9 @@ export class SeatsService {
         {
           arrayFilters: [
             { 'section.id': seatRequest.sectionId },
-            { 
+            {
               'seatToRelease.seatId': seatRequest.seatId,
-              'seatToRelease.status': 'reserving',  // Only release if still reserving!
+              'seatToRelease.status': 'reserving', // Only release if still reserving!
             },
           ],
         },
@@ -519,11 +519,15 @@ export class SeatsService {
         releasedCount++;
       } else {
         skippedCount++;
-        this.logger.log('Seat not released (already sold or not reserving)', SeatsService.name, {
-          eventId,
-          sectionId: seatRequest.sectionId,
-          seatId: seatRequest.seatId,
-        });
+        this.logger.log(
+          'Seat not released (already sold or not reserving)',
+          SeatsService.name,
+          {
+            eventId,
+            sectionId: seatRequest.sectionId,
+            seatId: seatRequest.seatId,
+          },
+        );
       }
     }
 

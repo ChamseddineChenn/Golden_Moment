@@ -117,6 +117,12 @@ export class TicketsService {
 
   async create(createTicketDto: CreateTicketDto): Promise<Ticket> {
     try {
+      console.log('\n\n🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫');
+      console.log('🎫 CREATE() METHOD CALLED');
+      console.log('🎫 Event ID:', createTicketDto.eventId);
+      console.log('🎫 Ticket Type:', createTicketDto.ticketType);
+      console.log('🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫\n\n');
+      
       this.logger.log('Creating ticket', TicketsService.name, {
         eventId: createTicketDto.eventId.toString(),
         ticketType: createTicketDto.ticketType,
@@ -321,7 +327,7 @@ export class TicketsService {
       });
 
       // Log the ticket purchase
-      await this.logsService.createLog(LogAction.TICKET_PURCHASED, {
+      await this.logsService.createLog(LogAction.TICKET_PURCHASE, {
         ticketName: `Ticket #${ticketNumber}`,
         eventName: event.name,
         eventId: createTicketDto.eventId.toString(),
@@ -365,11 +371,12 @@ export class TicketsService {
       }
 
       if (Object.keys(updateData).length > 0) {
-        await this.eventsService.update(
+        console.log('🎫 TICKET SERVICE: Calling updateInternal with:', Object.keys(updateData));
+        await this.eventsService.updateInternal(
           createTicketDto.eventId.toString(),
           updateData,
-          true, // skipLogging: this is an automatic system update, not a manual admin update
         );
+        console.log('🎫 TICKET SERVICE: updateInternal call completed');
       }
 
       // Send receipt email asynchronously (don't block the response)
@@ -1049,7 +1056,7 @@ export class TicketsService {
         // STEP 4: Update the event
         if (Object.keys(updateData).length > 0) {
           await this.eventsService
-            .update(eventId, updateData, true)
+            .updateInternal(eventId, updateData)
             .catch(() => {
               // Silently ignore if event update fails (event may have been deleted)
               this.logger.warn(
@@ -1123,6 +1130,14 @@ export class TicketsService {
     ticketType: string = 'Standard',
   ): Promise<Ticket[]> {
     try {
+      console.log('\n\n🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫');
+      console.log('🎫 CREATETICKETSFFROMPAYMENT STARTED');
+      console.log('🎫 Payment ID:', paymentId);
+      console.log('🎫 Event ID:', eventId);
+      console.log('🎫 Ticket Type:', ticketType);
+      console.log('🎫 Ticket Count:', ticketIds.length);
+      console.log('🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫\n\n');
+      
       this.logger.log('Creating tickets from payment', TicketsService.name, {
         paymentId,
         eventId,
@@ -1364,12 +1379,19 @@ export class TicketsService {
           (event.soldTickets || 0) + createdTickets.length;
       }
 
+      // Update event with internal counters (sold tickets, early bird count)
       if (Object.keys(updateData).length > 0) {
-        await this.eventsService.update(eventId, updateData);
+        console.log('\n\n🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫');
+        console.log('🎫 ABOUT TO CALL updateInternal WITH:');
+        console.log('🎫 Event ID:', eventId);
+        console.log('🎫 Update Data:', JSON.stringify(updateData));
+        console.log('🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫🎫\n\n');
+        await this.eventsService.updateInternal(eventId, updateData);
+        console.log('\n\n🎫 updateInternal RETURNED SUCCESSFULLY\n\n');
       }
 
-      // Log purchase action
-      await this.logsService.createLog(LogAction.TICKET_PURCHASED, {
+      // Log ticket purchase
+      await this.logsService.createLog(LogAction.TICKET_PURCHASE, {
         ticketName: `Tickets from Payment ${paymentId}`,
         eventName: event.name,
         eventId,

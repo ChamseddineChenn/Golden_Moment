@@ -156,22 +156,40 @@ export class PaymentsController {
     }
 
     const event = this.paymentsService.verifyWebhookSignature(body, signature);
+    const eventId = event['id']; // Stripe event ID - guaranteed unique
 
-    switch (event['type']) {
-      case 'payment_intent.succeeded':
-        await this.paymentsService.handlePaymentSuccess(
-          event['data']['object']['id'],
-        );
-        break;
-      case 'payment_intent.payment_failed':
-        await this.paymentsService.handlePaymentFailure(
-          event['data']['object']['id'],
-          event['data']['object']['last_payment_error']?.['message'] ||
-            'Unknown error',
-        );
-        break;
-      default:
-        console.log(`Unhandled event type ${event['type']}`);
+    // Check if this event was already processed
+    const processedEvent =
+      await this.paymentsService.getProcessedEvent(eventId);
+    if (processedEvent) {
+      // This event was already successfully processed - return success without reprocessing
+      console.log(`Webhook event ${eventId} already processed, skipping...`);
+      return { received: true };
+    }
+
+    try {
+      switch (event['type']) {
+        case 'payment_intent.succeeded':
+          await this.paymentsService.handlePaymentSuccess(
+            event['data']['object']['id'],
+          );
+          break;
+        case 'payment_intent.payment_failed':
+          await this.paymentsService.handlePaymentFailure(
+            event['data']['object']['id'],
+            event['data']['object']['last_payment_error']?.['message'] ||
+              'Unknown error',
+          );
+          break;
+        default:
+          console.log(`Unhandled event type ${event['type']}`);
+      }
+
+      // Mark this event as successfully processed
+      await this.paymentsService.markEventAsProcessed(eventId);
+    } catch (error) {
+      // Don't mark as processed - let Stripe retry
+      throw error;
     }
 
     return { received: true };

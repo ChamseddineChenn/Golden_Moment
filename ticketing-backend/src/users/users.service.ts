@@ -27,7 +27,7 @@ export class UsersService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private configService: ConfigService,
     private eventEmitter: EventEmitter2,
-     private logsService: LogsService,
+    private logsService: LogsService,
   ) {
     this.bcryptRounds =
       this.configService.get<number>('security.bcryptRounds') || 12;
@@ -307,14 +307,6 @@ export class UsersService {
     (organizer as any).isVerifiedOrganizer = true;
     await organizer.save();
 
-    // Log admin action
-    if (this.logsService) {
-      await this.logsService.createLog(LogAction.ADMIN_VERIFY_ORGANIZER, {
-        performedBy: 'admin', // Replace with actual admin user if available
-        metadata: { organizerId },
-      });
-    }
-
     return {
       success: true,
       message: 'Organizer verified successfully',
@@ -331,14 +323,6 @@ export class UsersService {
     user.isActive = false;
     await user.save();
 
-    // Log admin action
-    if (this.logsService) {
-      await this.logsService.createLog(LogAction.ADMIN_DEACTIVATE_USER, {
-        performedBy: 'admin', // Replace with actual admin user if available
-        metadata: { userId },
-      });
-    }
-
     return {
       success: true,
       message: 'User deactivated successfully',
@@ -348,23 +332,12 @@ export class UsersService {
   async deleteUser(userId: string): Promise<any> {
     await this.userModel.findByIdAndDelete(userId).exec();
 
-    // Log admin action
-    if (this.logsService) {
-      await this.logsService.createLog(LogAction.ADMIN_DELETE_USER, {
-        performedBy: 'admin', // Replace with actual admin user if available
-        metadata: { userId },
-      });
-    }
-
     return {
       success: true,
       message: 'User deleted successfully',
     };
   }
 
-  /**
-   * Update user profile with role-based validation and email verification flow
-   */
   async updateProfile(
     userId: string,
     userType: string,
