@@ -856,8 +856,8 @@ export default function AdminPage() {
 
         try {
           // Validate the ticket via API using encrypted token
-          const apiUrl =
-            process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+          const { getAPIBaseURL } = await import('@/lib/api/axios');
+          const apiUrl = getAPIBaseURL();
           const response = await fetch(`${apiUrl}/tickets/validate-qr`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -984,8 +984,8 @@ export default function AdminPage() {
           console.log('[QR Scanner] Successfully decoded QR code from image');
 
           // Validate the ticket
-          const apiUrl =
-            process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+          const { getAPIBaseURL } = await import('@/lib/api/axios');
+          const apiUrl = getAPIBaseURL();
           const response = await fetch(`${apiUrl}/tickets/validate-qr`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

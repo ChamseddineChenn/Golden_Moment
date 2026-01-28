@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Dynamic API URL that works on both localhost and mobile via local network
-const getAPIBaseURL = () => {
+export const getAPIBaseURL = () => {
   if (typeof window === 'undefined') {
     // Server-side rendering
     return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';

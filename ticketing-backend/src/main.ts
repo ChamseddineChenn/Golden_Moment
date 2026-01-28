@@ -34,8 +34,28 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
+  // Setup CORS with support for both development and production origins
+  const allowedOrigins = [
+    'http://localhost:3000', // Local development
+    'http://localhost:3001', // Alternative local dev
+    'https://golden-moment-inky.vercel.app', // Production frontend
+  ];
+
+  // Add any additional origins from environment variable
+  const envOrigin = configService.get<string>('cors.origin');
+  if (envOrigin && !allowedOrigins.includes(envOrigin)) {
+    allowedOrigins.push(envOrigin);
+  }
+
   app.enableCors({
-    origin: configService.get<string>('cors.origin'),
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS not allowed'));
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
