@@ -2644,7 +2644,7 @@ export default function AdminPage() {
                           {/* Debug info for mobile - shows API URL */}
                           <div className="mb-4 p-3 bg-stone-100 rounded-lg text-xs font-mono break-all">
                             <span className="text-stone-500">API: </span>
-                            <span className="text-stone-800">{typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002') : 'loading...'}</span>
+                            <span className="text-stone-800">{typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002') : 'loading...'}</span>
                           </div>
                           
                           {/* Camera Scanner */}
