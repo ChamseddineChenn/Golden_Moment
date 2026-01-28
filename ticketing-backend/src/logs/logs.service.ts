@@ -19,18 +19,36 @@ export interface CreateLogDto {
 
 @Injectable()
 export class LogsService {
-  constructor(
-    @InjectModel(Log.name) private logModel: Model<LogDocument>,
-  ) {}
+  constructor(@InjectModel(Log.name) private logModel: Model<LogDocument>) {}
 
   /**
-   * Create a new log entry
+   * Create a new log entry for admin actions (EVENT and TICKET actions only)
    */
   async createLog(
     action: LogAction,
     data: Partial<CreateLogDto> = {},
   ): Promise<LogDocument> {
     try {
+      // CRITICAL FIX: Block EVENT_UPDATED logs from automatic system updates (with no user info)
+      // These are system field updates (soldTickets, earlyBirdCount) from ticket purchases
+      // Only block if: (1) no currentUser (automatic), AND (2) only system fields changed
+      if (action === LogAction.EVENT_UPDATED && data.metadata) {
+        const systemOnlyFields = ['soldTickets', 'earlyBirdCount'];
+        const metadataKeys = Array.isArray(data.metadata) 
+          ? data.metadata 
+          : Object.keys(data.metadata);
+        
+        const isSystemFieldsOnly = metadataKeys.length > 0 && 
+          metadataKeys.every((key: string) => systemOnlyFields.includes(key));
+        
+        // Only block automatic updates: if NO user info (performedBy = 'Unknown') AND only system fields
+        const isAutomaticUpdate = (data.performedBy === 'Unknown' || !data.userEmail) && isSystemFieldsOnly;
+        
+        if (isAutomaticUpdate) {
+          return null; // Don't create log for automatic system updates
+        }
+      }
+      
       const logEntry = new this.logModel({
         action,
         userId: data.userId,
@@ -57,13 +75,17 @@ export class LogsService {
   /**
    * Get all logs with optional filters
    */
-  async findAll(filters: {
-    action?: LogAction;
-    userId?: string;
-    startDate?: Date;
-    endDate?: Date;
-    limit?: number;
-    skip?: number;
+  async findAll({
+    filters = {},
+  }: {
+    filters?: {
+      action?: LogAction;
+      userId?: string;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      skip?: number;
+    };
   } = {}): Promise<LogDocument[]> {
     const query: any = {};
 
@@ -95,17 +117,6 @@ export class LogsService {
   }
 
   /**
-   * Get logs for a specific user
-   */
-  async findByUserId(userId: string, limit = 50): Promise<LogDocument[]> {
-    return this.logModel
-      .find({ userId })
-      .sort({ timestamp: -1 })
-      .limit(limit)
-      .exec();
-  }
-
-  /**
    * Get logs by action type
    */
   async findByAction(action: LogAction, limit = 100): Promise<LogDocument[]> {
@@ -126,45 +137,5 @@ export class LogsService {
       .limit(limit)
       .populate('userId', 'email userType')
       .exec();
-  }
-
-  /**
-   * Delete old logs (cleanup)
-   */
-  async deleteOldLogs(daysToKeep = 90): Promise<number> {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-
-    const result = await this.logModel.deleteMany({
-      timestamp: { $lt: cutoffDate },
-    });
-
-    return result.deletedCount;
-  }
-
-  /**
-   * Get log statistics
-   */
-  async getStatistics(startDate?: Date, endDate?: Date): Promise<any> {
-    const matchStage: any = {};
-
-    if (startDate || endDate) {
-      matchStage.timestamp = {};
-      if (startDate) matchStage.timestamp.$gte = startDate;
-      if (endDate) matchStage.timestamp.$lte = endDate;
-    }
-
-    const stats = await this.logModel.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: '$action',
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { count: -1 } },
-    ]);
-
-    return stats;
   }
 }

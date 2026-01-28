@@ -11,6 +11,7 @@ import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { Public } from '../auth/decorators/public.decorator';
+import { GetCurrentUser } from '../auth/decorators/get-current-user.decorator';
 import { AppLogger } from '../common/utils/logger';
 
 @Controller('events')
@@ -19,14 +20,16 @@ export class EventsController {
 
   constructor(private readonly eventsService: EventsService) {}
 
-  @Public()
   @Post()
-  async create(@Body() createEventDto: CreateEventDto) {
+  async create(
+    @Body() createEventDto: CreateEventDto,
+    @GetCurrentUser() currentUser?: any,
+  ) {
     this.logger.log('POST /events received', EventsController.name, {
       name: createEventDto.name,
       category: createEventDto.category,
     });
-    const result = await this.eventsService.create(createEventDto);
+    const result = await this.eventsService.create(createEventDto, currentUser);
     this.logger.log('Event created successfully', EventsController.name, {
       id: result._id.toString(),
     });
@@ -56,20 +59,19 @@ export class EventsController {
     return this.eventsService.findById(id);
   }
 
-  @Public()
   @Put(':id')
   async update(
     @Param('id') id: string,
     @Body() updateEventDto: UpdateEventDto,
+    @GetCurrentUser() currentUser?: any,
   ) {
     this.logger.log('PUT /events/:id', EventsController.name, { id });
-    return this.eventsService.update(id, updateEventDto as any);
+    return this.eventsService.update(id, updateEventDto as any, currentUser);
   }
 
-  @Public()
   @Delete(':id')
-  async delete(@Param('id') id: string) {
+  async delete(@Param('id') id: string, @GetCurrentUser() currentUser?: any) {
     this.logger.log('DELETE /events/:id', EventsController.name, { id });
-    return this.eventsService.delete(id);
+    return this.eventsService.delete(id, currentUser);
   }
 }

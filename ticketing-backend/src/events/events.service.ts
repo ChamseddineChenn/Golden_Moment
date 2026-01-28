@@ -24,7 +24,10 @@ export class EventsService {
     private logsService: LogsService,
   ) {}
 
-  async create(createEventDto: CreateEventDto): Promise<Event> {
+  async create(
+    createEventDto: CreateEventDto,
+    currentUser?: any,
+  ): Promise<Event> {
     try {
       this.logger.log('Creating event', EventsService.name, {
         name: createEventDto.name,
@@ -128,6 +131,9 @@ export class EventsService {
       await this.logsService.createLog(LogAction.EVENT_CREATED, {
         eventName: savedEvent.name,
         eventId: savedEvent._id.toString(),
+        userId: currentUser?.id || currentUser?._id,
+        userEmail: currentUser?.email,
+        performedBy: currentUser?.email || 'Unknown',
         metadata: {
           venue: savedEvent.venue,
           date: savedEvent.date,
@@ -341,13 +347,27 @@ export class EventsService {
   async update(
     id: string,
     updateData: Partial<Event> | any,
-    skipLogging: boolean = false,
+    currentUser?: any,
   ): Promise<Event | null> {
     try {
       // Verify event exists
       const eventExists = await this.eventModel.findById(id).exec();
       if (!eventExists) {
         throw new EventNotFoundException(id);
+      }
+
+      // Detect publish/unpublish action
+      const wasPublished = eventExists.isPublished;
+      const willBePublished =
+        updateData.isPublished !== undefined
+          ? updateData.isPublished
+          : wasPublished;
+      let publishActionType: LogAction | null = null;
+
+      if (!wasPublished && willBePublished) {
+        publishActionType = LogAction.EVENT_PUBLISH;
+      } else if (wasPublished && !willBePublished) {
+        publishActionType = LogAction.EVENT_UNPUBLISH;
       }
 
       // Convert date to Date object if it's a string
@@ -420,15 +440,47 @@ export class EventsService {
         name: updated?.name,
       });
 
-      // Log the event update (only if not a system automatic update)
-      if (!skipLogging) {
-        await this.logsService.createLog(LogAction.EVENT_UPDATED, {
+      // Log publish/unpublish action if detected
+      if (publishActionType) {
+        await this.logsService.createLog(publishActionType, {
           eventName: updated?.name,
           eventId: id,
+          userId: currentUser?.id || currentUser?._id,
+          userEmail: currentUser?.email,
+          performedBy: currentUser?.email || 'Unknown',
           metadata: {
-            updatedFields: Object.keys(updateData),
+            venue: updated?.venue,
+            date: updated?.date,
           },
         });
+      }
+      // Log regular update
+      else {
+        // Build before/after comparison for updated fields
+        const changes: Record<string, { before: any; after: any }> = {};
+        Object.keys(updateData).forEach((key) => {
+          const beforeValue = eventExists[key];
+          const afterValue = updated?.[key];
+          // Skip if values are identical
+          if (JSON.stringify(beforeValue) !== JSON.stringify(afterValue)) {
+            changes[key] = {
+              before: beforeValue,
+              after: afterValue,
+            };
+          }
+        });
+
+        // Log all admin edits (LogsService will filter out automatic system updates)
+        if (Object.keys(changes).length > 0) {
+          await this.logsService.createLog(LogAction.EVENT_UPDATED, {
+            eventName: updated?.name,
+            eventId: id,
+            userId: currentUser?.id || currentUser?._id,
+            userEmail: currentUser?.email,
+            performedBy: currentUser?.email || 'Unknown',
+            metadata: changes,
+          });
+        }
       }
 
       return updated;
@@ -444,7 +496,32 @@ export class EventsService {
     }
   }
 
-  async delete(id: string): Promise<void> {
+  /**
+   * Internal update method for system-triggered changes (soldTickets, earlyBirdCount, seatingLayout).
+   * This method NEVER creates activity logs - use this for automatic updates from ticket purchases, etc.
+   */
+  async updateInternal(
+    id: string,
+    updateData: Partial<Event> | any,
+  ): Promise<Event | null> {
+    try {
+      console.log('\n\n🔵🔵🔵 UPDATEINTERNAL CALLED 🔵🔵🔵\n\n');
+      console.log('🔵 EVENTS SERVICE updateInternal(): Called with fields:', Object.keys(updateData));
+      
+      const updated = await this.eventModel
+        .findByIdAndUpdate(id, updateData, { new: true })
+        .lean()
+        .exec();
+
+      console.log('🔵 EVENTS SERVICE updateInternal(): Updated event, NO LOGS created');
+      return updated;
+    } catch (error) {
+      this.logger.error('Error in internal event update', EventsService.name, { id, error });
+      throw error;
+    }
+  }
+
+  async delete(id: string, currentUser?: any): Promise<void> {
     try {
       // Fetch the event to get its cover image public_id
       const event = await this.eventModel.findById(id).exec();
@@ -498,6 +575,9 @@ export class EventsService {
       await this.logsService.createLog(LogAction.EVENT_DELETED, {
         eventName: event.name,
         eventId: id,
+        userId: currentUser?.id || currentUser?._id,
+        userEmail: currentUser?.email,
+        performedBy: currentUser?.email || 'Unknown',
         metadata: {
           venue: event.venue,
           date: event.date,

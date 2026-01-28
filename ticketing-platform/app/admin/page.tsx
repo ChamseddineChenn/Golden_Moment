@@ -75,6 +75,13 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [creatingEvent, setCreatingEvent] = useState(false);
 
+  // Log filter states
+  const [logActionFilter, setLogActionFilter] = useState<string>('');
+  const [logEventNameFilter, setLogEventNameFilter] = useState<string>('');
+  const [logStartDate, setLogStartDate] = useState<string>('');
+  const [logEndDate, setLogEndDate] = useState<string>('');
+  const [expandedLogId, setExpandedLogId] = useState<number | null>(null);
+
   // Search states
   const [eventSearch, setEventSearch] = useState('');
   const [ticketSearch, setTicketSearch] = useState('');
@@ -405,12 +412,35 @@ export default function AdminPage() {
 
   const fetchLogs = async () => {
     try {
-      const response = await logsAPI.getAll(100, 0);
-      const innerData = response.data?.data?.data;
+      // Build query parameters based on filters
+      let url = '/logs?limit=100&skip=0';
 
-      if (innerData && Array.isArray(innerData.logs)) {
-        setLogs(innerData.logs);
-        setLogsTotal(innerData.total || 0);
+      if (logActionFilter) {
+        url += `&action=${logActionFilter}`;
+      }
+      if (logStartDate) {
+        url += `&startDate=${new Date(logStartDate).toISOString()}`;
+      }
+      if (logEndDate) {
+        url += `&endDate=${new Date(logEndDate).toISOString()}`;
+      }
+
+      const response = await logsAPI.getAll(100, 0);
+      // Extract logs from response - could be at data.logs or data.data.logs
+      let logsData = response.data?.logs || response.data?.data?.logs || [];
+
+      // Filter by event name if specified
+      if (logEventNameFilter) {
+        logsData = logsData.filter((log: any) =>
+          log.eventName
+            ?.toLowerCase()
+            .includes(logEventNameFilter.toLowerCase()),
+        );
+      }
+
+      if (Array.isArray(logsData)) {
+        setLogs(logsData);
+        setLogsTotal(logsData.length);
       } else {
         setLogs([]);
         setLogsTotal(0);
@@ -2760,7 +2790,7 @@ export default function AdminPage() {
             {/* Logs Tab */}
             {activeTab === 'logs' && (
               <div className="max-w-5xl mx-auto">
-                <div className="mb-4 md:mb-6 flex items-center justify-between">
+                <div className="mb-6 md:mb-8 flex flex-col gap-4">
                   <div>
                     <h2 className="text-xl md:text-2xl font-bold text-stone-900">
                       Activity Logs
@@ -2770,26 +2800,103 @@ export default function AdminPage() {
                       purchased
                     </p>
                   </div>
-                  <button
-                    onClick={fetchLogs}
-                    disabled={loading}
-                    className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition disabled:opacity-50"
-                  >
-                    <svg
-                      className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+
+                  {/* Filters */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 bg-white p-4 rounded-xl border border-stone-200">
+                    <div>
+                      <label className="block text-sm font-bold text-stone-900 mb-2">
+                        Action Type
+                      </label>
+                      <select
+                        value={logActionFilter}
+                        onChange={(e) => setLogActionFilter(e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-stone-300 rounded-lg bg-white text-stone-900 font-medium focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      >
+                        <option value="">All Actions</option>
+                        <option value="EVENT_CREATED">Event Created</option>
+                        <option value="EVENT_UPDATED">Event Updated</option>
+                        <option value="EVENT_DELETED">Event Deleted</option>
+                        <option value="EVENT_PUBLISH">Event Published</option>
+                        <option value="EVENT_UNPUBLISH">
+                          Event Unpublished
+                        </option>
+                        <option value="TICKET_CREATE">Ticket Created</option>
+                        <option value="TICKET_DELETED">Ticket Deleted</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-stone-900 mb-2">
+                        Event Name
+                      </label>
+                      <input
+                        type="text"
+                        value={logEventNameFilter}
+                        onChange={(e) => setLogEventNameFilter(e.target.value)}
+                        placeholder="Search event name..."
+                        className="w-full px-3 py-2 border-2 border-stone-300 rounded-lg bg-white text-stone-900 placeholder-stone-500 font-medium focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                       />
-                    </svg>
-                    {loading ? 'Loading...' : 'Refresh'}
-                  </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-stone-900 mb-2">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={logStartDate}
+                        onChange={(e) => setLogStartDate(e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-stone-300 rounded-lg bg-white text-stone-900 font-medium focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-stone-900 mb-2">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={logEndDate}
+                        onChange={(e) => setLogEndDate(e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-stone-300 rounded-lg bg-white text-stone-900 font-medium focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={fetchLogs}
+                      disabled={loading}
+                      className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition disabled:opacity-50"
+                    >
+                      <svg
+                        className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      {loading ? 'Loading...' : 'Search'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setLogActionFilter('');
+                        setLogEventNameFilter('');
+                        setLogStartDate('');
+                        setLogEndDate('');
+                        fetchLogs();
+                      }}
+                      className="px-4 py-2 bg-stone-200 text-stone-700 rounded-lg hover:bg-stone-300 transition"
+                    >
+                      Clear Filters
+                    </button>
+                  </div>
                 </div>
 
                 {logs.length > 0 ? (
@@ -2814,10 +2921,20 @@ export default function AdminPage() {
                           text: 'text-red-800',
                           badge: 'bg-red-100 text-red-700',
                         },
-                        TICKET_PURCHASED: {
+                        EVENT_PUBLISH: {
                           bg: 'bg-green-50',
                           text: 'text-green-800',
                           badge: 'bg-green-100 text-green-700',
+                        },
+                        EVENT_UNPUBLISH: {
+                          bg: 'bg-yellow-50',
+                          text: 'text-yellow-800',
+                          badge: 'bg-yellow-100 text-yellow-700',
+                        },
+                        TICKET_CREATE: {
+                          bg: 'bg-emerald-50',
+                          text: 'text-emerald-800',
+                          badge: 'bg-emerald-100 text-emerald-700',
                         },
                         TICKET_DELETED: {
                           bg: 'bg-orange-50',
@@ -2837,41 +2954,303 @@ export default function AdminPage() {
                       ).toLocaleString();
 
                       return (
-                        <div
-                          key={idx}
-                          className={`${colors.bg} border border-stone-200 rounded-xl p-4 hover:shadow-md transition`}
-                        >
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <span
-                                className={`inline-block px-3 py-1 rounded-lg font-semibold text-xs whitespace-nowrap ${colors.badge}`}
-                              >
-                                {actionLabel}
-                              </span>
-                              <span
-                                className={`${colors.text} font-semibold text-sm truncate`}
-                              >
-                                {log.eventName || log.ticketName || 'Unknown'}
-                              </span>
-                            </div>
-                            {log.metadata && (
-                              <div className="text-right">
-                                {log.metadata.totalPrice && (
-                                  <p className="text-sm font-semibold text-amber-600">
-                                    ${log.metadata.totalPrice.toFixed(2)}
-                                  </p>
-                                )}
-                                {log.metadata.buyerEmail && (
-                                  <p className="text-xs text-stone-500">
-                                    {log.metadata.buyerEmail}
-                                  </p>
-                                )}
+                        <div key={idx}>
+                          <div
+                            onClick={() =>
+                              setExpandedLogId(
+                                expandedLogId === idx ? null : idx,
+                              )
+                            }
+                            className={`${colors.bg} border border-stone-200 rounded-xl p-4 hover:shadow-md transition cursor-pointer`}
+                          >
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <span
+                                  className={`inline-block px-3 py-1 rounded-lg font-semibold text-xs whitespace-nowrap ${colors.badge}`}
+                                >
+                                  {actionLabel}
+                                </span>
+                                <span
+                                  className={`${colors.text} font-semibold text-sm truncate`}
+                                >
+                                  {log.eventName || log.ticketName || 'Unknown'}
+                                </span>
                               </div>
-                            )}
-                            <p className="text-xs md:text-sm text-stone-600 whitespace-nowrap ml-4">
-                              {timestamp}
-                            </p>
+                              {log.metadata && (
+                                <div className="text-right hidden sm:block">
+                                  {log.metadata.totalPrice && (
+                                    <p className="text-sm font-semibold text-amber-600">
+                                      ₹{log.metadata.totalPrice.toFixed(2)}
+                                    </p>
+                                  )}
+                                  {log.metadata.buyerEmail && (
+                                    <p className="text-xs text-stone-500">
+                                      {log.metadata.buyerEmail}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs md:text-sm text-stone-600 whitespace-nowrap">
+                                  {timestamp}
+                                </p>
+                                <svg
+                                  className={`w-5 h-5 text-stone-600 transition ${
+                                    expandedLogId === idx ? 'rotate-180' : ''
+                                  }`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
+                                  />
+                                </svg>
+                              </div>
+                            </div>
                           </div>
+
+                          {/* Dropdown Details */}
+                          {expandedLogId === idx && (
+                            <div
+                              className={`${colors.bg} border border-t-0 border-stone-200 rounded-b-xl p-4 space-y-3`}
+                            >
+                              {/* Admin Info */}
+                              <div className="bg-white rounded-lg p-4 border border-stone-200">
+                                <h4 className="text-sm font-bold text-stone-900 mb-3 flex items-center gap-2">
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                  </svg>
+                                  Admin Information
+                                </h4>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between">
+                                    <span className="font-semibold text-stone-900">
+                                      Email:
+                                    </span>
+                                    <span className="text-stone-800">
+                                      {log.userEmail || 'Unknown'}
+                                    </span>
+                                  </div>
+                                  {log.ipAddress && (
+                                    <div className="flex justify-between">
+                                      <span className="font-semibold text-stone-900">
+                                        IP Address:
+                                      </span>
+                                      <span className="text-stone-800">
+                                        {log.ipAddress}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Additional Metadata */}
+                              {log.metadata &&
+                                Object.keys(log.metadata).length > 0 && (
+                                  <div className="bg-white rounded-lg p-4 border border-stone-200">
+                                    <h4 className="text-sm font-bold text-stone-900 mb-3 flex items-center gap-2">
+                                      <svg
+                                        className="w-4 h-4"
+                                        fill="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+                                      </svg>
+                                      Details
+                                    </h4>
+                                    <div className="space-y-3 text-sm">
+                                      {Object.entries(log.metadata).map(
+                                        ([key, value]: [string, any]) => {
+                                          // Handle before/after format for updates
+                                          if (
+                                            value &&
+                                            typeof value === 'object' &&
+                                            'before' in value &&
+                                            'after' in value
+                                          ) {
+                                            // For complex nested objects, find and show only changed fields
+                                            const renderChangeDisplay = (
+                                              before: any,
+                                              after: any,
+                                              path = '',
+                                            ) => {
+                                              if (
+                                                typeof before !== 'object' ||
+                                                typeof after !== 'object' ||
+                                                before === null ||
+                                                after === null
+                                              ) {
+                                                return (
+                                                  <div className="space-y-1">
+                                                    <div className="text-red-600">
+                                                      Before:{' '}
+                                                      {String(before || 'N/A')}
+                                                    </div>
+                                                    <div className="text-green-600">
+                                                      After:{' '}
+                                                      {String(after || 'N/A')}
+                                                    </div>
+                                                  </div>
+                                                );
+                                              }
+
+                                              // For nested objects, find changed fields
+                                              const changedFields: string[] =
+                                                [];
+                                              Object.keys({
+                                                ...before,
+                                                ...after,
+                                              }).forEach((fieldKey) => {
+                                                if (
+                                                  JSON.stringify(
+                                                    before[fieldKey],
+                                                  ) !==
+                                                  JSON.stringify(
+                                                    after[fieldKey],
+                                                  )
+                                                ) {
+                                                  changedFields.push(fieldKey);
+                                                }
+                                              });
+
+                                              if (changedFields.length === 0) {
+                                                return (
+                                                  <div className="text-stone-600 italic">
+                                                    No changes
+                                                  </div>
+                                                );
+                                              }
+
+                                              const formatValue = (
+                                                val: any,
+                                              ): React.ReactNode => {
+                                                if (
+                                                  typeof val !== 'object' ||
+                                                  val === null
+                                                ) {
+                                                  return String(val || 'N/A');
+                                                }
+                                                return (
+                                                  <div className="space-y-1">
+                                                    {Object.entries(val).map(
+                                                      ([k, v]: [
+                                                        string,
+                                                        any,
+                                                      ]) => (
+                                                        <div
+                                                          key={k}
+                                                          className="flex gap-2"
+                                                        >
+                                                          <span className="text-stone-600 min-w-fit">
+                                                            {k}:
+                                                          </span>
+                                                          <span className="text-stone-800 font-medium">
+                                                            {typeof v ===
+                                                            'object'
+                                                              ? JSON.stringify(
+                                                                  v,
+                                                                )
+                                                              : String(v)}
+                                                          </span>
+                                                        </div>
+                                                      ),
+                                                    )}
+                                                  </div>
+                                                );
+                                              };
+
+                                              return (
+                                                <div className="space-y-2">
+                                                  {changedFields.map(
+                                                    (fieldKey) => (
+                                                      <div
+                                                        key={fieldKey}
+                                                        className="bg-stone-50 rounded p-2 border border-stone-200"
+                                                      >
+                                                        <p className="font-semibold text-stone-800 mb-2">
+                                                          {fieldKey}
+                                                        </p>
+                                                        <div className="space-y-2 text-xs ml-2">
+                                                          <div>
+                                                            <span className="text-red-600 font-medium block mb-1">
+                                                              Before:
+                                                            </span>
+                                                            <div className="text-stone-700 ml-2">
+                                                              {formatValue(
+                                                                before[
+                                                                  fieldKey
+                                                                ],
+                                                              )}
+                                                            </div>
+                                                          </div>
+                                                          <div>
+                                                            <span className="text-green-600 font-medium block mb-1">
+                                                              After:
+                                                            </span>
+                                                            <div className="text-stone-700 ml-2">
+                                                              {formatValue(
+                                                                after[fieldKey],
+                                                              )}
+                                                            </div>
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                    ),
+                                                  )}
+                                                </div>
+                                              );
+                                            };
+
+                                            return (
+                                              <div
+                                                key={key}
+                                                className="border-l-2 border-blue-400 pl-3 py-2"
+                                              >
+                                                <p className="font-semibold text-stone-900 mb-2">
+                                                  {key.replace(
+                                                    /([A-Z])/g,
+                                                    ' $1',
+                                                  )}
+                                                </p>
+                                                {renderChangeDisplay(
+                                                  value.before,
+                                                  value.after,
+                                                )}
+                                              </div>
+                                            );
+                                          }
+                                          // Fallback for other metadata
+                                          return (
+                                            <div
+                                              key={key}
+                                              className="flex justify-between"
+                                            >
+                                              <span className="font-semibold text-stone-900">
+                                                {key.replace(/([A-Z])/g, ' $1')}
+                                                :
+                                              </span>
+                                              <span className="text-stone-800">
+                                                {typeof value === 'object'
+                                                  ? JSON.stringify(value)
+                                                  : String(value)}
+                                              </span>
+                                            </div>
+                                          );
+                                        },
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

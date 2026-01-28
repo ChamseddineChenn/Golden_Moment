@@ -276,7 +276,26 @@ export class PaymentsService {
           `Failed to create tickets for payment ${paymentIntentId}:`,
           ticketError,
         );
-        // Mark payment with ticket creation error
+
+        // Check if tickets were actually created despite the error (idempotency)
+        const existingTickets = await this.ticketsService.getTicketsByPaymentId(
+          payment._id.toString(),
+        );
+
+        if (existingTickets && existingTickets.length > 0) {
+          // Tickets were created successfully! The error occurred after ticket creation.
+          // Treat this as success (idempotent).
+          this.logger.log(
+            `Tickets exist for payment despite error - treating as success (likely duplicate webhook):`,
+            {
+              paymentIntentId,
+              ticketCount: existingTickets.length,
+            },
+          );
+          return { payment, createdTickets: existingTickets };
+        }
+
+        // Mark payment with ticket creation error only if tickets don't exist
         payment.status = 'ticket_creation_failed';
         payment.failureReason = ticketError.message;
         await payment.save();
@@ -558,6 +577,24 @@ export class PaymentsService {
     } catch (error) {
       this.logger.error('Webhook signature verification failed:', error);
       throw new BadRequestException('Invalid webhook signature');
+    }
+  }
+
+  // In-memory webhook event deduplication (cleared on app restart)
+  // For production, consider using Redis or a database table
+  private processedWebhookEvents = new Set<string>();
+
+  async getProcessedEvent(eventId: string): Promise<boolean> {
+    return this.processedWebhookEvents.has(eventId);
+  }
+
+  async markEventAsProcessed(eventId: string): Promise<void> {
+    this.processedWebhookEvents.add(eventId);
+    // Clean up old events from memory (keep last 1000)
+    if (this.processedWebhookEvents.size > 1000) {
+      const eventsArray = Array.from(this.processedWebhookEvents);
+      const toDelete = eventsArray.slice(0, eventsArray.length - 1000);
+      toDelete.forEach((e) => this.processedWebhookEvents.delete(e));
     }
   }
 }
