@@ -3,12 +3,12 @@ import axios from 'axios';
 // Dynamic API URL that works on both localhost and mobile via local network
 export const getAPIBaseURL = () => {
   if (typeof window === 'undefined') {
-    // Server-side rendering
-    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+    // Server-side rendering - check both env vars
+    return process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
   }
 
-  // Client-side: replace localhost with the actual host for local mobile testing
-  let baseURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
+  // Client-side: check both env vars for compatibility
+  let baseURL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
 
   // Only replace localhost/127.0.0.1 with actual hostname if FRONTEND is on localhost
   // (for local mobile testing). Don't do this for production (Vercel) or other hosted environments.
