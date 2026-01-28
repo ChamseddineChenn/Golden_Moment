@@ -835,9 +835,20 @@ export default function AdminPage() {
   useEffect(() => {
     if (!showCameraModal) return;
 
+    // Optimize scanner settings for mobile vs desktop
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const scannerConfig = {
+      fps: isMobile ? 15 : 10, // Higher FPS on mobile for better detection
+      qrbox: isMobile 
+        ? { width: 200, height: 200 } // Smaller box on mobile for better responsiveness
+        : { width: 250, height: 250 }, // Larger box on desktop
+      aspectRatio: 1.0,
+      disableFlip: false,
+    };
+
     const scanner = new Html5QrcodeScanner(
       'qr-reader',
-      { fps: 10, qrbox: { width: 250, height: 250 } },
+      scannerConfig,
       false,
     );
 
@@ -874,8 +885,9 @@ export default function AdminPage() {
 
           // Close scanner after successful scan
           setTimeout(() => {
-            closeCameraScanner();
             setScanning(false);
+            scanProcessing = false;
+            closeCameraScanner();
           }, 1000);
         } catch (apiErr: unknown) {
           console.error('API validation error:', apiErr);
@@ -884,7 +896,11 @@ export default function AdminPage() {
             message: 'Failed to validate ticket. Server error.',
           });
           setScanning(false);
-          scanProcessing = false;
+          
+          // Reset scanning flag to allow retry on mobile
+          setTimeout(() => {
+            scanProcessing = false;
+          }, 500);
         }
       },
       (error: string) => {
