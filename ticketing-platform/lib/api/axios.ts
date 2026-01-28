@@ -7,14 +7,24 @@ export const getAPIBaseURL = () => {
     return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
   }
 
-  // Client-side: replace localhost with the actual host
+  // Client-side: replace localhost with the actual host for local mobile testing
   let baseURL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
 
-  if (baseURL.includes('localhost') || baseURL.includes('127.0.0.1')) {
+  // Only replace localhost/127.0.0.1 with actual hostname if FRONTEND is on localhost
+  // (for local mobile testing). Don't do this for production (Vercel) or other hosted environments.
+  const frontendIsLocalhost =
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1';
+
+  if (
+    frontendIsLocalhost &&
+    (baseURL.includes('localhost') || baseURL.includes('127.0.0.1'))
+  ) {
     // Replace localhost/127.0.0.1 with actual hostname for mobile compatibility
     const hostname = window.location.hostname;
     const port = 3002; // Backend port
-    baseURL = `http://${hostname}:${port}`;
+    const protocol = window.location.protocol === 'https:' ? 'https' : 'http';
+    baseURL = `${protocol}://${hostname}:${port}`;
   }
 
   return baseURL;
