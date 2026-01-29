@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { eventsAPI, ticketsAPI, logsAPI } from '@/lib/api';
+import { getAPIBaseURL } from '@/lib/api/axios';
 import Link from 'next/link';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { toast, ToastContainer } from 'react-toastify';
@@ -680,16 +681,22 @@ export default function AdminPage() {
 
         // Initialize seats if seating is enabled
         if (newEvent.seatingEnabled && newEvent.sections.length > 0) {
-          const apiUrl =
-            process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
           const createdEventId = response.data.data?._id || response.data._id;
           console.log(
             '[AdminPage] Initializing seats for event:',
             createdEventId,
           );
-          await fetch(`${apiUrl}/seats/event/${createdEventId}/initialize`, {
-            method: 'POST',
-          });
+          try {
+            await fetch(`${getAPIBaseURL()}/seats/event/${createdEventId}/initialize`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+          } catch (error) {
+            console.error('[AdminPage] Error initializing seats:', error);
+          }
         }
 
         toast.success('Event created successfully!');
@@ -2654,9 +2661,7 @@ export default function AdminPage() {
                             <span className="text-stone-500">API: </span>
                             <span className="text-stone-800">
                               {typeof window !== 'undefined'
-                                ? process.env.NEXT_PUBLIC_API_URL ||
-                                  process.env.NEXT_PUBLIC_BACKEND_URL ||
-                                  'http://localhost:3002'
+                                ? getAPIBaseURL()
                                 : 'loading...'}
                             </span>
                           </div>

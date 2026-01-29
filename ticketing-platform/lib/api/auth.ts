@@ -51,7 +51,9 @@ export const authApi = {
 
   logout: async (): Promise<void> => {
     try {
-      console.log('[DEBUG-LOGOUT] Starting logout, calling /auth/logout API...');
+      console.log(
+        '[DEBUG-LOGOUT] Starting logout, calling /auth/logout API...',
+      );
       await apiClient.post('/auth/logout');
       console.log('[DEBUG-LOGOUT] /auth/logout API call succeeded');
     } catch (error) {
@@ -63,7 +65,7 @@ export const authApi = {
           hasRefreshToken: !!localStorage.getItem('refresh_token'),
           hasAccessToken: !!localStorage.getItem('access_token'),
         });
-        
+
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('access_token');
 
