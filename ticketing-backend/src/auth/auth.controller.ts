@@ -100,7 +100,18 @@ export class AuthController {
 
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   @Get('me')
-  async getCurrentUser(@GetCurrentUser('userId') userId: string) {
+  async getCurrentUser(
+    @GetCurrentUser('userId') userId: string,
+    @Req() req: any,
+  ) {
+    console.log('[DEBUG-BACKEND] /auth/me called:', {
+      userId,
+      hasAccessToken: !!req?.cookies?.access_token,
+      hasCookies: Object.keys(req?.cookies || {}).length > 0,
+      cookies: req?.cookies,
+      authorization: req?.headers?.authorization,
+      timestamp: new Date().toISOString(),
+    });
     return this.authService.getCurrentUser(userId);
   }
 

@@ -20,10 +20,22 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     ]);
 
     if (isPublic) {
+      console.log('[DEBUG-JWT-GUARD] Public endpoint, skipping auth');
       return true;
     }
 
-    return (await super.canActivate(context)) as boolean;
+    const request = context.switchToHttp().getRequest();
+    console.log('[DEBUG-JWT-GUARD] Checking auth for:', {
+      path: request.path,
+      method: request.method,
+      hasAccessToken: !!request?.cookies?.access_token,
+      cookies: request?.cookies,
+      timestamp: new Date().toISOString(),
+    });
+
+    const result = (await super.canActivate(context)) as boolean;
+    console.log('[DEBUG-JWT-GUARD] Auth check result:', result);
+    return result;
   }
 
   handleRequest<TUser = any>(
