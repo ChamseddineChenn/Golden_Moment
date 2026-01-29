@@ -157,7 +157,9 @@ function CheckoutForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="bg-white p-6 rounded-lg shadow border border-stone-200">
-        <h2 className="text-xl font-semibold mb-4 text-stone-900">Order Summary</h2>
+        <h2 className="text-xl font-semibold mb-4 text-stone-900">
+          Order Summary
+        </h2>
         <div className="space-y-2 mb-4 border-b pb-4 border-stone-200">
           <div className="flex justify-between text-stone-900">
             <span className="font-medium">Event:</span>
@@ -175,7 +177,9 @@ function CheckoutForm({
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow border border-stone-200">
-        <h2 className="text-xl font-semibold mb-4 text-stone-900">Payment Details</h2>
+        <h2 className="text-xl font-semibold mb-4 text-stone-900">
+          Payment Details
+        </h2>
         <PaymentElement />
       </div>
 

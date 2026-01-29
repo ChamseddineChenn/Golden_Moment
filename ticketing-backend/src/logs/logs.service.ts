@@ -34,21 +34,24 @@ export class LogsService {
       // Only block if: (1) no currentUser (automatic), AND (2) only system fields changed
       if (action === LogAction.EVENT_UPDATED && data.metadata) {
         const systemOnlyFields = ['soldTickets', 'earlyBirdCount'];
-        const metadataKeys = Array.isArray(data.metadata) 
-          ? data.metadata 
+        const metadataKeys = Array.isArray(data.metadata)
+          ? data.metadata
           : Object.keys(data.metadata);
-        
-        const isSystemFieldsOnly = metadataKeys.length > 0 && 
+
+        const isSystemFieldsOnly =
+          metadataKeys.length > 0 &&
           metadataKeys.every((key: string) => systemOnlyFields.includes(key));
-        
+
         // Only block automatic updates: if NO user info (performedBy = 'Unknown') AND only system fields
-        const isAutomaticUpdate = (data.performedBy === 'Unknown' || !data.userEmail) && isSystemFieldsOnly;
-        
+        const isAutomaticUpdate =
+          (data.performedBy === 'Unknown' || !data.userEmail) &&
+          isSystemFieldsOnly;
+
         if (isAutomaticUpdate) {
           return null; // Don't create log for automatic system updates
         }
       }
-      
+
       const logEntry = new this.logModel({
         action,
         userId: data.userId,

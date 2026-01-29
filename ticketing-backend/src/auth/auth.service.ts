@@ -251,10 +251,15 @@ export class AuthService {
         throw new UnauthorizedException('Invalid refresh token');
       }
 
+      // Check if refresh token was cleared (logged out)
+      if (!user.refreshTokenHash) {
+        throw new UnauthorizedException('Refresh token was revoked. Please login again.');
+      }
+
       // Verify the refresh token hash
       const isRefreshTokenValid = await bcrypt.compare(
         refreshToken,
-        user.refreshTokenHash || '',
+        user.refreshTokenHash,
       );
       if (!isRefreshTokenValid) {
         throw new UnauthorizedException('Invalid refresh token');
