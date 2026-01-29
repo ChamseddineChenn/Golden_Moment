@@ -110,7 +110,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('[DEBUG-LOGOUT-HOOK] Logout error:', error);
     } finally {
-      console.log('[DEBUG-LOGOUT-HOOK] Setting user to null and redirecting...');
+      console.log(
+        '[DEBUG-LOGOUT-HOOK] Setting user to null and redirecting...',
+      );
       setUser(null);
       router.push('/');
       console.log('[DEBUG-LOGOUT-HOOK] About to call router.refresh()');

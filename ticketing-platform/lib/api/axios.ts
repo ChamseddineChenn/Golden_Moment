@@ -53,7 +53,7 @@ apiClient.interceptors.request.use(
       const refreshToken = localStorage.getItem('refresh_token');
       const accessToken = localStorage.getItem('access_token');
       const cookies = document.cookie;
-      
+
       // DEBUG: Log all token states at request time
       if (config.url?.includes('/auth/me')) {
         console.log('[DEBUG-REQUEST] /auth/me request:', {
@@ -64,7 +64,7 @@ apiClient.interceptors.request.use(
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       if (refreshToken && !document.cookie.includes('refresh_token')) {
         // Cookie missing but localStorage has token - try to refresh
         console.log('⚠️ Refresh token in localStorage but not in cookies');
@@ -130,7 +130,10 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
-      console.log('[DEBUG-401] Attempting to refresh tokens for:', originalRequest.url);
+      console.log(
+        '[DEBUG-401] Attempting to refresh tokens for:',
+        originalRequest.url,
+      );
       originalRequest._retry = true;
 
       try {
@@ -151,7 +154,7 @@ apiClient.interceptors.response.use(
           status: (refreshError as any).response?.status,
           message: (refreshError as any).message,
         });
-        
+
         // Fallback: try to use localStorage refresh token
         if (typeof window !== 'undefined') {
           const refreshToken = localStorage.getItem('refresh_token');
@@ -160,7 +163,9 @@ apiClient.interceptors.response.use(
               '⚠️ Refresh failed with cookies, attempting with localStorage token',
             );
             try {
-              console.log('[DEBUG] Calling /auth/refresh-with-token with localStorage token...');
+              console.log(
+                '[DEBUG] Calling /auth/refresh-with-token with localStorage token...',
+              );
               const response = await axios.post(
                 `${getAPIBaseURL()}/auth/refresh-with-token`,
                 { refreshToken },

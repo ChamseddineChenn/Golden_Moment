@@ -11,6 +11,7 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { paymentsAPI, seatsAPI } from '@/lib/api';
+import { getAPIBaseURL } from '@/lib/api/axios';
 import Link from 'next/link';
 
 const stripePromise = loadStripe(
@@ -125,10 +126,14 @@ function CheckoutForm({
         // Payment successful - fetch the payment document ID from backend
         setPaymentSucceeded(true); // Mark payment as succeeded to prevent seat release on unmount
         try {
-          const backendUrl =
-            process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002';
           const paymentResponse = await fetch(
-            `${backendUrl}/payments/by-intent/${paymentIntent.id}`,
+            `${getAPIBaseURL()}/payments/by-intent/${paymentIntent.id}`,
+            {
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            },
           );
           const paymentData = await paymentResponse.json();
           const mongoPaymentId = paymentData.data?._id || paymentIntent.id;
