@@ -290,9 +290,16 @@ export class AuthService {
   }
 
   async logout(userId: string, res: Response): Promise<SimpleResponse> {
+    console.log('[DEBUG-LOGOUT-SERVICE] logout called:', {
+      userId,
+      timestamp: new Date().toISOString(),
+    });
+    
     await this.usersService.updateRefreshToken(userId, null);
 
     this.clearAuthCookies(res);
+    
+    console.log('[DEBUG-LOGOUT-SERVICE] Auth cookies cleared, tokens should be invalid now');
 
     return {
       success: true,
@@ -439,8 +446,23 @@ export class AuthService {
   }
 
   private clearAuthCookies(res: Response) {
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
+    // Must use the same options as setAuthCookies for clearing to work properly
+    const isProduction =
+      process.env.NODE_ENV === 'production' ||
+      process.env.BACKEND_URL?.startsWith('https');
+
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      path: '/',
+    });
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      path: '/',
+    });
   }
 
   async getCurrentUser(
