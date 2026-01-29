@@ -38,7 +38,7 @@ export const getAPIBaseURL = () => {
 };
 
 const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: getAPIBaseURL(),
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -104,7 +104,7 @@ apiClient.interceptors.response.use(
 
       try {
         await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+          `${getAPIBaseURL()}/auth/refresh`,
           {},
           { withCredentials: true },
         );
@@ -120,7 +120,7 @@ apiClient.interceptors.response.use(
             );
             try {
               const response = await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh-with-token`,
+                `${getAPIBaseURL()}/auth/refresh-with-token`,
                 { refreshToken },
                 { withCredentials: true },
               );
