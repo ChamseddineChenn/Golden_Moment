@@ -51,6 +51,20 @@ apiClient.interceptors.request.use(
     // and add it to request for manual refresh
     if (typeof window !== 'undefined') {
       const refreshToken = localStorage.getItem('refresh_token');
+      const accessToken = localStorage.getItem('access_token');
+      const cookies = document.cookie;
+      
+      // DEBUG: Log all token states at request time
+      if (config.url?.includes('/auth/me')) {
+        console.log('[DEBUG-REQUEST] /auth/me request:', {
+          refreshTokenInStorage: !!refreshToken,
+          accessTokenInStorage: !!accessToken,
+          hasCookies: cookies.length > 0,
+          cookieString: cookies,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
       if (refreshToken && !document.cookie.includes('refresh_token')) {
         // Cookie missing but localStorage has token - try to refresh
         console.log('⚠️ Refresh token in localStorage but not in cookies');
@@ -65,10 +79,25 @@ apiClient.interceptors.request.use(
 
 apiClient.interceptors.response.use(
   (response) => {
+    if (response.config.url?.includes('/auth/me')) {
+      console.log('[DEBUG-RESPONSE] /auth/me success:', {
+        status: response.status,
+        hasUser: !!response.data?.data?.user,
+        timestamp: new Date().toISOString(),
+      });
+    }
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
+
+    console.log('[DEBUG-ERROR] API Error:', {
+      endpoint: originalRequest?.url,
+      status: error.response?.status,
+      message: error.message,
+      retry: originalRequest?._retry,
+      timestamp: new Date().toISOString(),
+    });
 
     // Handle non-JSON responses (e.g., HTML error pages)
     if (error.response?.status === 404 || error.response?.status === 500) {
@@ -96,21 +125,33 @@ apiClient.interceptors.response.use(
     );
 
     if (isNoRetryEndpoint) {
+      console.log('[DEBUG] No-retry endpoint, rejecting:', originalRequest.url);
       return Promise.reject(error);
     }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      console.log('[DEBUG-401] Attempting to refresh tokens for:', originalRequest.url);
       originalRequest._retry = true;
 
       try {
-        await axios.post(
+        console.log('[DEBUG] Calling /auth/refresh...');
+        const refreshResponse = await axios.post(
           `${getAPIBaseURL()}/auth/refresh`,
           {},
           { withCredentials: true },
         );
+        console.log('[DEBUG] /auth/refresh succeeded:', {
+          status: refreshResponse.status,
+          timestamp: new Date().toISOString(),
+        });
 
         return apiClient(originalRequest);
       } catch (refreshError) {
+        console.log('[DEBUG] /auth/refresh failed:', {
+          status: (refreshError as any).response?.status,
+          message: (refreshError as any).message,
+        });
+        
         // Fallback: try to use localStorage refresh token
         if (typeof window !== 'undefined') {
           const refreshToken = localStorage.getItem('refresh_token');
@@ -119,6 +160,7 @@ apiClient.interceptors.response.use(
               '⚠️ Refresh failed with cookies, attempting with localStorage token',
             );
             try {
+              console.log('[DEBUG] Calling /auth/refresh-with-token with localStorage token...');
               const response = await axios.post(
                 `${getAPIBaseURL()}/auth/refresh-with-token`,
                 { refreshToken },
@@ -134,7 +176,10 @@ apiClient.interceptors.response.use(
               }
               return apiClient(originalRequest);
             } catch (tokenRefreshError) {
-              console.error('Token refresh failed:', tokenRefreshError);
+              console.error('[DEBUG] localStorage fallback also failed:', {
+                status: (tokenRefreshError as any).response?.status,
+                message: (tokenRefreshError as any).message,
+              });
             }
           }
         }
@@ -149,6 +194,7 @@ apiClient.interceptors.response.use(
 
         if (!publicPaths.includes(currentPath)) {
           const redirectUrl = `${currentPath}${window.location.search}`;
+          console.log('[DEBUG] Redirecting to login:', redirectUrl);
           window.location.href = `/auth/login?redirect=${encodeURIComponent(redirectUrl)}`;
         }
         return Promise.reject(refreshError);
