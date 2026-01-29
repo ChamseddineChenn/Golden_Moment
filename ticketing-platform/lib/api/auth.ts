@@ -51,10 +51,19 @@ export const authApi = {
 
   logout: async (): Promise<void> => {
     try {
+      console.log('[DEBUG-LOGOUT] Starting logout, calling /auth/logout API...');
       await apiClient.post('/auth/logout');
+      console.log('[DEBUG-LOGOUT] /auth/logout API call succeeded');
+    } catch (error) {
+      console.log('[DEBUG-LOGOUT] /auth/logout API call failed:', error);
     } finally {
       // Always clear tokens from localStorage and cookies, even if logout API call fails
       if (typeof window !== 'undefined') {
+        console.log('[DEBUG-LOGOUT] Before clearing - tokens in storage:', {
+          hasRefreshToken: !!localStorage.getItem('refresh_token'),
+          hasAccessToken: !!localStorage.getItem('access_token'),
+        });
+        
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('access_token');
 
@@ -69,6 +78,11 @@ export const authApi = {
         document.cookie =
           'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=None; Secure;';
 
+        console.log('[DEBUG-LOGOUT] After clearing - tokens in storage:', {
+          hasRefreshToken: !!localStorage.getItem('refresh_token'),
+          hasAccessToken: !!localStorage.getItem('access_token'),
+          cookieString: document.cookie,
+        });
         console.log('✓ Tokens cleared from localStorage and cookies');
       }
     }
