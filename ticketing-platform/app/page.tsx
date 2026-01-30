@@ -236,9 +236,9 @@ function EventCard({ event }: { event: Event }) {
             </div>
           )}
 
-          {/* Price Badge - Main Price with All Options */}
+          {/* Price Badge - Main Price with All Options - Top Right Below Status */}
           {pricingText && (
-            <div className="absolute bottom-4 right-4 flex flex-col-reverse items-end gap-1">
+            <div className="absolute top-4 right-4 flex flex-col items-end gap-1 z-10">
               <div className="bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
                 {pricingText}
               </div>
@@ -258,7 +258,7 @@ function EventCard({ event }: { event: Event }) {
           )}
 
           {/* Event Title */}
-          <div className="absolute bottom-4 left-4 right-4 pr-20">
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
             <h3 className="text-xl font-bold text-white group-hover:text-amber-300 transition">
               {event.name}
             </h3>
@@ -385,7 +385,7 @@ function EventCard({ event }: { event: Event }) {
 
         {/* Price Badge - Main Price with All Options */}
         {pricingText && (
-          <div className="absolute bottom-4 right-4 flex flex-col-reverse items-end gap-1">
+          <div className="absolute top-4 right-4 flex flex-col items-end gap-1 z-10">
             <div className="bg-amber-500 text-white font-bold px-3 py-1.5 rounded-lg shadow-lg">
               {pricingText}
             </div>
@@ -405,7 +405,7 @@ function EventCard({ event }: { event: Event }) {
         )}
 
         {/* Event Title */}
-        <div className="absolute bottom-4 left-4 right-4 pr-20">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
           <h3 className="text-xl font-bold text-white group-hover:text-amber-300 transition">
             {event.name}
           </h3>

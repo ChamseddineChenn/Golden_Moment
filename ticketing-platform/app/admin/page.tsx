@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { eventsAPI, ticketsAPI, logsAPI } from '@/lib/api';
 import { getAPIBaseURL } from '@/lib/api/axios';
+import { scrollToTop } from '@/lib/utils/scroll';
+import { Logo } from '@/components/Logo';
 import Link from 'next/link';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { toast, ToastContainer } from 'react-toastify';
@@ -359,6 +361,19 @@ export default function AdminPage() {
 
     const soldSeats = events.reduce((acc, e) => acc + e.soldTickets, 0);
 
+    // Calculate total available capacity (seats for events with seating, or estimate from sold tickets for others)
+    const totalAvailableCapacity = events.reduce((acc, e) => {
+      if (e.seatingLayout?.enabled && e.totalSeats) {
+        // Events with visual seating: use totalSeats
+        return acc + e.totalSeats;
+      } else if (e.totalSeats) {
+        // Standing room events with specified capacity: use totalSeats
+        return acc + e.totalSeats;
+      }
+      // Events without capacity specified: don't count in percentage calculation
+      return acc;
+    }, 0);
+
     setStats({
       totalEvents: events.length,
       eventsThisYear,
@@ -372,7 +387,9 @@ export default function AdminPage() {
       totalTickets: tickets.length,
       totalSeats: soldSeats,
       soldPercentage:
-        soldSeats > 0 ? Math.round((soldSeats / soldSeats) * 100) : 0,
+        totalAvailableCapacity > 0
+          ? Math.round((soldSeats / totalAvailableCapacity) * 100)
+          : 0,
       revenueThisYear,
       revenueThisMonth,
       revenueLastYear,
@@ -687,13 +704,16 @@ export default function AdminPage() {
             createdEventId,
           );
           try {
-            await fetch(`${getAPIBaseURL()}/seats/event/${createdEventId}/initialize`, {
-              method: 'POST',
-              credentials: 'include',
-              headers: {
-                'Content-Type': 'application/json',
+            await fetch(
+              `${getAPIBaseURL()}/seats/event/${createdEventId}/initialize`,
+              {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
               },
-            });
+            );
           } catch (error) {
             console.error('[AdminPage] Error initializing seats:', error);
           }
@@ -1300,18 +1320,11 @@ export default function AdminPage() {
       <header className="bg-white border-b border-stone-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-3 md:px-6">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-2 md:gap-3 min-w-0">
-              <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20">
-                <span className="text-white text-lg font-bold">G</span>
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-base md:text-lg font-bold text-stone-900 truncate">
-                  Admin Portal
-                </h1>
-                <p className="text-xs text-stone-500 -mt-0.5 hidden sm:block">
-                  Golden Moment Events
-                </p>
-              </div>
+            <div
+              className="cursor-pointer hover:opacity-80 transition-opacity -ml-3"
+              onClick={scrollToTop}
+            >
+              <Logo isAdmin />
             </div>
 
             <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
@@ -1749,11 +1762,17 @@ export default function AdminPage() {
                                 Concert: '#EC4899',
                                 Sahra: '#FBBF24',
                               };
-                              const eventCounts = categories.map(
-                                (cat) => stats.eventsByCategory[cat] || 0,
-                              );
-                              const total = eventCounts.reduce(
-                                (a, b) => a + b,
+
+                              // Only include categories with events
+                              const activeData = categories
+                                .map((cat) => ({
+                                  category: cat,
+                                  count: stats.eventsByCategory[cat] || 0,
+                                }))
+                                .filter((item) => item.count > 0);
+
+                              const total = activeData.reduce(
+                                (sum, item) => sum + item.count,
                                 0,
                               );
 
@@ -1766,7 +1785,7 @@ export default function AdminPage() {
                                       r="80"
                                       fill="none"
                                       stroke="#E7E5E4"
-                                      strokeWidth="2"
+                                      strokeWidth="20"
                                     />
                                     <circle
                                       cx="100"
@@ -1778,42 +1797,49 @@ export default function AdminPage() {
                                 );
                               }
 
-                              const circumference = 2 * Math.PI * 80;
-                              let offset = 0;
+                              const slices: any[] = [];
+                              let currentAngle = -90;
+
+                              activeData.forEach((item) => {
+                                const percentage = (item.count / total) * 100;
+                                const sliceAngle = (percentage / 100) * 360;
+                                const startAngle = currentAngle;
+                                const endAngle = currentAngle + sliceAngle;
+
+                                const startRad = (startAngle * Math.PI) / 180;
+                                const endRad = (endAngle * Math.PI) / 180;
+                                const x1 = 100 + 80 * Math.cos(startRad);
+                                const y1 = 100 + 80 * Math.sin(startRad);
+                                const x2 = 100 + 80 * Math.cos(endRad);
+                                const y2 = 100 + 80 * Math.sin(endRad);
+
+                                const largeArc = sliceAngle > 180 ? 1 : 0;
+
+                                const pathData = [
+                                  `M 100 100`,
+                                  `L ${x1} ${y1}`,
+                                  `A 80 80 0 ${largeArc} 1 ${x2} ${y2}`,
+                                  'Z',
+                                ].join(' ');
+
+                                slices.push(
+                                  <path
+                                    key={item.category}
+                                    d={pathData}
+                                    fill={
+                                      colors[
+                                        item.category as keyof typeof colors
+                                      ]
+                                    }
+                                    opacity="0.9"
+                                  />,
+                                );
+
+                                currentAngle = endAngle;
+                              });
 
                               return [
-                                ...categories
-                                  .map((category, idx) => {
-                                    const count = eventCounts[idx];
-                                    if (count === 0) return null; // Don't render empty segments
-
-                                    const percentage = (count / total) * 100;
-                                    const strokeDashoffset = offset;
-                                    const strokeDasharray =
-                                      (percentage / 100) * circumference;
-
-                                    offset += strokeDasharray;
-
-                                    return (
-                                      <circle
-                                        key={category}
-                                        cx="100"
-                                        cy="100"
-                                        r="80"
-                                        fill="none"
-                                        stroke={
-                                          colors[
-                                            category as keyof typeof colors
-                                          ]
-                                        }
-                                        strokeWidth="20"
-                                        strokeDasharray={strokeDasharray}
-                                        strokeDashoffset={-strokeDashoffset}
-                                        style={{ transition: 'all 0.3s ease' }}
-                                      />
-                                    );
-                                  })
-                                  .filter(Boolean),
+                                ...slices,
                                 <circle
                                   key="center"
                                   cx="100"
@@ -1828,8 +1854,11 @@ export default function AdminPage() {
 
                         {/* Legend */}
                         <div className="space-y-4 w-full lg:w-auto">
-                          {['Movies', 'Theatre', 'Concert', 'Sahra'].map(
-                            (category) => {
+                          {['Movies', 'Theatre', 'Concert', 'Sahra']
+                            .filter(
+                              (cat) => (stats.eventsByCategory[cat] || 0) > 0,
+                            )
+                            .map((category) => {
                               const events =
                                 stats.eventsByCategory[category] || 0;
                               const total = stats.totalEvents || 1;
@@ -1878,8 +1907,7 @@ export default function AdminPage() {
                                   </div>
                                 </div>
                               );
-                            },
-                          )}
+                            })}
                         </div>
                       </div>
                     )}
@@ -2095,10 +2123,15 @@ export default function AdminPage() {
                             (acc, e) => acc + e.soldTickets,
                             0,
                           );
+                          // Calculate total capacity for category
+                          const totalCategoryCapacity = categoryEvents.reduce(
+                            (acc, e) => acc + (e.totalSeats || 0),
+                            0,
+                          );
                           const categoryOccupancyRate =
-                            totalCategorySold > 0
+                            totalCategoryCapacity > 0
                               ? Math.round(
-                                  (totalCategorySold / categoryEvents.length) *
+                                  (totalCategorySold / totalCategoryCapacity) *
                                     100,
                                 )
                               : 0;
@@ -2129,7 +2162,7 @@ export default function AdminPage() {
                                 </div>
                               </td>
                               <td className="px-6 py-4">
-                                <span className="text-sm font-medium">
+                                <span className="text-sm font-medium text-stone-900">
                                   {event.category === 'Movies' && '🎬'}
                                   {event.category === 'Theatre' && '🎭'}
                                   {event.category === 'Concert' && '🎵'}
