@@ -35,7 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       email: payload.email,
       timestamp: new Date().toISOString(),
     });
-    
+
     const user = await this.usersService.findById(payload.sub);
 
     if (!user || !user.isActive) {
@@ -43,7 +43,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('User not found or inactive');
     }
 
-    console.log('[DEBUG-JWT-STRATEGY] JWT validation succeeded for user:', payload.sub);
+    console.log(
+      '[DEBUG-JWT-STRATEGY] JWT validation succeeded for user:',
+      payload.sub,
+    );
     return {
       userId: payload.sub,
       email: payload.email,
