@@ -253,7 +253,9 @@ export class AuthService {
 
       // Check if refresh token was cleared (logged out)
       if (!user.refreshTokenHash) {
-        throw new UnauthorizedException('Refresh token was revoked. Please login again.');
+        throw new UnauthorizedException(
+          'Refresh token was revoked. Please login again.',
+        );
       }
 
       // Verify the refresh token hash
@@ -294,12 +296,14 @@ export class AuthService {
       userId,
       timestamp: new Date().toISOString(),
     });
-    
+
     await this.usersService.updateRefreshToken(userId, null);
 
     this.clearAuthCookies(res);
-    
-    console.log('[DEBUG-LOGOUT-SERVICE] Auth cookies cleared, tokens should be invalid now');
+
+    console.log(
+      '[DEBUG-LOGOUT-SERVICE] Auth cookies cleared, tokens should be invalid now',
+    );
 
     return {
       success: true,
