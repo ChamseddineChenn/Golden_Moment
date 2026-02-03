@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { SocialAuthButtons } from './SocialAuthButtons';
 
 export function SignupForm() {
   const [mounted, setMounted] = useState(false);
@@ -27,13 +28,16 @@ export function SignupForm() {
   }, [mounted, authLoading, user, router]);
 
   const validatePassword = (pwd: string) => {
-    const minLength = pwd.length >= 8;
-    const hasUpperCase = /[A-Z]/.test(pwd);
-    const hasLowerCase = /[a-z]/.test(pwd);
-    const hasNumber = /\d/.test(pwd);
-    const hasSpecialChar = /[@$!%*?&]/.test(pwd);
-
-    return minLength && hasUpperCase && hasLowerCase && hasNumber && hasSpecialChar;
+    const checks = [
+      pwd.length >= 8,
+      /[A-Z]/.test(pwd),
+      /[a-z]/.test(pwd),
+      /\d/.test(pwd),
+      /[@$!%*?&]/.test(pwd),
+    ];
+    const passedChecks = checks.filter(Boolean).length;
+    // Allow medium strength (3+ checks) or strong (5 checks)
+    return passedChecks >= 3;
   };
 
   const getPasswordStrength = (pwd: string) => {
@@ -66,7 +70,7 @@ export function SignupForm() {
     }
 
     if (!validatePassword(password)) {
-      setError('Password must be at least 8 characters and contain uppercase, lowercase, number, and special character');
+      setError('Password is too weak. Please use at least 8 characters with a mix of uppercase, lowercase, numbers, or special characters');
       return;
     }
 
@@ -333,6 +337,19 @@ export function SignupForm() {
                   )}
                 </button>
               </form>
+
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-stone-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white text-stone-500">Or continue with</span>
+                </div>
+              </div>
+
+              {/* Social Auth Buttons */}
+              <SocialAuthButtons mode="signup" onError={(err) => setError(err)} />
 
               <div className="mt-6 sm:mt-8 pt-6 border-t border-stone-200 text-center space-y-2 sm:space-y-3">
                 <p className="text-stone-600 text-sm">
