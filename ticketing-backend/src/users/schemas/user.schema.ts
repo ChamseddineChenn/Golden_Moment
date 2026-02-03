@@ -3,6 +3,12 @@ import { Document } from 'mongoose';
 
 export type UserDocument = User & Document;
 
+export enum AuthProvider {
+  LOCAL = 'local',
+  GOOGLE = 'google',
+  FACEBOOK = 'facebook',
+}
+
 @Schema({
   timestamps: true,
   discriminatorKey: 'userType',
@@ -12,8 +18,26 @@ export class User {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string;
 
-  @Prop({ required: true, select: false })
-  password: string;
+  @Prop({ select: false })
+  password?: string;
+
+  @Prop({ type: String, enum: AuthProvider, default: AuthProvider.LOCAL })
+  authProvider: AuthProvider;
+
+  @Prop({ type: String, sparse: true, unique: true })
+  googleId?: string;
+
+  @Prop({ type: String, sparse: true, unique: true })
+  facebookId?: string;
+
+  @Prop({ type: String })
+  firstName?: string;
+
+  @Prop({ type: String })
+  lastName?: string;
+
+  @Prop({ type: String })
+  avatar?: string;
 
   @Prop({ default: true })
   isActive: boolean;
@@ -78,3 +102,6 @@ UserSchema.index({ email: 1 });
 UserSchema.index({ emailVerificationToken: 1 });
 UserSchema.index({ passwordResetToken: 1 });
 UserSchema.index({ userType: 1 });
+UserSchema.index({ googleId: 1 }, { sparse: true });
+UserSchema.index({ facebookId: 1 }, { sparse: true });
+UserSchema.index({ authProvider: 1 });

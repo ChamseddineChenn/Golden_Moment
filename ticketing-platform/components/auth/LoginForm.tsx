@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { SocialAuthButtons } from './SocialAuthButtons';
 
 export function LoginForm() {
   const [mounted, setMounted] = useState(false);
@@ -246,6 +247,19 @@ export function LoginForm() {
                   )}
                 </button>
               </form>
+
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-stone-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white text-stone-500">Or continue with</span>
+                </div>
+              </div>
+
+              {/* Social Auth Buttons */}
+              <SocialAuthButtons mode="login" onError={(err) => setError(err)} />
 
               <div className="mt-6 sm:mt-8 pt-6 border-t border-stone-200 text-center space-y-2 sm:space-y-3">
                 <p className="text-stone-600 text-sm">
