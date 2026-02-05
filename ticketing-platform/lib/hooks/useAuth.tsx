@@ -78,6 +78,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (idToken: string) => {
+    try {
+      const response = await authApi.loginWithGoogle(idToken);
+      setUser(response.user);
+
+      // Redirect based on user type
+      if (response.user.userType === UserType.ADMIN) {
+        router.push('/admin/');
+      } else if (response.user.userType === UserType.ORGANIZER) {
+        router.push('/');
+      } else {
+        router.push('/');
+      }
+
+      router.refresh();
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Google login failed');
+    }
+  };
+
+  const loginWithFacebook = async (accessToken: string) => {
+    try {
+      const response = await authApi.loginWithFacebook(accessToken);
+      setUser(response.user);
+
+      // Redirect based on user type
+      if (response.user.userType === UserType.ADMIN) {
+        router.push('/admin/');
+      } else if (response.user.userType === UserType.ORGANIZER) {
+        router.push('/');
+      } else {
+        router.push('/');
+      }
+
+      router.refresh();
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Facebook login failed');
+    }
+  };
+
   const signup = async (email: string, password: string) => {
     try {
       const response = await authApi.signup(email, password);
@@ -136,6 +176,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         login,
+        loginWithGoogle,
+        loginWithFacebook,
         signup,
         signupOrganizer,
         logout,

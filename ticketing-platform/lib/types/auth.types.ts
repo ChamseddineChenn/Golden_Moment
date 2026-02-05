@@ -4,11 +4,22 @@ export enum UserType {
   ADMIN = 'Admin',
 }
 
+export enum AuthProvider {
+  LOCAL = 'local',
+  GOOGLE = 'google',
+  FACEBOOK = 'facebook',
+}
+
 export interface User {
   id: string;
   email: string;
   userType: UserType;
   emailVerified: boolean;
+  // OAuth-related fields
+  firstName?: string;
+  lastName?: string;
+  avatar?: string;
+  authProvider?: AuthProvider;
   // Type-specific fields
   organizationName?: string;
   phone?: string;
@@ -31,6 +42,8 @@ export interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithGoogle: (accessToken: string) => Promise<void>;
+  loginWithFacebook: (accessToken: string) => Promise<void>;
   signup: (
     email: string,
     password: string,

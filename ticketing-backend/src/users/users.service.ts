@@ -10,7 +10,7 @@ import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { ConfigService } from '@nestjs/config';
-import { User, UserDocument } from './schemas/user.schema';
+import { User, UserDocument, AuthProvider } from './schemas/user.schema';
 import { OrganizerDocument } from './schemas/organizer.schema';
 import { AdminDocument } from './schemas/admin.schema';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -492,5 +492,125 @@ export class UsersService {
   // Check if user is regular user
   isRegularUser(user: UserDocument): boolean {
     return user.userType === UserType.USER || !user.userType;
+  }
+
+  // OAuth Methods
+
+  async findByGoogleId(googleId: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ googleId }).exec();
+  }
+
+  async findByFacebookId(facebookId: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ facebookId }).exec();
+  }
+
+  async findOrCreateGoogleUser(profile: {
+    googleId: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    avatar?: string;
+  }): Promise<UserDocument> {
+    // First, try to find by googleId
+    let user = await this.findByGoogleId(profile.googleId);
+
+    if (user) {
+      // Update last login and return existing user
+      await this.updateLastLogin(user.id);
+      return user;
+    }
+
+    // Check if user exists with same email (local account)
+    const existingEmailUser = await this.findByEmail(profile.email);
+
+    if (existingEmailUser) {
+      // Link Google account to existing user
+      existingEmailUser.googleId = profile.googleId;
+      existingEmailUser.authProvider = AuthProvider.GOOGLE;
+      if (!existingEmailUser.firstName && profile.firstName) {
+        existingEmailUser.firstName = profile.firstName;
+      }
+      if (!existingEmailUser.lastName && profile.lastName) {
+        existingEmailUser.lastName = profile.lastName;
+      }
+      if (!existingEmailUser.avatar && profile.avatar) {
+        existingEmailUser.avatar = profile.avatar;
+      }
+      // Mark email as verified since Google verified it
+      existingEmailUser.emailVerified = true;
+      await existingEmailUser.save();
+      await this.updateLastLogin(existingEmailUser.id);
+      return existingEmailUser;
+    }
+
+    // Create new user with Google account
+    const newUser = new this.userModel({
+      email: profile.email,
+      googleId: profile.googleId,
+      authProvider: AuthProvider.GOOGLE,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      avatar: profile.avatar,
+      emailVerified: true, // Google verified the email
+      userType: UserType.USER,
+    });
+
+    await newUser.save();
+    return newUser;
+  }
+
+  async findOrCreateFacebookUser(profile: {
+    facebookId: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    avatar?: string;
+  }): Promise<UserDocument> {
+    // First, try to find by facebookId
+    let user = await this.findByFacebookId(profile.facebookId);
+
+    if (user) {
+      // Update last login and return existing user
+      await this.updateLastLogin(user.id);
+      return user;
+    }
+
+    // Check if user exists with same email (local account)
+    const existingEmailUser = await this.findByEmail(profile.email);
+
+    if (existingEmailUser) {
+      // Link Facebook account to existing user
+      existingEmailUser.facebookId = profile.facebookId;
+      existingEmailUser.authProvider = AuthProvider.FACEBOOK;
+      if (!existingEmailUser.firstName && profile.firstName) {
+        existingEmailUser.firstName = profile.firstName;
+      }
+      if (!existingEmailUser.lastName && profile.lastName) {
+        existingEmailUser.lastName = profile.lastName;
+      }
+      if (!existingEmailUser.avatar && profile.avatar) {
+        existingEmailUser.avatar = profile.avatar;
+      }
+      // Mark email as verified since Facebook verified it
+      existingEmailUser.emailVerified = true;
+      await existingEmailUser.save();
+      await this.updateLastLogin(existingEmailUser.id);
+      return existingEmailUser;
+    }
+
+    // Create new user with Facebook account
+    const newUser = new this.userModel({
+      email: profile.email,
+      facebookId: profile.facebookId,
+      authProvider: AuthProvider.FACEBOOK,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+      avatar: profile.avatar,
+      emailVerified: true, // Facebook verified the email
+      userType: UserType.USER,
+    });
+
+    await newUser.save();
+    return newUser;
   }
 }

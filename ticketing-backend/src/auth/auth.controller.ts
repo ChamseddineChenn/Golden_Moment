@@ -18,6 +18,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
+import { FacebookAuthDto } from './dto/facebook-auth.dto';
 import { Public } from './decorators/public.decorator';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { GetCurrentUser } from './decorators/get-current-user.decorator';
@@ -59,6 +61,26 @@ export class AuthController {
     const userAgent = req.headers['user-agent'] || 'unknown';
 
     return this.authService.login(loginDto, ipAddress, userAgent, res);
+  }
+
+  @Public()
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  async googleAuth(
+    @Body() googleAuthDto: GoogleAuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponse> {
+    return this.authService.googleAuth(googleAuthDto, res);
+  }
+
+  @Public()
+  @Post('facebook')
+  @HttpCode(HttpStatus.OK)
+  async facebookAuth(
+    @Body() facebookAuthDto: FacebookAuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponse> {
+    return this.authService.facebookAuth(facebookAuthDto, res);
   }
 
   @Public()

@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import type { Response } from 'express';
+import { OAuth2Client } from 'google-auth-library';
 import { UsersService } from '../users/users.service';
 import { LoginAttemptsService } from '../users/login-attempts.service';
 import { SendGridService } from '../email/sendgrid.service';
@@ -13,6 +14,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { GoogleAuthDto } from './dto/google-auth.dto';
+import { FacebookAuthDto } from './dto/facebook-auth.dto';
 import { UserType } from '../users/enums/user-type.enum';
 
 export interface UserResponse {
@@ -41,6 +44,7 @@ export interface SimpleResponse {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private googleClient: OAuth2Client;
 
   constructor(
     private usersService: UsersService,
@@ -48,7 +52,12 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private sendGridService: SendGridService,
-  ) {}
+  ) {
+    // Initialize Google OAuth client
+    this.googleClient = new OAuth2Client(
+      this.configService.get<string>('GOOGLE_CLIENT_ID'),
+    );
+  }
 
   async signup(signupDto: SignupDto, res: Response): Promise<AuthResponse> {
     const user = await this.usersService.create({
@@ -397,6 +406,154 @@ export class AuthService {
     };
   }
 
+  // Google OAuth Authentication
+  async googleAuth(
+    googleAuthDto: GoogleAuthDto,
+    res: Response,
+  ): Promise<AuthResponse> {
+    try {
+      let googleId: string;
+      let email: string;
+      let firstName: string | undefined;
+      let lastName: string | undefined;
+      let picture: string | undefined;
+
+      // Try to verify as ID token first
+      try {
+        const ticket = await this.googleClient.verifyIdToken({
+          idToken: googleAuthDto.idToken,
+          audience: this.configService.get<string>('GOOGLE_CLIENT_ID'),
+        });
+
+        const payload = ticket.getPayload();
+
+        if (payload) {
+          googleId = payload.sub;
+          email = payload.email;
+          firstName = payload.given_name;
+          lastName = payload.family_name;
+          picture = payload.picture;
+        } else {
+          throw new Error('No payload');
+        }
+      } catch {
+        // If ID token verification fails, try as access token
+        // Fetch user info from Google using access token
+        const response = await fetch(
+          `https://www.googleapis.com/oauth2/v3/userinfo?access_token=${googleAuthDto.idToken}`,
+        );
+
+        if (!response.ok) {
+          throw new UnauthorizedException('Invalid Google token');
+        }
+
+        const userInfo = await response.json();
+        googleId = userInfo.sub;
+        email = userInfo.email;
+        firstName = userInfo.given_name;
+        lastName = userInfo.family_name;
+        picture = userInfo.picture;
+      }
+
+      if (!email) {
+        throw new UnauthorizedException('Email not provided by Google');
+      }
+
+      // Find or create user
+      const user = await this.usersService.findOrCreateGoogleUser({
+        googleId,
+        email,
+        firstName,
+        lastName,
+        avatar: picture,
+      });
+
+      // Generate tokens
+      const { accessToken, refreshToken } = this.generateTokens(
+        user.id,
+        user.email,
+        user.userType || UserType.USER,
+      );
+
+      await this.usersService.updateRefreshToken(user.id, refreshToken);
+
+      this.setAuthCookies(res, accessToken, refreshToken);
+
+      this.logger.log(`User ${user.email} authenticated via Google`);
+
+      return {
+        success: true,
+        message: 'Google authentication successful',
+        user: this.formatUserResponse(user),
+        data: {
+          accessToken,
+          refreshToken,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Google auth error: ${error.message}`);
+      throw new UnauthorizedException('Google authentication failed');
+    }
+  }
+
+  // Facebook OAuth Authentication
+  async facebookAuth(
+    facebookAuthDto: FacebookAuthDto,
+    res: Response,
+  ): Promise<AuthResponse> {
+    try {
+      // Verify the Facebook access token and get user info
+      const fbResponse = await fetch(
+        `https://graph.facebook.com/me?fields=id,email,first_name,last_name,picture.type(large)&access_token=${facebookAuthDto.accessToken}`,
+      );
+
+      if (!fbResponse.ok) {
+        throw new UnauthorizedException('Invalid Facebook token');
+      }
+
+      const fbUser = await fbResponse.json();
+
+      if (!fbUser.email) {
+        throw new UnauthorizedException('Email not provided by Facebook');
+      }
+
+      // Find or create user
+      const user = await this.usersService.findOrCreateFacebookUser({
+        facebookId: fbUser.id,
+        email: fbUser.email,
+        firstName: fbUser.first_name,
+        lastName: fbUser.last_name,
+        avatar: fbUser.picture?.data?.url,
+      });
+
+      // Generate tokens
+      const { accessToken, refreshToken } = this.generateTokens(
+        user.id,
+        user.email,
+        user.userType || UserType.USER,
+      );
+
+      await this.usersService.updateRefreshToken(user.id, refreshToken);
+
+      this.setAuthCookies(res, accessToken, refreshToken);
+
+      this.logger.log(`User ${user.email} authenticated via Facebook`);
+
+      return {
+        success: true,
+        message: 'Facebook authentication successful',
+        user: this.formatUserResponse(user),
+        data: {
+          accessToken,
+          refreshToken,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Facebook auth error: ${error.message}`);
+      throw new UnauthorizedException('Facebook authentication failed');
+    }
+  }
+
   private generateTokens(userId: string, email: string, userType: string) {
     const payload = {
       sub: userId,
@@ -486,6 +643,12 @@ export class AuthService {
       userType: user.userType || UserType.USER,
       emailVerified: user.emailVerified,
     };
+
+    // Add OAuth-related fields if present
+    if (user.firstName) baseResponse.firstName = user.firstName;
+    if (user.lastName) baseResponse.lastName = user.lastName;
+    if (user.avatar) baseResponse.avatar = user.avatar;
+    if (user.authProvider) baseResponse.authProvider = user.authProvider;
 
     const userTypeValue = user.userType || UserType.USER;
 

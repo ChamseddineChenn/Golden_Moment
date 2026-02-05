@@ -49,6 +49,44 @@ export const authApi = {
     return data.data; // ← Access nested data
   },
 
+  loginWithGoogle: async (idToken: string): Promise<AuthResponse> => {
+    const { data } = await apiClient.post<{ data: AuthResponse }>(
+      '/auth/google',
+      { idToken },
+    );
+
+    // Store refresh token in localStorage if it's in the response
+    if (data.data?.data?.refreshToken) {
+      try {
+        localStorage.setItem('refresh_token', data.data.data.refreshToken);
+        console.log('✓ Refresh token stored in localStorage (Google auth)');
+      } catch (err) {
+        console.error('Failed to store refresh token in localStorage:', err);
+      }
+    }
+
+    return data.data;
+  },
+
+  loginWithFacebook: async (accessToken: string): Promise<AuthResponse> => {
+    const { data } = await apiClient.post<{ data: AuthResponse }>(
+      '/auth/facebook',
+      { accessToken },
+    );
+
+    // Store refresh token in localStorage if it's in the response
+    if (data.data?.data?.refreshToken) {
+      try {
+        localStorage.setItem('refresh_token', data.data.data.refreshToken);
+        console.log('✓ Refresh token stored in localStorage (Facebook auth)');
+      } catch (err) {
+        console.error('Failed to store refresh token in localStorage:', err);
+      }
+    }
+
+    return data.data;
+  },
+
   logout: async (): Promise<void> => {
     try {
       console.log(
