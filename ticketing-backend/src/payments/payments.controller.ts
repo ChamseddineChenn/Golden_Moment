@@ -26,20 +26,6 @@ export class PaymentsController {
     // Get the raw body directly from Express request - bypasses class-transformer whitelist
     const rawBody = request.body;
 
-    console.log('[PaymentsController] ===== CHECKOUT SESSION DEBUG =====');
-    console.log(
-      '[PaymentsController] Raw request.body:',
-      JSON.stringify(rawBody),
-    );
-    console.log(
-      '[PaymentsController] ticketIds:',
-      JSON.stringify(rawBody?.ticketIds),
-    );
-    console.log(
-      '[PaymentsController] ticketIds[0]:',
-      JSON.stringify(rawBody?.ticketIds?.[0]),
-    );
-
     // Manual validation
     if (!rawBody?.eventId || typeof rawBody.eventId !== 'string') {
       throw new BadRequestException('eventId is required');
@@ -72,11 +58,6 @@ export class PaymentsController {
       cancelUrl: rawBody.cancelUrl,
     };
 
-    console.log(
-      '[PaymentsController] FINAL DTO being sent to service:',
-      JSON.stringify(dto),
-    );
-
     // For unauthenticated users, use a temporary ID based on email or generate one
     const userId = req.user?.id || `guest-${Date.now()}`;
     return this.paymentsService.createCheckoutSession(userId, dto as any);
@@ -87,12 +68,6 @@ export class PaymentsController {
   async createFreeTicket(@Request() req, @Req() request: any) {
     // Get raw body - free ticket creation bypasses Stripe
     const rawBody = request.body;
-
-    console.log('[PaymentsController] ===== CREATE FREE TICKET DEBUG =====');
-    console.log(
-      '[PaymentsController] Raw request.body:',
-      JSON.stringify(rawBody),
-    );
 
     // Validation
     if (!rawBody?.eventId || typeof rawBody.eventId !== 'string') {
@@ -116,15 +91,7 @@ export class PaymentsController {
     };
 
     const userId = req.user?.id || `guest-${Date.now()}`;
-    const result = await this.paymentsService.createFreeTicket(
-      userId,
-      dto as any,
-    );
-    console.log(
-      '[PaymentsController] Free ticket creation result:',
-      JSON.stringify(result),
-    );
-    return result;
+    return this.paymentsService.createFreeTicket(userId, dto as any);
   }
 
   @Public()

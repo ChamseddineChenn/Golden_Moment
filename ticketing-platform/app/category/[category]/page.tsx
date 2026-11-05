@@ -439,9 +439,8 @@ export default function CategoryPage() {
           (event: Event) => event.category === category,
         );
         setEvents(filtered);
-      } catch (err) {
+      } catch {
         setError('Failed to load events');
-        console.error(err);
       } finally {
         setLoading(false);
       }

@@ -1,15 +1,16 @@
 import { Controller, Post, Body } from '@nestjs/common';
 import { EmailService } from './email.service';
 import { AppLogger } from '../common/utils/logger';
-import { Public } from '../auth/decorators/public.decorator';
+import { UserTypes } from '../auth/decorators/user-types.decorator';
+import { UserType } from '../users/enums/user-type.enum';
 
 @Controller('email')
+@UserTypes(UserType.ADMIN)
 export class EmailController {
   private readonly logger = new AppLogger();
 
   constructor(private readonly emailService: EmailService) {}
 
-  @Public()
   @Post('send-receipt')
   async sendReceipt(
     @Body()
@@ -44,7 +45,6 @@ export class EmailController {
     }
   }
 
-  @Public()
   @Post('send-bulk-receipts')
   async sendBulkReceipts(
     @Body()
@@ -65,33 +65,6 @@ export class EmailController {
       this.logger.error('Failed to send bulk receipts', EmailController.name, {
         error,
       });
-      throw error;
-    }
-  }
-
-  @Public()
-  @Post('test')
-  async testEmail() {
-    try {
-      const result = await this.emailService.sendTicketReceipt(
-        {
-          email: process.env.TEST_EMAIL || 'test@example.com',
-          ticketNumber: 'TEST-' + Date.now(),
-          eventName: 'Test Event',
-          purchaseDate: new Date().toLocaleDateString(),
-          totalAmount: 50,
-          customerName: 'Test User',
-        },
-        {
-          attachPdf: false,
-          receiptUrl: `${process.env.FRONTEND_URL}/receipt/test-123`,
-        },
-      );
-
-      this.logger.log('Test email sent successfully', EmailController.name);
-      return result;
-    } catch (error) {
-      this.logger.error('Test email failed', EmailController.name, { error });
       throw error;
     }
   }

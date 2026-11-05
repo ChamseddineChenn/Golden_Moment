@@ -11,6 +11,8 @@ import {
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { Public } from '../auth/decorators/public.decorator';
+import { UserTypes } from '../auth/decorators/user-types.decorator';
+import { UserType } from '../users/enums/user-type.enum';
 import { AppLogger } from '../common/utils/logger';
 
 @Controller('tickets')
@@ -19,8 +21,8 @@ export class TicketsController {
 
   constructor(private readonly ticketsService: TicketsService) {}
 
-  @Public()
   @Post()
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async create(@Body() createTicketDto: CreateTicketDto) {
     this.logger.log('POST /tickets - creating ticket', TicketsController.name, {
       eventId: createTicketDto.eventId.toString(),
@@ -81,8 +83,8 @@ export class TicketsController {
     return result;
   }
 
-  @Public()
   @Get('search')
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async search(@Query('q') query: string) {
     this.logger.log('GET /tickets/search', TicketsController.name, { query });
     return this.ticketsService.search(query);
@@ -101,8 +103,8 @@ export class TicketsController {
     return this.ticketsService.findByPaymentId(paymentId);
   }
 
-  @Public()
   @Get('by-number/:ticketNumber')
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async findByTicketNumber(@Param('ticketNumber') ticketNumber: string) {
     this.logger.log(
       'GET /tickets/by-number/:ticketNumber',
@@ -114,8 +116,8 @@ export class TicketsController {
     return this.ticketsService.findByTicketNumber(ticketNumber);
   }
 
-  @Public()
   @Get('event/:eventId')
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async findByEventId(@Param('eventId') eventId: string) {
     this.logger.log('GET /tickets/event/:eventId', TicketsController.name, {
       eventId,
@@ -130,15 +132,15 @@ export class TicketsController {
     return this.ticketsService.findById(id);
   }
 
-  @Public()
   @Get()
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async findAll() {
     this.logger.log('GET /tickets', TicketsController.name);
     return this.ticketsService.findAll();
   }
 
-  @Public()
   @Post(':id/mark-used')
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async markAsUsed(@Param('id') id: string) {
     this.logger.log('POST /tickets/:id/mark-used', TicketsController.name, {
       id,
@@ -146,8 +148,8 @@ export class TicketsController {
     return this.ticketsService.markAsUsed(id);
   }
 
-  @Public()
   @Delete(':id')
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async delete(@Param('id') id: string) {
     this.logger.log('DELETE /tickets/:id', TicketsController.name, { id });
     return this.ticketsService.delete(id);

@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -95,10 +100,6 @@ export class AuthService {
       message:
         'User registered successfully. Please check your email to verify your account.',
       user: this.formatUserResponse(user),
-      data: {
-        accessToken,
-        refreshToken,
-      },
     };
   }
 
@@ -134,10 +135,6 @@ export class AuthService {
       message:
         'Organizer registered successfully. Please check your email to verify your account.',
       user: this.formatUserResponse(user),
-      data: {
-        accessToken,
-        refreshToken,
-      },
     };
   }
   async login(
@@ -213,10 +210,6 @@ export class AuthService {
       success: true,
       message: 'Login successful',
       user: this.formatUserResponse(user),
-      data: {
-        accessToken,
-        refreshToken,
-      },
     };
   }
 
@@ -245,14 +238,17 @@ export class AuthService {
   async refreshWithToken(
     refreshToken: string,
     res: Response,
-  ): Promise<{
-    success: boolean;
-    message: string;
-    data: { accessToken: string; refreshToken: string };
-  }> {
+  ): Promise<SimpleResponse> {
     try {
+      const refreshSecret = this.configService.get<string>('jwt.refreshSecret');
+      if (!refreshSecret) {
+        throw new InternalServerErrorException(
+          'Authentication is not configured',
+        );
+      }
+
       const payload = this.jwtService.verify(refreshToken, {
-        secret: this.configService.get('JWT_REFRESH_SECRET'),
+        secret: refreshSecret,
       });
 
       const user = await this.usersService.findById(payload.sub);
@@ -290,10 +286,6 @@ export class AuthService {
       return {
         success: true,
         message: 'Token refreshed successfully',
-        data: {
-          accessToken,
-          refreshToken: newRefreshToken,
-        },
       };
     } catch (error) {
       throw new UnauthorizedException('Failed to refresh token');
@@ -301,18 +293,9 @@ export class AuthService {
   }
 
   async logout(userId: string, res: Response): Promise<SimpleResponse> {
-    console.log('[DEBUG-LOGOUT-SERVICE] logout called:', {
-      userId,
-      timestamp: new Date().toISOString(),
-    });
-
     await this.usersService.updateRefreshToken(userId, null);
 
     this.clearAuthCookies(res);
-
-    console.log(
-      '[DEBUG-LOGOUT-SERVICE] Auth cookies cleared, tokens should be invalid now',
-    );
 
     return {
       success: true,
@@ -485,10 +468,6 @@ export class AuthService {
         success: true,
         message: 'Google authentication successful',
         user: this.formatUserResponse(user),
-        data: {
-          accessToken,
-          refreshToken,
-        },
       };
     } catch (error) {
       this.logger.error(`Google auth error: ${error.message}`);
@@ -543,10 +522,6 @@ export class AuthService {
         success: true,
         message: 'Facebook authentication successful',
         user: this.formatUserResponse(user),
-        data: {
-          accessToken,
-          refreshToken,
-        },
       };
     } catch (error) {
       this.logger.error(`Facebook auth error: ${error.message}`);
@@ -561,10 +536,14 @@ export class AuthService {
       userType: userType || UserType.USER,
     };
 
-    const accessSecret =
-      this.configService.get<string>('jwt.accessSecret') || 'access-secret';
-    const refreshSecret =
-      this.configService.get<string>('jwt.refreshSecret') || 'refresh-secret';
+    const accessSecret = this.configService.get<string>('jwt.accessSecret');
+    const refreshSecret = this.configService.get<string>('jwt.refreshSecret');
+
+    if (!accessSecret || !refreshSecret) {
+      throw new InternalServerErrorException(
+        'Authentication is not configured',
+      );
+    }
 
     const accessToken = this.jwtService.sign(payload, {
       secret: accessSecret,
@@ -587,6 +566,7 @@ export class AuthService {
     // Determine if we're in production (HTTPS) or development (HTTP)
     const isProduction =
       process.env.NODE_ENV === 'production' ||
+      process.env.VERCEL === '1' ||
       process.env.BACKEND_URL?.startsWith('https');
 
     res.cookie('access_token', accessToken, {
@@ -610,6 +590,7 @@ export class AuthService {
     // Must use the same options as setAuthCookies for clearing to work properly
     const isProduction =
       process.env.NODE_ENV === 'production' ||
+      process.env.VERCEL === '1' ||
       process.env.BACKEND_URL?.startsWith('https');
 
     res.clearCookie('access_token', {

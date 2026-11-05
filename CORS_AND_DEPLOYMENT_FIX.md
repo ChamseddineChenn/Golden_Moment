@@ -140,7 +140,7 @@ FRONTEND_URL=https://your-frontend-domain.com
 # .env.local or deployment settings for ticketing-platform
 NEXT_PUBLIC_BACKEND_URL=https://your-backend-url.com
 # Example if using Render or similar:
-# NEXT_PUBLIC_BACKEND_URL=https://golden-moment-backend.onrender.com
+# NEXT_PUBLIC_API_URL=https://<your-vercel-backend-host>
 ```
 
 ## Deployment Instructions
@@ -148,7 +148,7 @@ NEXT_PUBLIC_BACKEND_URL=https://your-backend-url.com
 ### 1. Backend Deployment (Render, Railway, Heroku, etc.)
 
 **Step 1:** Identify your deployed backend URL
-- Example: `https://golden-moment-backend.onrender.com`
+- Example: the Vercel backend origin, set as `NEXT_PUBLIC_API_URL`
 
 **Step 2:** Set environment variables in your deployment platform:
 ```

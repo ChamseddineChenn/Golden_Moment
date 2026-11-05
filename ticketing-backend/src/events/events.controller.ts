@@ -11,7 +11,9 @@ import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { Public } from '../auth/decorators/public.decorator';
+import { UserTypes } from '../auth/decorators/user-types.decorator';
 import { GetCurrentUser } from '../auth/decorators/get-current-user.decorator';
+import { UserType } from '../users/enums/user-type.enum';
 import { AppLogger } from '../common/utils/logger';
 
 @Controller('events')
@@ -21,6 +23,7 @@ export class EventsController {
   constructor(private readonly eventsService: EventsService) {}
 
   @Post()
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async create(
     @Body() createEventDto: CreateEventDto,
     @GetCurrentUser() currentUser?: any,
@@ -44,8 +47,8 @@ export class EventsController {
     return this.eventsService.findAllPublished();
   }
 
-  @Public()
   @Get('admin/all')
+  @UserTypes(UserType.ADMIN)
   async findAllAdmin() {
     // Admin endpoint - show all events including drafts
     this.logger.log('GET /events/admin/all', EventsController.name);
@@ -60,6 +63,7 @@ export class EventsController {
   }
 
   @Put(':id')
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async update(
     @Param('id') id: string,
     @Body() updateEventDto: UpdateEventDto,
@@ -70,6 +74,7 @@ export class EventsController {
   }
 
   @Delete(':id')
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async delete(@Param('id') id: string, @GetCurrentUser() currentUser?: any) {
     this.logger.log('DELETE /events/:id', EventsController.name, { id });
     return this.eventsService.delete(id, currentUser);

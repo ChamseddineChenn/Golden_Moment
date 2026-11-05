@@ -29,29 +29,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      console.log('[DEBUG-AUTH] checkAuth() called, tokens in storage:', {
-        hasRefreshToken: !!localStorage.getItem('refresh_token'),
-        hasAccessToken: !!localStorage.getItem('access_token'),
-        timestamp: new Date().toISOString(),
-      });
       const currentUser = await authApi.getCurrentUser();
-      if (currentUser) {
-        console.log('[DEBUG-AUTH] User authenticated:', {
-          userId: currentUser.id,
-          email: currentUser.email,
-          timestamp: new Date().toISOString(),
-        });
-        setUser(currentUser);
-      } else {
-        console.log('[DEBUG-AUTH] No user returned from getCurrentUser()');
-        setUser(null);
-      }
-    } catch (error: any) {
-      console.log('[DEBUG-AUTH] checkAuth() error:', {
-        message: error.message,
-        status: error.response?.status,
-        timestamp: new Date().toISOString(),
-      });
+      setUser(currentUser);
+    } catch {
       setUser(null);
     } finally {
       setLoading(false);
@@ -144,20 +124,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      console.log('[DEBUG-LOGOUT-HOOK] logout() called');
       await authApi.logout();
-      console.log('[DEBUG-LOGOUT-HOOK] authApi.logout() completed');
-    } catch (error) {
-      console.error('[DEBUG-LOGOUT-HOOK] Logout error:', error);
     } finally {
-      console.log(
-        '[DEBUG-LOGOUT-HOOK] Setting user to null and redirecting...',
-      );
       setUser(null);
       router.push('/');
-      console.log('[DEBUG-LOGOUT-HOOK] About to call router.refresh()');
       router.refresh();
-      console.log('[DEBUG-LOGOUT-HOOK] router.refresh() called');
     }
   };
 

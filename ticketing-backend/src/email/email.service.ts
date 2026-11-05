@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
-import * as puppeteer from 'puppeteer';
 import { AppLogger } from '../common/utils/logger';
 import { generateReceiptHTML } from './receipt-generator';
+import { SendGridService } from './sendgrid.service';
 
 @Injectable()
 export class EmailService {
@@ -10,7 +10,7 @@ export class EmailService {
   private readonly logger = new AppLogger();
   private isConfigured = false;
 
-  constructor() {
+  constructor(private readonly sendGridService: SendGridService) {
     this.initializeTransporter();
   }
 
@@ -56,9 +56,8 @@ export class EmailService {
       },
       connectionTimeout: 15000, // 15 seconds
       socketTimeout: 15000, // 15 seconds
-      // TLS options for Gmail compatibility on Render
       tls: {
-        rejectUnauthorized: false, // Allow self-signed certs
+        rejectUnauthorized: true,
         minVersion: 'TLSv1.2',
       },
     });
@@ -78,46 +77,6 @@ export class EmailService {
         );
       }
     });
-  }
-
-  /**
-   * Generate PDF from HTML
-   * Returns null if Chrome/Puppeteer not available (e.g., on Render free tier)
-   */
-  async generatePdfFromHtml(htmlContent: string): Promise<Buffer | null> {
-    try {
-      const browser = await puppeteer.launch({
-        headless: true as any,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--single-process',
-        ],
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      });
-
-      try {
-        const page = await browser.newPage();
-        await page.setContent(htmlContent, { waitUntil: 'networkidle2' });
-
-        const pdfBuffer = await page.pdf({
-          format: 'A4',
-          margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
-        });
-
-        return pdfBuffer as Buffer;
-      } finally {
-        await browser.close();
-      }
-    } catch (error: any) {
-      this.logger.warn('PDF generation not available', EmailService.name, {
-        error: error.message,
-        hint: 'Chrome/Puppeteer not installed. Emails will be sent without PDF attachment.',
-      });
-      return null;
-    }
   }
 
   /**
@@ -184,33 +143,27 @@ export class EmailService {
           this.logger.log('Generating PDF attachment', EmailService.name, {
             ticketNumber,
           });
-          // Generate PDF with QR code included
-          const pdfHtml = generateReceiptHTML(
-            {
-              ticketNumber,
-              customerName,
-              customerEmail: email,
-              price: ticketData.totalAmount,
-              ticketType: ticketData.ticketType || 'Standard',
-              createdAt: new Date(),
-              qrCode: ticketData.qrCode,
-              seats: ticketData.seats,
-            },
-            {
-              name: eventName,
-              date: ticketData.eventDate,
-              location: ticketData.eventLocation,
-            },
-            {
-              includeQrCode: true, // Include QR code in PDF
-            },
-          );
-          const pdfBuffer = await this.generatePdfFromHtml(pdfHtml);
-          attachments.push({
-            filename: `receipt-${ticketNumber}.pdf`,
-            content: pdfBuffer,
-            contentType: 'application/pdf',
+          const pdfBuffer = await this.sendGridService.generatePdfFromData({
+            ticketNumber,
+            eventName,
+            customerName,
+            amount: ticketData.totalAmount,
+            purchaseDate: ticketData.purchaseDate,
+            eventDate: ticketData.eventDate
+              ? new Date(ticketData.eventDate).toLocaleDateString()
+              : undefined,
+            eventLocation: ticketData.eventLocation,
+            ticketType: ticketData.ticketType || 'Standard',
+            seats: ticketData.seats,
+            qrCodeDataUrl: ticketData.qrCode,
           });
+          if (pdfBuffer) {
+            attachments.push({
+              filename: `receipt-${ticketNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: 'application/pdf',
+            });
+          }
           this.logger.log('PDF generated successfully', EmailService.name, {
             ticketNumber,
           });

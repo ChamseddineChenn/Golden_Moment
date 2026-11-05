@@ -116,6 +116,9 @@ export class Event extends Document {
 
   @Prop({ default: false })
   isPublished: boolean;
+
+  @Prop({ default: false, index: true })
+  portfolioDemo: boolean;
 }
 
 export const EventSchema = SchemaFactory.createForClass(Event);

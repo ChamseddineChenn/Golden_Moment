@@ -8,8 +8,11 @@ import {
 } from '@nestjs/common';
 import { LogsService } from './logs.service';
 import { LogAction } from './log.schema';
+import { UserTypes } from '../auth/decorators/user-types.decorator';
+import { UserType } from '../users/enums/user-type.enum';
 
 @Controller('logs')
+@UserTypes(UserType.ADMIN)
 export class LogsController {
   constructor(private readonly logsService: LogsService) {}
 

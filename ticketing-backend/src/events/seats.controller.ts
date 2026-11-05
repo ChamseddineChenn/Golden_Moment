@@ -12,6 +12,8 @@ import {
 import { SeatsService } from './seats.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { Public } from '../auth/decorators/public.decorator';
+import { UserTypes } from '../auth/decorators/user-types.decorator';
+import { UserType } from '../users/enums/user-type.enum';
 
 @Controller('seats')
 export class SeatsController {
@@ -27,8 +29,8 @@ export class SeatsController {
     return this.seatsService.getSeatMap(eventId);
   }
 
-  @Public()
   @Post('event/:eventId/initialize')
+  @UserTypes(UserType.ORGANIZER, UserType.ADMIN)
   async initializeSeats(@Param('eventId') eventId: string) {
     return this.seatsService.initializeSeats(eventId);
   }

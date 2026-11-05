@@ -547,20 +547,14 @@ export default function HomePage() {
         // Extract data from standardized response format { success, statusCode, data, timestamp }
         const eventsData = response.data.data || response.data;
         setEvents(Array.isArray(eventsData) ? eventsData : []);
-      } catch (err) {
+      } catch {
         setError('Failed to load events');
-        console.error(err);
       } finally {
         setLoading(false);
       }
     };
 
-    // Fetch on mount
     fetchEvents();
-
-    // Auto-refresh every 5 seconds to show updated sold ticket counts
-    const interval = setInterval(fetchEvents, 5000);
-    return () => clearInterval(interval);
   }, []);
 
   return (

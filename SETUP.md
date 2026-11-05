@@ -40,7 +40,7 @@ npm install
 npm run start
 ```
 
-The backend will run on `http://localhost:3001` and automatically connect to MongoDB.
+The backend will run on `http://localhost:3002` and automatically connect to MongoDB.
 
 ### Frontend Setup
 
@@ -102,7 +102,7 @@ db.tickets.findOne({}, { _id: 1, ticketNumber: 1, seatNumber: 1, status: 1 })
 
 ### API Endpoints
 
-All endpoints return JSON. CORS is enabled for localhost:3000 and localhost:3001.
+All endpoints return JSON. CORS is enabled for localhost:3000, localhost:3001, and `FRONTEND_URL`. Production deployment is in `ticketing-backend/DEPLOY_VERCEL.md`.
 
 **Events:**
 
@@ -171,7 +171,7 @@ All endpoints return JSON. CORS is enabled for localhost:3000 and localhost:3001
 **Frontend can't reach backend**
 
 - Verify backend is running on port 3001
-- Check `ticketing-platform/.env.local` has `NEXT_PUBLIC_API_URL=http://localhost:3001`
+- Check `ticketing-platform/.env.local` has `NEXT_PUBLIC_API_URL=http://localhost:3002`
 - Check CORS in `ticketing-backend/src/main.ts` allows localhost:3000
 
 **QR code not generating**

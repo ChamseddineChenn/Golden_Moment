@@ -293,7 +293,7 @@ export class EventsService {
     try {
       let event = await this.eventModel.findById(id).lean().exec();
 
-      if (!event) {
+      if (!event || event.isDraft || event.isActive === false) {
         throw new EventNotFoundException(id);
       }
 
@@ -316,16 +316,6 @@ export class EventsService {
           (event as any).totalSeats = 0;
         }
       }
-
-      // DEBUG LOGGING FOR TICKET TYPES
-      console.log(`[EventsService.findById] Event ${id}:`, {
-        name: event.name,
-        hasTicketTypes: !!event.ticketTypes,
-        ticketTypesKeys: event.ticketTypes
-          ? Object.keys(event.ticketTypes)
-          : null,
-        ticketTypes: event.ticketTypes,
-      });
 
       this.logger.log('Retrieved event by ID', EventsService.name, {
         id,

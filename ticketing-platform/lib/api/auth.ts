@@ -32,21 +32,7 @@ export const authApi = {
       },
     );
 
-    // Fallback: store refresh token in localStorage if it's in the response
-    if (data.data?.data?.refreshToken) {
-      try {
-        localStorage.setItem('refresh_token', data.data.data.refreshToken);
-        console.log('✓ Refresh token stored in localStorage');
-      } catch (err) {
-        console.error('Failed to store refresh token in localStorage:', err);
-      }
-    }
-
-    // Log to help debug cookie issues
-    console.log('Login response received. Checking cookies...');
-    console.log('Cookies:', document.cookie);
-
-    return data.data; // ← Access nested data
+    return data.data;
   },
 
   loginWithGoogle: async (idToken: string): Promise<AuthResponse> => {
@@ -54,16 +40,6 @@ export const authApi = {
       '/auth/google',
       { idToken },
     );
-
-    // Store refresh token in localStorage if it's in the response
-    if (data.data?.data?.refreshToken) {
-      try {
-        localStorage.setItem('refresh_token', data.data.data.refreshToken);
-        console.log('✓ Refresh token stored in localStorage (Google auth)');
-      } catch (err) {
-        console.error('Failed to store refresh token in localStorage:', err);
-      }
-    }
 
     return data.data;
   },
@@ -74,56 +50,18 @@ export const authApi = {
       { accessToken },
     );
 
-    // Store refresh token in localStorage if it's in the response
-    if (data.data?.data?.refreshToken) {
-      try {
-        localStorage.setItem('refresh_token', data.data.data.refreshToken);
-        console.log('✓ Refresh token stored in localStorage (Facebook auth)');
-      } catch (err) {
-        console.error('Failed to store refresh token in localStorage:', err);
-      }
-    }
-
     return data.data;
   },
 
   logout: async (): Promise<void> => {
     try {
-      console.log(
-        '[DEBUG-LOGOUT] Starting logout, calling /auth/logout API...',
-      );
       await apiClient.post('/auth/logout');
-      console.log('[DEBUG-LOGOUT] /auth/logout API call succeeded');
-    } catch (error) {
-      console.log('[DEBUG-LOGOUT] /auth/logout API call failed:', error);
+    } catch {
+      // Cookies are cleared below even if the API call fails.
     } finally {
-      // Always clear tokens from localStorage and cookies, even if logout API call fails
       if (typeof window !== 'undefined') {
-        console.log('[DEBUG-LOGOUT] Before clearing - tokens in storage:', {
-          hasRefreshToken: !!localStorage.getItem('refresh_token'),
-          hasAccessToken: !!localStorage.getItem('access_token'),
-        });
-
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('access_token');
-
-        // Also manually clear cookies by setting them to expire
-        // This helps ensure cookies are cleared even if backend doesn't properly send Set-Cookie
-        document.cookie =
-          'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;';
-        document.cookie =
-          'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;';
-        document.cookie =
-          'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=None; Secure;';
-        document.cookie =
-          'refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=None; Secure;';
-
-        console.log('[DEBUG-LOGOUT] After clearing - tokens in storage:', {
-          hasRefreshToken: !!localStorage.getItem('refresh_token'),
-          hasAccessToken: !!localStorage.getItem('access_token'),
-          cookieString: document.cookie,
-        });
-        console.log('✓ Tokens cleared from localStorage and cookies');
       }
     }
   },

@@ -1,5 +1,5 @@
 export default () => ({
-  port: parseInt(process.env.PORT, 10),
+  port: parseInt(process.env.PORT || '3002', 10),
   database: {
     uri: process.env.MONGODB_URI,
   },
@@ -18,8 +18,8 @@ export default () => ({
     origin: process.env.FRONTEND_URL,
   },
   throttle: {
-    ttl: parseInt(process.env.THROTTLE_TTL, 10),
-    limit: parseInt(process.env.THROTTLE_LIMIT, 10),
+    ttl: parseInt(process.env.THROTTLE_TTL || '60000', 10),
+    limit: parseInt(process.env.THROTTLE_LIMIT || '100', 10),
   },
   mail: {
     host: process.env.MAIL_HOST || 'smtp.gmail.com',

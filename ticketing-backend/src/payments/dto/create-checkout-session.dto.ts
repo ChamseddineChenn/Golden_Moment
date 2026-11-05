@@ -20,15 +20,7 @@ export class CreateCheckoutSessionDto {
   // strips unknown properties from nested objects
   @IsArray()
   @IsNotEmpty()
-  @Transform(({ obj }) => {
-    // Capture ticketIds directly from the raw request object
-    // This runs BEFORE the whitelist stripping happens
-    console.log(
-      '[DTO Transform] Raw ticketIds from request:',
-      JSON.stringify(obj.ticketIds),
-    );
-    return obj.ticketIds;
-  })
+  @Transform(({ obj }) => obj.ticketIds)
   ticketIds: any[];
 
   @IsNumber()

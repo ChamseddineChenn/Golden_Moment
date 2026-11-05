@@ -5,6 +5,14 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { UsersService } from '../../users/users.service';
 
+function requireAccessSecret(configService: ConfigService): string {
+  const secret = configService.get<string>('jwt.accessSecret');
+  if (!secret) {
+    throw new Error('JWT_ACCESS_SECRET must be set');
+  }
+  return secret;
+}
+
 export interface JwtPayload {
   [x: string]: string;
   sub: string;
@@ -25,28 +33,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         },
       ]),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('jwt.accessSecret'),
+      secretOrKey: requireAccessSecret(configService),
     });
   }
 
   async validate(payload: JwtPayload) {
-    console.log('[DEBUG-JWT-STRATEGY] Validating JWT:', {
-      sub: payload.sub,
-      email: payload.email,
-      timestamp: new Date().toISOString(),
-    });
-
     const user = await this.usersService.findById(payload.sub);
 
     if (!user || !user.isActive) {
-      console.log('[DEBUG-JWT-STRATEGY] User not found or inactive');
       throw new UnauthorizedException('User not found or inactive');
     }
 
-    console.log(
-      '[DEBUG-JWT-STRATEGY] JWT validation succeeded for user:',
-      payload.sub,
-    );
     return {
       userId: payload.sub,
       email: payload.email,

@@ -33,7 +33,13 @@ async function getCurrentUser(request: NextRequest): Promise<UserType | null> {
   }
 
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL;
+    if (!apiBase) {
+      return null;
+    }
+
+    const response = await fetch(`${apiBase}/auth/me`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -57,17 +63,11 @@ async function getCurrentUser(request: NextRequest): Promise<UserType | null> {
 
     const data: AuthMeResponse = responseData.data || responseData;
 
-    console.log('Auth /me response:', JSON.stringify(data, null, 2));
-
     if (!data || !data.user || !data.user.userType) {
-      console.log('Auth check failed: missing user or userType');
       return null;
     }
 
-    const normalized = normalizeUserType(data.user.userType);
-    console.log('Normalized userType:', normalized);
-
-    return normalized;
+    return normalizeUserType(data.user.userType);
   } catch (error) {
     console.error(
       'Middleware auth check error:',
