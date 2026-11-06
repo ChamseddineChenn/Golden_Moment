@@ -109,58 +109,86 @@ function ticketTypes(index: number) {
 }
 
 function buildEvents() {
-  const start = new Date();
-  start.setUTCHours(19, 0, 0, 0);
-  start.setUTCDate(start.getUTCDate() + 10);
+  const now = new Date();
+  const events = [];
 
-  return Array.from({ length: 48 }, (_, index) => {
-    const category = CATEGORIES[index % CATEGORIES.length];
-    const catalog = CATALOG[category];
-    const date = new Date(start);
-    date.setUTCDate(start.getUTCDate() + index * 15);
-    const seated = index % 2 === 0;
-    const rows = 6;
-    const columns = 8;
-    const title = catalog.titles[index % catalog.titles.length];
-    const when = date.toLocaleString('en-US', {
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'UTC',
+  for (let month = 0; month < 24; month += 1) {
+    CATEGORIES.forEach((category, categoryIndex) => {
+      const index = month * CATEGORIES.length + categoryIndex;
+      const day =
+        month === 0
+          ? now.getUTCDate() + 3 + categoryIndex * 3
+          : 6 + categoryIndex * 7;
+      const date = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth() + month,
+          day,
+          19,
+          0,
+          0,
+          0,
+        ),
+      );
+      events.push(buildEvent(category, index, date));
     });
+  }
 
-    return {
-      name: `${title} — ${when}`,
-      description: `${category} evening presented by Golden Moment.`,
-      longDescription: `${title} is a published portfolio event used to show how Golden Moment lists dates, ticket types, and seating across a full season.`,
-      coverImage: catalog.image,
-      date,
-      venue: catalog.venue,
-      seatingLayout: seated
-        ? {
-            enabled: true,
-            sections: [
-              {
-                id: 'main',
-                name: 'Main',
-                columns,
-                rows,
-                orientation: 'horizontal',
-                seats: buildSeats(rows, columns),
-              },
-            ],
-          }
-        : { enabled: false, sections: [] },
-      soldTickets: 0,
-      totalSeats: seated ? rows * columns : 180,
-      ticketTypes: ticketTypes(index),
-      earlyBirdCount: 0,
-      isActive: true,
-      category,
-      isDraft: false,
-      isPublished: true,
-      portfolioDemo: true,
-    };
+  return events;
+}
+
+function buildEvent(
+  category: (typeof CATEGORIES)[number],
+  index: number,
+  date: Date,
+) {
+  const catalog = CATALOG[category];
+  const seated = index % 2 === 0;
+  const rows = 6;
+  const columns = 8;
+  const title = catalog.titles[monthTitleIndex(index) % catalog.titles.length];
+  const when = date.toLocaleString('en-US', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
   });
+
+  return {
+    name: `${title} — ${when}`,
+    description: `${category} evening presented by Golden Moment.`,
+    longDescription: `${title} is a published portfolio event used to show how Golden Moment lists dates, ticket types, and seating across a full season.`,
+    coverImage: catalog.image,
+    date,
+    venue: catalog.venue,
+    seatingLayout: seated
+      ? {
+          enabled: true,
+          sections: [
+            {
+              id: 'main',
+              name: 'Main',
+              columns,
+              rows,
+              orientation: 'horizontal',
+              seats: buildSeats(rows, columns),
+            },
+          ],
+        }
+      : { enabled: false, sections: [] },
+    soldTickets: 0,
+    totalSeats: seated ? rows * columns : 180,
+    ticketTypes: ticketTypes(index),
+    earlyBirdCount: 0,
+    isActive: true,
+    category,
+    isDraft: false,
+    isPublished: true,
+    portfolioDemo: true,
+  };
+}
+
+function monthTitleIndex(index: number) {
+  return Math.floor(index / CATEGORIES.length);
 }
 
 async function seedAdmin() {
@@ -171,9 +199,9 @@ async function seedAdmin() {
     return;
   }
 
-  const UserModel =
+  const UserModel: mongoose.Model<any> =
     mongoose.models.User || mongoose.model('User', UserSchema);
-  const AdminModel =
+  const AdminModel: mongoose.Model<any> =
     UserModel.discriminators?.Admin ||
     UserModel.discriminator('Admin', AdminSchema);
   const passwordHash = await bcrypt.hash(password, 12);
@@ -209,7 +237,7 @@ async function main() {
   }
 
   await mongoose.connect(uri);
-  const EventModel =
+  const EventModel: mongoose.Model<any> =
     mongoose.models.Event || mongoose.model('Event', EventSchema);
 
   if (process.env.SEED_RESET === 'true') {

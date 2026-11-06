@@ -32,7 +32,7 @@ From `ticketing-backend`, with `MONGODB_URI` in `.env` (never commit that file):
 npm run seed:portfolio
 ```
 
-This upserts 48 published events from about ten days ahead through two years. `SEED_RESET=true` deletes only events marked `portfolioDemo` before writing them again. A demo admin is created only when both `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set.
+This upserts 96 published events, one date in each category for each of the next 24 months. `SEED_RESET=true` deletes only events marked `portfolioDemo` before writing them again. A demo admin is created only when both `ADMIN_EMAIL` and `ADMIN_PASSWORD` are set.
 
 ## After it answers
 

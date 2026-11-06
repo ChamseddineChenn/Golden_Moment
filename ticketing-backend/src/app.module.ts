@@ -20,6 +20,7 @@ import { databaseConfig, cloudinaryConfig, appConfig } from './config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     LogsModule,
     PaymentsModule,
   ],
+  controllers: [AppController],
   providers: [
     {
       provide: APP_GUARD,
