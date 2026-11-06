@@ -85,34 +85,24 @@ export class TicketsService {
     }
   }
 
-  // Generate unique ticket number using MongoDB counter pattern
   private async generateTicketNumber(): Promise<string> {
-    let ticketNumber = '';
-    let isUnique = false;
-    let attempts = 0;
-    const maxAttempts = 10;
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const maxAttempts = 5;
 
-    while (!isUnique && attempts < maxAttempts) {
-      const count = await this.ticketModel.countDocuments();
-      ticketNumber = `TK${String(count + attempts + 1).padStart(6, '0')}`;
-
-      try {
-        // Try to find if this number exists
-        const existing = await this.ticketModel.findOne({ ticketNumber });
-        if (!existing) {
-          isUnique = true;
-        }
-      } catch (err) {
-        // Continue trying
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const bytes = crypto.randomBytes(8);
+      let ticketNumber = 'TK';
+      for (let i = 0; i < 8; i++) {
+        ticketNumber += alphabet[bytes[i] % alphabet.length];
       }
-      attempts++;
+
+      const existing = await this.ticketModel.exists({ ticketNumber });
+      if (!existing) {
+        return ticketNumber;
+      }
     }
 
-    if (!isUnique) {
-      throw new ConflictException('Failed to generate unique ticket number');
-    }
-
-    return ticketNumber;
+    throw new ConflictException('Failed to generate unique ticket number');
   }
 
   async create(createTicketDto: CreateTicketDto): Promise<Ticket> {
