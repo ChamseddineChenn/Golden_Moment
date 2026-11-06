@@ -520,6 +520,7 @@ export default function HomePage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     selectedDate: '',
@@ -537,7 +538,12 @@ export default function HomePage() {
   });
 
   // Apply filters to upcoming events
-  const filteredUpcomingEvents = applyFilters(upcomingEvents, filters);
+  const filteredUpcomingEvents = applyFilters(upcomingEvents, filters).sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+  );
+  const visibleUpcomingEvents = showAllUpcoming
+    ? filteredUpcomingEvents
+    : filteredUpcomingEvents.slice(0, 6);
   const availableTicketTypes = getAvailableTicketTypes(upcomingEvents);
 
   useEffect(() => {
@@ -618,14 +624,25 @@ export default function HomePage() {
         ) : (
           <>
             <div className="mb-4 text-sm text-stone-600">
-              Showing {filteredUpcomingEvents.length} of {upcomingEvents.length}{' '}
+              Showing {visibleUpcomingEvents.length} of {upcomingEvents.length}{' '}
               events
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredUpcomingEvents.map((event) => (
+              {visibleUpcomingEvents.map((event) => (
                 <EventCard key={event._id} event={event} />
               ))}
             </div>
+            {filteredUpcomingEvents.length > 6 && (
+              <div className="mt-10 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAllUpcoming((open) => !open)}
+                  className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-lg font-medium transition cursor-pointer"
+                >
+                  {showAllUpcoming ? 'Show less' : 'Show all'}
+                </button>
+              </div>
+            )}
           </>
         )}
       </section>

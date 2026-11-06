@@ -147,14 +147,9 @@ function buildEvent(
   const rows = 6;
   const columns = 8;
   const title = catalog.titles[monthTitleIndex(index) % catalog.titles.length];
-  const when = date.toLocaleString('en-US', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
 
   return {
-    name: `${title}: ${when}`,
+    name: title,
     description: `${category} evening presented by Golden Moment.`,
     longDescription: `${title} is a published portfolio event used to show how Golden Moment lists dates, ticket types, and seating across a full season.`,
     coverImage: catalog.image,
@@ -197,6 +192,29 @@ function withoutLongDashes(value: string) {
     .replaceAll(' \u2013 ', ': ')
     .replaceAll('\u2014', '')
     .replaceAll('\u2013', '');
+}
+
+function withoutDateSuffix(value: string) {
+  return value.replace(/:\s+[A-Za-z]+\s+\d{4}\s*$/, '').trim();
+}
+
+async function removeDatesFromNames(EventModel: mongoose.Model<any>) {
+  const events = await EventModel.find({ portfolioDemo: true }).exec();
+  let changed = 0;
+
+  for (const event of events) {
+    if (typeof event.name !== 'string') {
+      continue;
+    }
+    const next = withoutDateSuffix(event.name);
+    if (next !== event.name) {
+      event.name = next;
+      await event.save();
+      changed += 1;
+    }
+  }
+
+  console.log(`Removed dates from ${changed} event names.`);
 }
 
 async function removeLongDashes(EventModel: mongoose.Model<any>) {
@@ -280,6 +298,7 @@ async function main() {
   }
 
   await removeLongDashes(EventModel);
+  await removeDatesFromNames(EventModel);
 
   const events = buildEvents();
   for (const event of events) {
