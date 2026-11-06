@@ -154,7 +154,7 @@ function buildEvent(
   });
 
   return {
-    name: `${title} — ${when}`,
+    name: `${title}: ${when}`,
     description: `${category} evening presented by Golden Moment.`,
     longDescription: `${title} is a published portfolio event used to show how Golden Moment lists dates, ticket types, and seating across a full season.`,
     coverImage: catalog.image,
@@ -189,6 +189,40 @@ function buildEvent(
 
 function monthTitleIndex(index: number) {
   return Math.floor(index / CATEGORIES.length);
+}
+
+function withoutLongDashes(value: string) {
+  return value
+    .replaceAll(' \u2014 ', ': ')
+    .replaceAll(' \u2013 ', ': ')
+    .replaceAll('\u2014', '')
+    .replaceAll('\u2013', '');
+}
+
+async function removeLongDashes(EventModel: mongoose.Model<any>) {
+  const events = await EventModel.find({ portfolioDemo: true }).exec();
+  let changed = 0;
+
+  for (const event of events) {
+    let dirty = false;
+    for (const field of ['name', 'description', 'longDescription'] as const) {
+      const value = event[field];
+      if (typeof value !== 'string') {
+        continue;
+      }
+      const next = withoutLongDashes(value);
+      if (next !== value) {
+        event[field] = next;
+        dirty = true;
+      }
+    }
+    if (dirty) {
+      await event.save();
+      changed += 1;
+    }
+  }
+
+  console.log(`Rewrote ${changed} portfolio events.`);
 }
 
 async function seedAdmin() {
@@ -245,6 +279,8 @@ async function main() {
     console.log(`Removed ${removed.deletedCount} previous portfolio events.`);
   }
 
+  await removeLongDashes(EventModel);
+
   const events = buildEvents();
   for (const event of events) {
     await EventModel.updateOne(
@@ -255,7 +291,18 @@ async function main() {
   }
 
   await seedAdmin();
+  const stored = await EventModel.find({ portfolioDemo: true })
+    .select('name description longDescription')
+    .lean();
+  const longDash = /[\u2014\u2013]/;
+  const leftover = stored.filter((event) =>
+    ['name', 'description', 'longDescription'].some(
+      (field) =>
+        typeof event[field] === 'string' && longDash.test(event[field]),
+    ),
+  ).length;
   console.log(`Upserted ${events.length} published portfolio events.`);
+  console.log(`Portfolio events still containing a long dash: ${leftover}`);
   await mongoose.disconnect();
 }
 
