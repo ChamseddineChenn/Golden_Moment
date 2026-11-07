@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Golden Moment Web Application
 
-## Getting Started
+The web frontend for **Golden Moment**, an online event-ticketing platform. It gives visitors a place to discover events, explore ticket options, select seats where supported, and complete a ticket-purchase flow. Account holders can manage their sessions and tickets, while authorized administrators manage platform content and operations.
 
-First, run the development server:
+Built with **Next.js 16, React 19, TypeScript, and Tailwind CSS 4**.
+
+## Features
+
+- Responsive event discovery and event-detail experience
+- Ticket types, seat selection, and checkout flows
+- Stripe Elements integration for payment
+- User registration, login, and OAuth entry points
+- Cookie-based authenticated sessions with API-backed refresh handling
+- Ticket and receipt views
+- QR-code scanning interface for ticket validation
+- Administrative interfaces for event and ticket operations
+
+Some capabilities depend on the backend, database records, and provider configuration. OAuth, email delivery, and payment behaviour must be configured in the corresponding services.
+
+## Tech stack
+
+- Next.js 16.1
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Axios
+- Stripe.js and React Stripe.js
+- Google and Facebook login integrations
+- html5-qrcode
+- jsPDF and html2canvas
+
+## Requirements
+
+- Node.js 20 or newer
+- npm
+- A running Golden Moment API instance
+
+## Local setup
+
+From this directory:
+
+```bash
+npm install
+```
+
+Create a local environment file:
+
+```bash
+cp .env.example .env.local
+```
+
+Set the backend URL in `.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3002
+```
+
+The application also supports `NEXT_PUBLIC_BACKEND_URL` as a fallback. Use the deployed API origin for a hosted frontend.
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the Next.js development server |
+| `npm run build` | Create a production build |
+| `npm run start` | Serve the production build |
+| `npm run lint` | Run ESLint |
 
-## Learn More
+## Backend connection
 
-To learn more about Next.js, take a look at the following resources:
+The frontend communicates with the separately deployed NestJS API. Configure `NEXT_PUBLIC_API_URL` to the API origin without a trailing slash.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The backend repository directory contains its own setup and deployment documentation:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [Backend README](../ticketing-backend/README.md)
+- [Backend deployment guide](../ticketing-backend/DEPLOY_VERCEL.md)
 
-## Deploy on Vercel
+## Authentication and payment configuration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Authentication relies on the backend's session cookies. Keep credential handling on the server and avoid storing access or refresh tokens in browser local storage.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Stripe's publishable key and the backend's Stripe secret/webhook settings must belong to the same Stripe environment. A deployment configured with test keys processes test payments only.
+
+## Production build
+
+Before deploying:
+
+1. Set `NEXT_PUBLIC_API_URL` to the production API origin.
+2. Configure the required OAuth client IDs and provider-side redirect URLs.
+3. Confirm the backend's CORS allowlist includes the exact frontend origin.
+4. Confirm Stripe keys and webhook settings use the intended test or live environment.
+5. Run `npm run build` and resolve build errors before release.
+
