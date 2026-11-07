@@ -13,7 +13,8 @@ The frontend stays on its current Vercel project. Create a second Vercel project
    - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
    - `FRONTEND_URL=https://golden-moment-inky.vercel.app`
    - `NODE_ENV=production`
-   - Mail (`SMTP_*` or `MAIL_*`) and OAuth values if those logins should work
+   - `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `SENDGRID_FROM_NAME` for signup, password reset, and ticket receipts. `SENDGRID_BASE_URL` defaults to `https://app.mailroomly.com/`. The from address must be verified at that host.
+   - Mail (`SMTP_*` or `MAIL_*`) only if the older SMTP path should also run, and OAuth values if those logins should work
 4. Deploy, then copy the backend origin (no trailing slash).
 
 ## Frontend project

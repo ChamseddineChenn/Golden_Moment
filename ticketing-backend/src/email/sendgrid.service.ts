@@ -28,10 +28,29 @@ export class SendGridService {
     }
 
     sgMail.setApiKey(apiKey);
+    const baseUrl = `${(
+      process.env.SENDGRID_BASE_URL || 'https://app.mailroomly.com'
+    ).replace(/\/+$/, '')}/`;
+    (
+      sgMail as unknown as {
+        client: { setDefaultRequest: (key: string, value: string) => void };
+      }
+    ).client.setDefaultRequest('baseUrl', baseUrl);
     this.isConfigured = true;
-    this.logger.log('SendGrid initialized successfully', SendGridService.name, {
+    this.logger.log('Mail client initialized', SendGridService.name, {
       fromEmail,
+      baseUrl,
     });
+  }
+
+  private mailErrorDetails(error: any) {
+    const body = error?.response?.body;
+    return {
+      message: error?.message,
+      status: error?.code ?? error?.response?.statusCode,
+      body:
+        typeof body === 'string' ? body : body ? JSON.stringify(body) : undefined,
+    };
   }
 
   /**
@@ -689,7 +708,7 @@ export class SendGridService {
       this.logger.error(
         'Failed to send verification email',
         SendGridService.name,
-        { email, error: error.message },
+        { email, ...this.mailErrorDetails(error) },
       );
       throw error;
     }
@@ -844,7 +863,7 @@ export class SendGridService {
       this.logger.error('Failed to send receipt email', SendGridService.name, {
         ticketNumber: ticketData.ticketNumber,
         email: ticketData.email,
-        error: error.message,
+        ...this.mailErrorDetails(error),
       });
       throw error;
     }
@@ -939,7 +958,7 @@ export class SendGridService {
       this.logger.error(
         'Failed to send password reset email',
         SendGridService.name,
-        { email, error: error.message },
+        { email, ...this.mailErrorDetails(error) },
       );
       throw error;
     }
@@ -1027,7 +1046,7 @@ export class SendGridService {
       this.logger.error(
         'Failed to send password reset confirmation',
         SendGridService.name,
-        { email, error: error.message },
+        { email, ...this.mailErrorDetails(error) },
       );
       throw error;
     }

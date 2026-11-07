@@ -73,14 +73,9 @@ export class AuthService {
 
     const verificationToken = (user as any).plainVerificationToken;
 
-    // Send verification email in background (don't await - don't block signup)
-    this.sendGridService
-      .sendVerificationEmail(user.email, verificationToken)
-      .catch((err) => {
-        this.logger.warn(
-          `Failed to send verification email to ${user.email}: ${err.message}`,
-        );
-      });
+    await this.deliverEmail('Verification email', user.email, () =>
+      this.sendGridService.sendVerificationEmail(user.email, verificationToken),
+    );
 
     // Use the userType from DTO or default to USER
     const userType = signupDto.userType || UserType.USER;
@@ -111,14 +106,9 @@ export class AuthService {
 
     const verificationToken = (user as any).plainVerificationToken;
 
-    // Send verification email in background (don't await - don't block signup)
-    this.sendGridService
-      .sendVerificationEmail(user.email, verificationToken)
-      .catch((err) => {
-        this.logger.warn(
-          `Failed to send verification email to ${user.email}: ${err.message}`,
-        );
-      });
+    await this.deliverEmail('Verification email', user.email, () =>
+      this.sendGridService.sendVerificationEmail(user.email, verificationToken),
+    );
 
     const { accessToken, refreshToken } = this.generateTokens(
       user.id,
@@ -320,14 +310,15 @@ export class AuthService {
       resendVerificationDto.email,
     );
 
-    // Send verification email in background
-    this.sendGridService
-      .sendVerificationEmail(resendVerificationDto.email, token)
-      .catch((err) => {
-        this.logger.warn(
-          `Failed to send verification email to ${resendVerificationDto.email}: ${err.message}`,
-        );
-      });
+    await this.deliverEmail(
+      'Verification email',
+      resendVerificationDto.email,
+      () =>
+        this.sendGridService.sendVerificationEmail(
+          resendVerificationDto.email,
+          token,
+        ),
+    );
 
     return {
       success: true,
@@ -343,14 +334,15 @@ export class AuthService {
         forgotPasswordDto.email,
       );
 
-      // Send password reset email in background
-      this.sendGridService
-        .sendPasswordResetEmail(forgotPasswordDto.email, token)
-        .catch((err) => {
-          this.logger.warn(
-            `Failed to send password reset email to ${forgotPasswordDto.email}: ${err.message}`,
-          );
-        });
+      await this.deliverEmail(
+        'Password reset email',
+        forgotPasswordDto.email,
+        () =>
+          this.sendGridService.sendPasswordResetEmail(
+            forgotPasswordDto.email,
+            token,
+          ),
+      );
 
       return {
         success: true,
@@ -373,14 +365,9 @@ export class AuthService {
       resetPasswordDto.newPassword,
     );
 
-    // Send password reset confirmation in background
-    this.sendGridService
-      .sendPasswordResetConfirmation(user.email)
-      .catch((err) => {
-        this.logger.warn(
-          `Failed to send password reset confirmation to ${user.email}: ${err.message}`,
-        );
-      });
+    await this.deliverEmail('Password reset confirmation', user.email, () =>
+      this.sendGridService.sendPasswordResetConfirmation(user.email),
+    );
 
     return {
       success: true,
@@ -526,6 +513,22 @@ export class AuthService {
     } catch (error) {
       this.logger.error(`Facebook auth error: ${error.message}`);
       throw new UnauthorizedException('Facebook authentication failed');
+    }
+  }
+
+  private async deliverEmail(
+    label: string,
+    email: string,
+    send: () => Promise<{ success: boolean; message: string }>,
+  ): Promise<void> {
+    try {
+      const result = await send();
+      if (!result.success) {
+        this.logger.warn(`${label} was not sent to ${email}: ${result.message}`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`${label} failed for ${email}: ${message}`);
     }
   }
 

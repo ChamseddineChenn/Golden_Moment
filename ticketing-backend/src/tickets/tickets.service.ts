@@ -369,14 +369,14 @@ export class TicketsService {
         console.log('🎫 TICKET SERVICE: updateInternal call completed');
       }
 
-      // Send receipt email asynchronously (don't block the response)
-      this.sendReceiptEmailAsync(savedTicket, event).catch((error) => {
+      try {
+        await this.sendReceiptEmailAsync(savedTicket, event);
+      } catch (error) {
         this.logger.warn('Failed to send receipt email', TicketsService.name, {
           ticketId: savedTicket._id.toString(),
-          error: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
-        // Don't throw - email failure shouldn't fail the ticket creation
-      });
+      }
 
       // Convert to plain JSON object for response serialization
       return JSON.parse(JSON.stringify(savedTicket));
@@ -560,7 +560,7 @@ export class TicketsService {
         </html>
       `;
 
-      await this.sendGridService.sendTicketReceipt(
+      const receiptResult = await this.sendGridService.sendTicketReceipt(
         {
           email: ticket.buyerEmail,
           ticketNumber: ticket.ticketNumber,
@@ -583,6 +583,9 @@ export class TicketsService {
           attachPdf: true,
         },
       );
+      if (!receiptResult.success) {
+        throw new Error(receiptResult.message);
+      }
 
       this.logger.log(
         'Payment receipt email sent successfully',
@@ -628,7 +631,7 @@ export class TicketsService {
         },
       );
 
-      await this.sendGridService.sendTicketReceipt(
+      const receiptResult = await this.sendGridService.sendTicketReceipt(
         {
           email: ticket.buyerEmail,
           ticketNumber: ticket.ticketNumber,
@@ -649,6 +652,9 @@ export class TicketsService {
           attachPdf: true, // Enable PDF attachment with receipt
         },
       );
+      if (!receiptResult.success) {
+        throw new Error(receiptResult.message);
+      }
 
       this.logger.log(
         'Receipt email queued successfully',
@@ -1393,18 +1399,16 @@ export class TicketsService {
         },
       });
 
-      // Send receipt emails for each ticket with payment info
       for (const ticket of createdTickets) {
-        this.sendPaymentReceiptEmailAsync(ticket, event, paymentId).catch(
-          (error) => {
-            this.logger.error(
-              'Failed to send payment receipt email',
-              TicketsService.name,
-              error,
-            );
-            // Don't throw - payment is already succeeded, just log the error
-          },
-        );
+        try {
+          await this.sendPaymentReceiptEmailAsync(ticket, event, paymentId);
+        } catch (error) {
+          this.logger.error(
+            'Failed to send payment receipt email',
+            TicketsService.name,
+            error,
+          );
+        }
       }
 
       return createdTickets;
