@@ -1,98 +1,134 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Golden Moment API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+The backend for **Golden Moment**, an online event-ticketing platform. It provides the application API for event discovery, accounts and authentication, ticket purchasing, payment processing, ticket delivery, and administrative workflows.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Built with **NestJS 11, TypeScript, MongoDB/Mongoose, and Stripe**.
 
-## Description
+## Responsibilities
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- Event and ticket-type data served to the web application
+- User registration, login, OAuth sign-in, email verification, and session handling
+- Cookie-based JWT authentication with access and refresh token guards
+- Checkout and payment integration through Stripe
+- Ticket records, ticket numbers, QR-code generation, and receipt generation
+- Cloudinary-backed media handling
+- Administrative event and ticket-management endpoints
+- Request validation, security headers, CORS configuration, and rate limiting
 
-## Project setup
+The API is configured for deployment as a Vercel serverless application. Deployment instructions are maintained in [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md).
 
-```bash
-$ npm install
-```
+## Tech stack
 
-## Compile and run the project
+- NestJS 11 / TypeScript
+- MongoDB with Mongoose
+- Passport and JWT authentication
+- Stripe
+- Cloudinary
+- SendGrid / SMTP mail integrations
+- QRCode and PDFKit
+- Helmet, class-validator, and Nest throttling
 
-```bash
-# development
-$ npm run start
+## Requirements
 
-# watch mode
-$ npm run start:dev
+- Node.js 20 or newer
+- npm
+- MongoDB instance
+- Stripe account and API keys
+- Cloudinary credentials
+- Mail provider credentials for email delivery
 
-# production mode
-$ npm run start:prod
-```
+## Local setup
 
-## Run tests
+From this directory:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm install
+cp .env.example .env
 ```
+
+Fill in the required values in `.env`. Never commit real credentials or production environment files.
+
+Start the API in development mode:
+
+```bash
+npm run start:dev
+```
+
+The default local port is **3002** (the application configuration may override it).
+
+## Environment configuration
+
+Use [.env.example](./.env.example) as the variable reference. Important settings include:
+
+| Variable | Purpose |
+| --- | --- |
+| `MONGODB_URI` | MongoDB connection string |
+| `JWT_ACCESS_SECRET` | Access-token signing secret |
+| `JWT_REFRESH_SECRET` | Refresh-token signing secret |
+| `FRONTEND_URL` | Allowed frontend origin |
+| `STRIPE_SECRET_KEY` | Stripe server-side secret key |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signature verification |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary account |
+| `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Server-side Cloudinary credentials |
+| `QR_ENCRYPTION_KEY` | QR payload encryption key |
+| `MAIL_*` / `SMTP_*` | Email delivery configuration |
+| `GOOGLE_CLIENT_ID` / `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` | OAuth configuration |
+
+Generate distinct, high-entropy JWT secrets for each environment. Configure secrets in the hosting platform's environment settings rather than in source control.
+
+## Available scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run start:dev` | Run in watch mode |
+| `npm run start` | Start NestJS |
+| `npm run build` | Compile the application |
+| `npm run start:prod` | Run the compiled application |
+| `npm run lint` | Run ESLint with automatic fixes |
+| `npm run test` | Run unit tests |
+| `npm run test:e2e` | Run end-to-end tests |
+| `npm run test:cov` | Run tests with coverage |
+| `npm run seed:portfolio` | Seed the portfolio event catalogue |
+
+## Portfolio event seed
+
+The seed script creates or updates the portfolio/demo event catalogue:
+
+```bash
+npm run seed:portfolio
+```
+
+Run it only with a valid database connection configured. The deployment guide documents the seed behaviour and optional reset flag. Review the script before running it against any database containing real customer or event data.
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+The API is deployed separately from the Next.js frontend. See [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md) for the Vercel project configuration, environment variables, frontend API URL, Stripe webhook, and health-check instructions.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+The Stripe keys and webhook configuration determine whether the deployed instance is operating in test or live mode. Do not assume live payment processing from a successful deployment alone.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+## Security notes
+
+- Keep all secrets in environment variables and rotate any credential that has ever been exposed.
+- Keep administrative routes protected by server-side authorization.
+- Verify Stripe webhook signatures before treating a payment as successful.
+- Treat ticket QR codes as credentials: validate them server-side and prevent reuse.
+- Do not trust prices, ticket ownership, or quantities supplied by the browser without server-side validation.
+- Configure production CORS to the exact frontend origin.
+
+## Project structure
+
+```
+ticketing-backend/
+├── api/                 # Serverless entry point
+├── src/
+│   ├── auth/            # Authentication, guards, strategies, and DTOs
+│   ├── ...              # Application modules and API features
+│   ├── main.ts          # Local NestJS bootstrap
+│   └── ...
+├── scripts/             # Maintenance and seed scripts
+├── test/                # Automated tests
+├── .env.example         # Placeholder environment template
+├── DEPLOY_VERCEL.md     # Deployment guide
+└── package.json
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
