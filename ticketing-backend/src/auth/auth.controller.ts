@@ -20,7 +20,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { FacebookAuthDto } from './dto/facebook-auth.dto';
-import { Public } from './decorators/public.decorator';
+import { OptionalAuth, Public } from './decorators/public.decorator';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { GetCurrentUser } from './decorators/get-current-user.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -116,9 +116,13 @@ export class AuthController {
     return this.authService.logout(userId, res);
   }
 
+  @OptionalAuth()
   @Throttle({ default: { limit: 100, ttl: 60000 } })
   @Get('me')
-  async getCurrentUser(@GetCurrentUser('userId') userId: string) {
+  async getCurrentUser(@GetCurrentUser('userId') userId?: string) {
+    if (!userId) {
+      return { success: true, user: null };
+    }
     return this.authService.getCurrentUser(userId);
   }
 

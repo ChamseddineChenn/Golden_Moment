@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import {
+  IS_OPTIONAL_AUTH_KEY,
+  IS_PUBLIC_KEY,
+} from '../decorators/public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -32,11 +35,18 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     _info: any,
     context: ExecutionContext,
   ): TUser {
-    // If authentication fails, clear the cookies
+    const isOptional = this.reflector.getAllAndOverride<boolean>(
+      IS_OPTIONAL_AUTH_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    if (isOptional && (err || !user)) {
+      return null;
+    }
+
     if (err || !user) {
       const response = context.switchToHttp().getResponse();
 
-      // Clear invalid cookies
       response.clearCookie('access_token', { path: '/' });
       response.clearCookie('refresh_token', { path: '/' });
 
