@@ -106,14 +106,18 @@ The API is deployed separately from the Next.js frontend. See [DEPLOY_VERCEL.md]
 
 The Stripe keys and webhook configuration determine whether the deployed instance is operating in test or live mode. Do not assume live payment processing from a successful deployment alone.
 
-## Security notes
+## Security status and review notes
 
-- Keep all secrets in environment variables and rotate any credential that has ever been exposed.
-- Keep administrative routes protected by server-side authorization.
-- Verify Stripe webhook signatures before treating a payment as successful.
-- Treat ticket QR codes as credentials: validate them server-side and prevent reuse.
-- Do not trust prices, ticket ownership, or quantities supplied by the browser without server-side validation.
-- Configure production CORS to the exact frontend origin.
+This repository has security controls such as JWT guards, role checks, request validation, Helmet, CORS restrictions, throttling, hashed refresh tokens, and Stripe webhook signature verification. These controls do **not** by themselves establish production readiness. A source review on 2026-11-07 identified unresolved high-priority issues that should be fixed and tested before handling real customer payments:
+
+- Public signup accepts a `userType` field, and the user-creation service honours `ADMIN`. Public callers may therefore be able to create administrator accounts. Public signup must force the regular user role; administrator provisioning must be restricted to a trusted process.
+- Checkout currently uses the client-submitted `totalAmount` to create the Stripe PaymentIntent. The server must derive the amount from the event's authoritative ticket prices, requested ticket types, and validated seats.
+- Payment lookup routes (`GET /payments/:paymentId` and `GET /payments/by-intent/:paymentIntentId`) and ticket lookup routes (`GET /tickets/:id` and `GET /tickets/by-payment/:paymentId`) are public. Review the returned fields and enforce ownership or an appropriate scoped access token.
+- QR/ticket-number validation routes are public and perform the check-in mutation. Protect check-in with staff/organizer authorization and make redemption atomic so concurrent scans cannot both be accepted.
+- QR encryption currently falls back to a hard-coded default key when `QR_ENCRYPTION_KEY` is absent, and the supplied key is padded/truncated rather than validated as a 32-byte key. Require a correctly sized high-entropy secret and fail startup when missing.
+- Payment success handling marks a payment succeeded before ticket creation completes. A failure between those operations needs a recoverable state transition and reconciliation strategy; webhook idempotency should also be enforced at the database level.
+
+Treat these as audit findings from the inspected source, not as proof that a deployed instance has been exploited. Keep all secrets in environment variables, rotate anything ever exposed, and test fixes against the deployed configuration. Do not use real customer payments until the critical items above are resolved.
 
 ## Project structure
 
